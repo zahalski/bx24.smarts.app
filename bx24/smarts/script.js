@@ -716,7 +716,7 @@ $(document).ready(function (){
             'placement.bind',
             {
                 'PLACEMENT': 'REST_APP_URI',
-                'HANDLER': window.awz_helper.APP_URL+'smart.php&app='+window.awz_helper.APP_ID,
+                'HANDLER': window.awz_helper.APP_URL+'smart.php?app='+window.awz_helper.APP_ID,
                 'LANG_ALL': {
                     ru : {
                         'TITLE': 'Баг-Смарты'

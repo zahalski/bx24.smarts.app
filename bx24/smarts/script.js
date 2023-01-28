@@ -1,6 +1,7 @@
 $(document).ready(function (){
 
     window.awz_helper = {
+        filter_dates: {},
         APP_ID: '',
         APP_URL: '',
         key: '',
@@ -271,12 +272,91 @@ $(document).ready(function (){
         getSmartDataFiltered: function(filter){
             var format_filter = {};
             var k;
+            console.log(filter);
             for(k in filter){
                 if(k === 'FIND') continue;
                 if(!filter[k]) continue;
+
+                if(k.slice(-5) === '_from') continue;
+                if(k.slice(-3) === '_to') continue;
+                if(k.slice(-5) === '_days') continue;
+                if(k.slice(-6) === '_month') continue;
+                if(k.slice(-8) === '_quarter') continue;
+                if(k.slice(-5) === '_year') continue;
+                if(k.slice(-8) === '_datesel'){
+                    if(['CURRENT_DAY','YESTERDAY','TOMORROW',
+                        'CURRENT_WEEK','CURRENT_MONTH','CURRENT_QUARTER',
+                        'LAST_7_DAYS','LAST_30_DAYS','LAST_60_DAYS','LAST_90_DAYS',
+                        'LAST_WEEK','LAST_MONTH','NEXT_WEEK','NEXT_MONTH'
+                    ].indexOf(filter[k])>-1
+                    ) {
+                        format_filter['>='+k.slice(0,-8)] = this.filter_dates[filter[k]]['>='];
+                        format_filter['<='+k.slice(0,-8)] = this.filter_dates[filter[k]]['<='];
+                    }else if(['PREV_DAYS'].indexOf(filter[k])>-1
+                    ) {
+                        format_filter['<='+k.slice(0,-8)] = this.filter_dates[filter[k]]['<='];
+                        var D = new Date(this.filter_dates[filter[k]]['>=']);
+                        D.setDate(D.getDate() - parseInt(filter[k.slice(0,-8)+'_days']));
+                        D.setHours(D.getHours() + 3);
+                        format_filter['>='+k.slice(0,-8)] = D.toISOString().replace(/(.000Z)/g,'+03:00');
+                    }else if(['NEXT_DAYS'].indexOf(filter[k])>-1
+                    ) {
+                        var D = new Date(this.filter_dates[filter[k]]['<=']);
+                        D.setDate(D.getDate() + parseInt(filter[k.slice(0,-8)+'_days']));
+                        D.setHours(D.getHours() + 3);
+                        format_filter['<='+k.slice(0,-8)] = D.toISOString().replace(/(.000Z)/g,'+03:00');
+                        format_filter['>='+k.slice(0,-8)] = this.filter_dates[filter[k]]['>='];
+                    }else if(filter[k] == 'RANGE'){
+                        if(filter[k.slice(0,-8)+'_from'])
+                            format_filter['>='+k.slice(0,-8)] = filter[k.slice(0,-8)+'_from'];
+                        if(filter[k.slice(0,-8)+'_to'])
+                            format_filter['<='+k.slice(0,-8)] = filter[k.slice(0,-8)+'_to'];
+                    }else if(filter[k] == 'EXACT'){
+                        if(filter[k.slice(0,-8)+'_from'])
+                            format_filter[k.slice(0,-8)] = filter[k.slice(0,-8)+'_from'];
+                    }else if(filter[k] == 'MONTH'){
+                        if(filter[k.slice(0,-8)+'_month'] && filter[k.slice(0,-8)+'_year']){
+                            var D = new Date(filter[k.slice(0,-8)+'_year'], filter[k.slice(0,-8)+'_month']-1);
+                            D.setHours(D.getHours() + 3);
+                            var D2 = new Date(filter[k.slice(0,-8)+'_year'], filter[k.slice(0,-8)+'_month']-1);
+                            D2.setMonth(D2.getMonth() + 1);
+                            D2.setHours(D2.getHours() + 3);
+                            format_filter['>='+k.slice(0,-8)] = D.toISOString().replace(/(.000Z)/g,'+03:00');
+                            format_filter['<'+k.slice(0,-8)] = D2.toISOString().replace(/(.000Z)/g,'+03:00');
+                        }
+                    }else if(filter[k] == 'QUARTER'){
+                        if(filter[k.slice(0,-8)+'_quarter'] && filter[k.slice(0,-8)+'_year']){
+                            filter[k.slice(0,-8)+'_month'] = 1;
+                            if(filter[k.slice(0,-8)+'_quarter'] == 2) filter[k.slice(0,-8)+'_month'] = 4;
+                            if(filter[k.slice(0,-8)+'_quarter'] == 3) filter[k.slice(0,-8)+'_month'] = 7;
+                            if(filter[k.slice(0,-8)+'_quarter'] == 4) filter[k.slice(0,-8)+'_month'] = 10;
+                            var D = new Date(filter[k.slice(0,-8)+'_year'], filter[k.slice(0,-8)+'_month']-1);
+                            D.setHours(D.getHours() + 3);
+                            var D2 = new Date(filter[k.slice(0,-8)+'_year'], filter[k.slice(0,-8)+'_month']-1);
+                            D2.setMonth(D2.getMonth() + 3);
+                            D2.setHours(D2.getHours() + 3);
+                            format_filter['>='+k.slice(0,-8)] = D.toISOString().replace(/(.000Z)/g,'+03:00');
+                            format_filter['<'+k.slice(0,-8)] = D2.toISOString().replace(/(.000Z)/g,'+03:00');
+                        }
+                    }else if(filter[k] == 'YEAR'){
+                        if(filter[k.slice(0,-8)+'_year']){
+                            var D = new Date(filter[k.slice(0,-8)+'_year']);
+                            D.setHours(D.getHours() + 3);
+                            var D2 = new Date(filter[k.slice(0,-8)+'_year']);
+                            D2.setFullYear(D2.getFullYear() + 1);
+                            D2.setHours(D2.getHours() + 3);
+                            format_filter['>='+k.slice(0,-8)] = D.toISOString().replace(/(.000Z)/g,'+03:00');
+                            format_filter['<'+k.slice(0,-8)] = D2.toISOString().replace(/(.000Z)/g,'+03:00');
+                        }
+                    }else if(filter[k] == 'NONE'){
+                        //format_filter['!'+k.slice(0,-8)] = '';
+                    }
+                    continue;
+                }
+
                 format_filter[k] = filter[k];
             }
-            //console.log('filtered',format_filter);
+            console.log('filtered',format_filter);
             return this.getSmartData(null, format_filter);
         },
         getSmartData: function(order, filter){

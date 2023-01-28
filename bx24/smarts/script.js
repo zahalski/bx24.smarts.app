@@ -1,6 +1,8 @@
 $(document).ready(function (){
 
     window.awz_helper = {
+        users: {},
+        fields: {},
         filter_dates: {},
         APP_ID: '',
         APP_URL: '',
@@ -191,7 +193,7 @@ $(document).ready(function (){
                                             }
                                             code = placement['handler'].replace(/.*smartId=[A-Z]+_([0-9]+)(.*)/g, "$1");
 
-                                            console.log([code_type, code, code_to, placement['handler']]);
+                                            //console.log([code_type, code, code_to, placement['handler']]);
                                             var item = linksSmart[code];
                                             var item_to = linksSmart[code_to];
 
@@ -274,7 +276,11 @@ $(document).ready(function (){
             var k;
             console.log(filter);
             for(k in filter){
-                if(k === 'FIND') continue;
+                if(k === 'FIND') {
+                    if(format_filter[k])
+                        format_filter['%title'] = format_filter[k];
+                    continue;
+                }
                 if(!filter[k]) continue;
 
                 if(k.slice(-5) === '_from') continue;
@@ -352,6 +358,28 @@ $(document).ready(function (){
                         //format_filter['!'+k.slice(0,-8)] = '';
                     }
                     continue;
+                }else if(k.slice(-7) === '_numsel'){
+                    if(filter[k] == 'exact'){
+                        format_filter[k.slice(0,-7)] = filter[k.slice(0,-7)+'_from'];
+                    }else if(filter[k] == 'more'){
+                        format_filter['>'+k.slice(0,-7)] = filter[k.slice(0,-7)+'_from'];
+                    }else if(filter[k] == 'less'){
+                        format_filter['<'+k.slice(0,-7)] = filter[k.slice(0,-7)+'_to'];
+                    }else if(filter[k] == 'range'){
+                        format_filter['>='+k.slice(0,-7)] = filter[k.slice(0,-7)+'_from'];
+                        format_filter['<='+k.slice(0,-7)] = filter[k.slice(0,-7)+'_to'];
+                    }
+                    continue;
+                }else if(k.slice(-8) === '_isEmpty'){
+                    if(filter[k] == 'y'){
+                        format_filter[k.slice(0,-8)] = '';
+                    }
+                    continue;
+                }else if(k.slice(-12) === '_hasAnyValue'){
+                    if(filter[k] == 'y'){
+                        format_filter['!'+k.slice(0,-12)] = '';
+                    }
+                    continue;
                 }
 
                 format_filter[k] = filter[k];
@@ -385,13 +413,79 @@ $(document).ready(function (){
 
             this.callApi('crm.item.list', params, function(res){
                 if(typeof res == 'object'){
+                    //console.log(res.result);
                     if(res.hasOwnProperty('total')){
                         window.awz_helper.pagesize_total = res.total;
                     }
                     if(res.hasOwnProperty('result')){
-                        window.awz_helper.postData(
-                            res.result
-                        );
+
+                        if(!window.awz_helper.users)
+                            window.awz_helper.users = {};
+                        var users_get = [];
+                        var users_data = {};
+                        var user_fields = [];
+                        var k;
+                        for(k in window.awz_helper.fields){
+                            if(window.awz_helper.fields[k]['type']==='user'){
+                                user_fields.push(k);
+                            }
+                        }
+                        try{
+
+                            for(k in res.result['items']){
+                                var item = res.result['items'][k];
+                                var k2;
+                                for(k2 in user_fields){
+                                    if(item[user_fields[k2]]){
+                                        if(!window.awz_helper.users.hasOwnProperty(item[user_fields[k2]])){
+                                            if(users_get.indexOf(item[user_fields[k2]])===-1)
+                                                users_get.push(item[user_fields[k2]]);
+                                        }else{
+                                            users_data[item[user_fields[k2]]] = {
+                                                'ID': window.awz_helper.users[item[user_fields[k2]]].ID,
+                                                'NAME': window.awz_helper.users[item[user_fields[k2]]].NAME,
+                                                'LAST_NAME': window.awz_helper.users[item[user_fields[k2]]].LAST_NAME,
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }catch (e){
+
+                        }
+                        //console.log(users_get);
+                        //console.log(user_fields);
+                        res.result['users'] = users_data;
+                        if(users_get.length){
+                            BX24.callMethod(
+                                'user.get',
+                                {
+                                    'FILTER': {'ID':users_get}
+                                },
+                                function(res2)
+                                {
+                                    var k;
+                                    for(k in res2['answer']['result']) {
+                                        var id_usr = res2['answer']['result'][k]['ID'];
+                                        window.awz_helper.users[id_usr] = res2['answer']['result'][k];
+                                        users_data[id_usr] = {
+                                            'ID': window.awz_helper.users[id_usr].ID,
+                                            'NAME': window.awz_helper.users[id_usr].NAME,
+                                            'LAST_NAME': window.awz_helper.users[id_usr].LAST_NAME,
+                                        }
+                                    }
+                                    res.result['users'] = users_data;
+                                    window.awz_helper.postData(
+                                        res.result
+                                    );
+                                }
+                            );
+                        }else{
+                            window.awz_helper.postData(
+                                res.result
+                            );
+                        }
+
                     }
                 }
             });

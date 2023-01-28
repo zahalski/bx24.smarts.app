@@ -17,6 +17,7 @@ use Bitrix\Main\Page\Asset;
 use Awz\bxApi\App;
 use Awz\bxApi\Helper;
 use Bitrix\Main\Web\Json;
+use Bitrix\Main\UI\Filter\Options as FilterOptions;
 //use Bitrix\Main\UI\Extension;
 
 if(!Loader::includeModule('awz.bxapi')){
@@ -47,7 +48,24 @@ class SmartList extends IList implements IParams {
         parent::__construct($params, $publicMode);
     }
 
+    public function getUser(int $id = 0)
+    {
+
+        static $users = array();
+
+        if(!isset($users[$id])){
+            $request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
+            if($bx_result = $request->getPost('bx_result')){
+                if(isset($bx_result['users'][$id])){
+                    $users[$id] = $bx_result['users'][$id];
+                }
+            }
+        }
+        return $users[$id] ?? array();
+    }
+
     public function trigerGetRowListAdmin($row){
+        $request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
         if(!$row->arRes['id']){
             foreach($row->arRes as $k=>$v){
                 $row->arRes[$k] = '';
@@ -77,34 +95,61 @@ class SmartList extends IList implements IParams {
             if($fieldCode == 'title'){
                 $row->AddViewField($fieldCode, '<a class="open-smart" data-ent="'.$this->getParam('SMART_ID').'" data-id="'.$row->arRes['id'].'" href="#">'.$row->arRes[$fieldCode].'</a>');
                 //$row->AddViewField($fieldCode, '<a class="open-app" href="https://zahalski.bitrix24.by/marketplace/view/56/?params[smart]=186">'.$row->arRes[$fieldCode].'</a>');
-                $row->AddInputField($fieldCode, array("size"=>$fieldData['settings']['SIZE']));
-            }elseif($fieldCode == 'id'){
-                $row->AddViewField($fieldCode, '<a class="open-smart" data-ent="'.$this->getParam('SMART_ID').'" data-id="'.$row->arRes['id'].'" href="#">'.$row->arRes[$fieldCode].'</a>');
-            }elseif($fieldData['isReadOnly']){
-                $row->AddViewField($fieldCode, $row->arRes[$fieldCode]);
-            }else{
-                if($fieldData['type'] == 'string'){
+                if(!$fieldData['isReadOnly']){
                     $row->AddInputField($fieldCode, array("size"=>$fieldData['settings']['SIZE']));
                 }
+            }elseif($fieldCode == 'id'){
+                $row->AddViewField($fieldCode, '<a class="open-smart" data-ent="'.$this->getParam('SMART_ID').'" data-id="'.$row->arRes['id'].'" href="#">'.$row->arRes[$fieldCode].'</a>');
+            }else{
+                if($fieldData['type'] == 'string'){
+                    if(!$fieldData['isReadOnly']) {
+                        $row->AddInputField($fieldCode, array("size" => $fieldData['settings']['SIZE']));
+                    }
+                }
                 if($fieldData['type'] == 'money'){
+                    $val = explode('|', $row->arRes[$fieldCode]);
                     /*$row->aFields[$fieldCode]["edit"] = array(
 
                     );*/
                     //$row->aFields['id']['edit']['type'] == 'money';
                     /*$row->AddMoneyField($fieldCode, array(
-                            'PRICE'=>$row->arRes[$fieldCode],
-                            'CURRENCY'=>'BYN',
+                        'PRICE'=>$val[0],
+                        'CURRENCY'=>$val[1],
+                        'CURRENCY_LIST'=>[[$val[1] => $val[1]]],
+                        'HIDDEN'=>[['NAME'=>'test', 'VALUE'=>'test'],['NAME'=>'test2', 'VALUE'=>'test2']],
+                        'ATTRIBUTES'=>[
+                                'PLACEHOLDER'=>''
+                            //'CURRENCY_LIST'=>[$val[1] => $val[1]]
+                        ]
                     ));*/
+                    $row->AddInputField($fieldCode);
                 }
                 if($fieldData['type'] == 'double'){
+                    if(!$fieldData['isReadOnly']) {
+                        $row->AddInputField($fieldCode, array("size" => $fieldData['settings']['SIZE']));
+                    }
+                }
+                if($fieldData['type'] == 'user'){
                     $row->AddInputField($fieldCode, array("size"=>$fieldData['settings']['SIZE']));
+                    $user = $this->getUser(intval($row->arRes[$fieldCode]));
+                    $userName = '';
+                    if(!empty($user)){
+                        $userName = '['.intval($row->arRes[$fieldCode]).'] '.htmlspecialcharsbx($user['NAME']).' '.htmlspecialcharsbx($user['LAST_NAME']);
+                    }else{
+                        $userName = $row->arRes[$fieldCode];
+                    }
+                    $row->AddViewField($fieldCode, '<a target="_blank" href="https://'.$request->get('DOMAIN').'/company/personal/user/'.intval($row->arRes[$fieldCode]).'/">'.$userName.'</a>');
                 }
                 if($fieldData['type'] == 'integer'){
-                    $row->AddInputField($fieldCode, array("size"=>$fieldData['settings']['SIZE']));
+                    if(!$fieldData['isReadOnly']) {
+                        $row->AddInputField($fieldCode, array("size" => $fieldData['settings']['SIZE']));
+                    }
                 }
                 if($fieldData['type'] == 'url'){
                     $row->AddViewField($fieldCode, '<a target="_blank" href="'.$row->arRes[$fieldCode].'">'.$row->arRes[$fieldCode].'</a>');
-                    $row->AddInputField($fieldCode, array("size"=>$fieldData['settings']['SIZE']));
+                    if(!$fieldData['isReadOnly']) {
+                        $row->AddInputField($fieldCode, array("size" => $fieldData['settings']['SIZE']));
+                    }
                 }
                 if($fieldData['type'] == 'date'){
                     $row->AddCalendarField($fieldCode, array());
@@ -113,7 +158,18 @@ class SmartList extends IList implements IParams {
                     $row->AddCalendarField($fieldCode, array(), true);
                 }
                 if($fieldData['type'] == 'boolean'){
-                    $row->AddCheckField($fieldCode, array());
+                    if(!isset($fieldData['settings'])){
+                        $row->AddCheckField($fieldCode);
+                    }else{
+                        $label = $row->arRes[$fieldCode];
+                        if($label == 0) $label = ($fieldData['settings']['LABEL'][0]) ?? 'нет';
+                        if($label == 1) $label = ($fieldData['settings']['LABEL'][1]) ?? 'да';
+                        $row->AddViewField($fieldCode,$label);
+                        if(!$fieldData['isReadOnly']) {
+                            $row->AddEditField($fieldCode, '<label>' . $fieldData['settings']['LABEL_CHECKBOX'] . '</label><input type="checkbox" id="' . htmlspecialcharsbx($fieldCode) . '_control" name="' . htmlspecialcharsbx($fieldCode) . '" value="Y" ' . ($row->arRes[$fieldCode] == '1' || $row->arRes[$fieldCode] === true ? ' checked' : '') . '>');
+                        }
+                    }
+
                 }
             }
         }
@@ -202,6 +258,7 @@ class SmartList extends IList implements IParams {
         //die();
         if(isset($res['items'])){
             foreach ($res['items'] as $row){
+                if(empty($row)) continue;
                 //$row['id'] = 'n: '.$n.', ost: '.$ost.', pageSize: '.$pageSize;
                 //echo'<pre>';print_r($row);echo'</pre>';
                 $n++;
@@ -212,12 +269,58 @@ class SmartList extends IList implements IParams {
                 }
                 $this->getRowListAdmin($row);
             }
+            if(!$n){
+                $this->getRowListAdmin(array());
+            }
         }else{
             $this->getRowListAdmin(array());
         }
         $nav = $this->getAdminList()->getPageNavigation($this->getParam('TABLEID'));
         $nav->setRecordCount($nav->getOffset() + $n);
         $this->getAdminList()->setNavigation($nav, Loc::getMessage($this->getParam("LANG_CODE")."NAV_TEXT"), false);
+
+    }
+
+    public static function getDates(){
+
+        $arDates = array();
+        $result = array();
+        $fields = array(
+            'CURRENT_DAY',
+            'YESTERDAY',
+            'TOMORROW',
+            'CURRENT_WEEK',
+            'CURRENT_MONTH',
+            'CURRENT_QUARTER',
+            'LAST_7_DAYS',
+            'LAST_30_DAYS',
+            'LAST_60_DAYS',
+            'LAST_90_DAYS',
+            'LAST_WEEK',
+            'LAST_MONTH',
+            'NEXT_WEEK',
+            'NEXT_MONTH',
+
+            'PREV_DAYS',
+            'NEXT_DAYS',
+        );
+        foreach($fields as $field){
+            //_days
+            $opt = array($field.'_datesel'=>$field);
+            if(in_array($field,['PREV_DAYS', 'NEXT_DAYS'])){
+                $opt[$field.'_days'] = 0;
+            }
+            FilterOptions::calcDates($field, $opt, $result);
+            $result[$field.'_to'] = date("c",strtotime($result[$field.'_to']));
+            $result[$field.'_from'] = date("c",strtotime($result[$field.'_from']));
+            $arDates[$field] = array(
+                '>='=>$result[$field.'_from'],
+                '<='=>$result[$field.'_to']
+            );
+        }
+        //echo '<pre>';print_r($result);echo'</pre>';
+        //die();
+        return $arDates;
 
     }
 
@@ -253,6 +356,8 @@ class SmartList extends IList implements IParams {
                 $(document).ready(function(){
                     BX24.ready(function() {
                         BX24.init(function () {
+                            window.awz_helper.fields = <?=\CUtil::PhpToJSObject($this->getParam('SMART_FIELDS'))?>;
+                            window.awz_helper.filter_dates = <?=\CUtil::PhpToJSObject(SmartList::getDates())?>;
                             window.awz_helper.init('<?=$this->getParam('ADD_REQUEST_KEY')?>',<?=$this->getParam('SMART_ID')?>,'<?=$this->getParam('TABLEID')?>', <?=$this->getAdminList()->getNavSize()?>);
                         });
                     });
@@ -408,6 +513,8 @@ if(!$checkAuth){
             $bxFields = $bxRowsResFields->getData();
             $allFields = $bxFields['result']['result']['fields'];
             $arParams['SMART_FIELDS'] = $allFields;
+            //echo'<pre>';print_r($allFields);echo'</pre>';
+            //die();
             $app->log($allFields, 'allFields');
             /*for($i=0; $i<50; $i++){
                 $app->postMethod('crm.item.add', array(
@@ -427,20 +534,108 @@ if(!$checkAuth){
 
         $fields = \Awz\Admin\SmartTable::getMap();
         foreach($fields as $obField){
+            /*
+             * $arParams['FIND'][] = array(
+                    'id'=>$obField->getColumnName(),
+                    'name'=>$obField->getTitle(),
+                    'type'=>'custom',
+                    "SUB_TYPE" => ['name'=>'test', 'value'=>'test'],
+                    "SUB_TYPES" => [
+                        ['name'=>'test', 'value'=>'test'],
+                        ['name'=>'test2', 'value'=>'test2']
+                    ],
+                    "VALUES"=>["_from" => "", "_to" => ""],
+                    "SELECT_PARAMS" => ["isMulti" => false]
+                );
+             * */
+            $filterTitle = $arParams['SMART_FIELDS'][$obField->getColumnName()]['filterLabel'];
+            if(!$filterTitle) $filterTitle = $obField->getTitle();
             if($obField instanceof \Bitrix\Main\ORM\Fields\StringField){
                 $arParams['FIND'][] = array(
-                    'id'=>'%'.$obField->getColumnName(),
-                    'name'=>'[%] '.$obField->getTitle(),
-                );
-                $arParams['FIND'][] = array(
                     'id'=>$obField->getColumnName(),
-                    'name'=>'[=] '.$obField->getTitle(),
+                    'name'=>$filterTitle,
+                    'type'=>'string',
+                    'additionalFilter' => [
+                        'isEmpty',
+                        'hasAnyValue',
+                    ],
                 );
             }
-            if($obField instanceof \Bitrix\Main\ORM\Fields\TextField){
+            if($obField instanceof \Bitrix\Main\ORM\Fields\BooleanField){
                 $arParams['FIND'][] = array(
                     'id'=>$obField->getColumnName(),
-                    'name'=>'[%] '.$obField->getTitle()
+                    'name'=>$filterTitle,
+                    'type'=>'checkbox',
+                    'valueType'=>'numeric'
+                );
+            }
+            if($obField instanceof \Bitrix\Main\ORM\Fields\IntegerField){
+                if($arParams['SMART_FIELDS'][$obField->getColumnName()]['type']=='user'){
+
+                }else{
+                    $selectParams = array("isMulti" => false);
+                    $values = array(
+                        "_from" => "",
+                        "_to" => ""
+                    );
+                    $subtypes = [];
+                    $sourceSubtypes = \Bitrix\Main\UI\Filter\NumberType::getList();
+                    $additionalSubtypes = \Bitrix\Main\UI\Filter\AdditionalNumberType::getList();
+                    foreach($sourceSubtypes as $subtype){
+                        $subtypes[] = ['name'=>$subtype, 'value'=>$subtype];
+                    }
+                    $subtypeType = ['name'=>'exact', 'value'=>'exact'];
+                    $arParams['FIND'][] = array(
+                        'id'=>$obField->getColumnName(),
+                        'name'=>$filterTitle,
+                        'type'=>'number',
+                        "SUB_TYPE" => $subtypeType,
+                        "SUB_TYPES" => $subtypes,
+                        "VALUES" => $values,
+                        "SELECT_PARAMS" => $selectParams,
+                        'additionalFilter' => [
+                            'isEmpty',
+                            'hasAnyValue',
+                        ],
+                    );
+                }
+            }
+            if($obField instanceof \Bitrix\Main\ORM\Fields\FloatField){
+                $selectParams = array("isMulti" => false);
+                $values = array(
+                    "_from" => "",
+                    "_to" => ""
+                );
+                $subtypes = [];
+                $sourceSubtypes = \Bitrix\Main\UI\Filter\NumberType::getList();
+                $additionalSubtypes = \Bitrix\Main\UI\Filter\AdditionalNumberType::getList();
+                foreach($sourceSubtypes as $subtype){
+                    $subtypes[] = ['name'=>$subtype, 'value'=>$subtype];
+                }
+                $subtypeType = ['name'=>'exact', 'value'=>'exact'];
+                $arParams['FIND'][] = array(
+                    'id'=>$obField->getColumnName(),
+                    'name'=>$filterTitle,
+                    'type'=>'number',
+                    "SUB_TYPE" => $subtypeType,
+                    "SUB_TYPES" => $subtypes,
+                    "VALUES" => $values,
+                    "SELECT_PARAMS" => $selectParams,
+                    'additionalFilter' => [
+                        'isEmpty',
+                        'hasAnyValue',
+                    ],
+                );
+            }
+            if($obField instanceof \Bitrix\Main\ORM\Fields\DateField){
+                $arParams['FIND'][] = array(
+                    'id'=>$obField->getColumnName(),
+                    'name'=>$filterTitle,
+                    'time'=>($obField instanceof \Bitrix\Main\ORM\Fields\DateTimeField),
+                    'additionalFilter' => [
+                        'isEmpty',
+                        'hasAnyValue',
+                    ],
                 );
             }
         }

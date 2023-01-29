@@ -30,7 +30,7 @@ if(Loader::includeModule('awz.bxapistats')){
 }
 
 global $APPLICATION;
-$appId = 'local.63c7b109704d98.56772413';
+$appId = 'app.63d6b637131902.97765356';
 if($_REQUEST['app']){
     $appId = htmlspecialcharsEx(trim($_REQUEST['app']));
 }

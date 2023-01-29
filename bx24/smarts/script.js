@@ -308,6 +308,7 @@ $(document).ready(function (){
             BX.Main.gridManager.getById(this.gridId).instance.
             reloadTable('POST', {'bx_result':data, key: this.key},function(){
                 window.awz_helper.preventSortableClick = false;
+                BX24.fitWindow();
             });
         },
         getSmartDataFiltered: function(filter){
@@ -986,7 +987,7 @@ $(document).ready(function (){
             'placement.bind',
             {
                 'PLACEMENT': placement,
-                'HANDLER': window.awz_helper.APP_URL+'smart.php?smartId='+smart+'&app='+window.awz_helper.APP_ID,
+                'HANDLER': window.awz_helper.APP_URL+'smart.php?plc='+placement+'&smartId='+smart+'&app='+window.awz_helper.APP_ID,
                 'LANG_ALL': {
                     ru : {
                         'TITLE': name

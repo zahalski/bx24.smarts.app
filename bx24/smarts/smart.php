@@ -49,7 +49,7 @@ class SmartList extends IList implements IParams {
         if(!empty($params['SMART_FIELDS'])){
             \Awz\Admin\SmartTable::$fields = $params['SMART_FIELDS'];
         }
-        $params['TABLEID'] = 'awz_smart_'.$params['SMART_ID'];
+        $params['TABLEID'] = 'awz_smart_'.$params['SMART_ID'].'_'.$params['SMART_ID2'];
 
         parent::__construct($params, $publicMode);
     }
@@ -440,7 +440,7 @@ include($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/awz.admin/include/handler.php
 /* @var bool $customPrint */
 
 global $APPLICATION;
-$appId = 'local.63c7b109704d98.56772413';
+$appId = 'app.63d6b637131902.97765356';
 if($_REQUEST['app']){
     $appId = $_REQUEST['app'];
 }
@@ -552,13 +552,17 @@ if(!$checkAuth){
 }else{
     $arParams['SMART_ID'] = $placement['smart'];
     if(!$arParams['SMART_ID']) $arParams['SMART_ID'] = preg_replace('/([^0-9])/','',$_REQUEST['smartId']);
-    if(!$arParams['SMART_ID']) $arParams['SMART_ID'] = preg_replace('/([^0-9])/','',$_REQUEST['grid_id']);
+    if(!$arParams['SMART_ID']) $arParams['SMART_ID'] = preg_replace('/awz_smart_([0-9]+).*/',"$1",$_REQUEST['grid_id']);
     if($arParams['SMART_ID']){
 
         $arParams['ADD_REQUEST_KEY'] = $checkAuthKey.'|'.$checkAuthDomain.'|'.$checkAuthMember.'|'.$app->getConfig('APP_ID');
         $hash = hash_hmac('sha256', $arParams['ADD_REQUEST_KEY'], $app->getConfig('APP_SECRET_CODE'));
         $arParams['ADD_REQUEST_KEY'] .= '|'.$hash;
         $app->getRequest()->set('key', $arParams['ADD_REQUEST_KEY']);
+
+        if($app->getRequest()->get('plc')){
+            $arParams['SMART_ID2'] = mb_strtolower($app->getRequest()->get('plc'));
+        }
 
         if($tracker){
             $tracker->setPortal($checkAuthDomain)

@@ -1,6 +1,7 @@
 $(document).ready(function (){
 
     window.awz_helper = {
+        bxTime: 0,
         cache_action: '',
         users: {},
         fields: {},
@@ -68,6 +69,35 @@ $(document).ready(function (){
                 }
                 return '<div class="ui-alert ui-alert-danger">'+mess.join('; ')+'</div>';
             }
+        },
+        addBxTime: function(res){
+            //console.log(res);
+            try{
+                if(res['time']['duration']){
+                    this.bxTime += res['time']['duration'];
+                }
+            }catch (e) {
+
+            }
+
+            try{
+                if(res['answer']['time']['duration']){
+                    this.bxTime += res['answer']['time']['duration'];
+                }
+            }catch (e) {
+
+            }
+
+            try{
+                var k;
+                for(k in res){
+                    if(res[k]['answer']['time']['duration'])
+                        this.bxTime += res[k]['answer']['time']['duration'];
+                }
+            }catch (e) {
+
+            }
+            //bxTime
         },
         showPage: function(page){
             $('.appWrap').hide();
@@ -140,7 +170,8 @@ $(document).ready(function (){
                 {},
                 function(res)
                 {
-                    console.log(res);
+                    window.awz_helper.addBxTime(res);
+                    //console.log(res);
                     $('.rows-smarts').html('');
 
                     try {
@@ -166,7 +197,8 @@ $(document).ready(function (){
                         {},
                         function(res)
                         {
-                            console.log(res);
+                            window.awz_helper.addBxTime(res);
+                            //console.log(res);
                             try {
                                 var find = false;
                                 var find_smarts_1 = [];
@@ -179,7 +211,7 @@ $(document).ready(function (){
                                         }
                                         //CRM_DYNAMIC_
                                         var candidate = placement['placement'].split('_');
-                                        console.log(candidate);
+                                        //console.log(candidate);
                                         if(candidate[0] === 'CRM'){
 
                                             var code_type = '';
@@ -267,6 +299,8 @@ $(document).ready(function (){
             data['total'] = this.pagesize_total;
             data['next'] = this.pagesize_next;
             data['page_size'] = this.page_size;
+            data['bxTime'] = this.bxTime;
+            this.bxTime = 0;
             if(this.cache_action){
                 data['cache_action'] = this.cache_action;
                 this.cache_action = '';
@@ -279,7 +313,7 @@ $(document).ready(function (){
         getSmartDataFiltered: function(filter){
             var format_filter = {};
             var k;
-            console.log(filter);
+            //console.log(filter);
             for(k in filter){
                 if(k === 'FIND') {
                     if(format_filter[k])
@@ -393,6 +427,7 @@ $(document).ready(function (){
             return this.getSmartData(null, format_filter);
         },
         getSmartData: function(order, filter){
+
             var params = {
                 'entityTypeId': this.smartId
             };
@@ -469,6 +504,7 @@ $(document).ready(function (){
                                 },
                                 function(res2)
                                 {
+                                    window.awz_helper.addBxTime(res2);
                                     var k;
                                     for(k in res2['answer']['result']) {
                                         var id_usr = res2['answer']['result'][k]['ID'];
@@ -506,6 +542,13 @@ $(document).ready(function (){
             }
             this.gridId = gridId;
             this.smartId = smartId;
+
+            if(!window.awz_helper.grid_ob){
+                var Grid = BX.Main.gridManager.getById(window.awz_helper.gridId);
+                if(Grid){
+                    Grid.instance.getLoader().show();
+                }
+            }
 
             BX.Event.EventEmitter
                 .subscribe('BX.Main.Filter:beforeApply', (event) => {
@@ -547,7 +590,7 @@ $(document).ready(function (){
             BX.Event.EventEmitter
                 .subscribe('Grid::beforeRequest', (event) => {
                     var data = event.getData();
-                    console.log(data);
+                    //console.log(data);
                     if(!window.awz_helper.grid_ob){
                         window.awz_helper.grid_ob = data[0];
                     }
@@ -567,6 +610,24 @@ $(document).ready(function (){
                         ){
                             data[1].cancelRequest = true;
                             window.awz_helper.deleteRows(data[1]['data']);
+                        }else if(data[1].hasOwnProperty('data') &&
+                            typeof data[1]['data'] == 'object'
+                            && data[1]['data'].hasOwnProperty('action_button_'+window.awz_helper.gridId) &&
+                            data[1]['data']['action_button_'+window.awz_helper.gridId] == 'edit_row'
+                        ){
+                            data[1].cancelRequest = true;
+                            data[0].parent.getLoader().hide();
+                            data[0].parent.tableUnfade();
+                            BX24.openPath('/crm/type/'+window.awz_helper.smartId+'/details/'+data[1]['data']['ID']+'/?init_mode=edit');
+                        }else if(data[1].hasOwnProperty('data') &&
+                            typeof data[1]['data'] == 'object'
+                            && data[1]['data'].hasOwnProperty('action_button_'+window.awz_helper.gridId) &&
+                            data[1]['data']['action_button_'+window.awz_helper.gridId] == 'copy_row'
+                        ){
+                            data[1].cancelRequest = true;
+                            data[0].parent.getLoader().hide();
+                            data[0].parent.tableUnfade();
+                            BX24.openPath('/crm/type/'+window.awz_helper.smartId+'/details/'+data[1]['data']['ID']+'/?copy=1');
                         }else if(data[1].hasOwnProperty('data') &&
                             typeof data[1]['data'] == 'object'
                             && data[1]['data'].hasOwnProperty('bx_result')
@@ -611,6 +672,15 @@ $(document).ready(function (){
             435646 - 2
             * */
         },
+        showStat: function(){
+            if($('#stat-app').html()){
+                if($('#stat-app-moved').length){
+                    $('#stat-app-moved').html($('#stat-app').html());
+                }else{
+                    $('.main-grid').append('<div id="stat-app-moved">'+$('#stat-app').html()+'</div>');
+                }
+            }
+        },
         deleteRows: function(data){
             if (typeof data['ID'] === 'string'){
                 data['ID'] = [data['ID']];
@@ -629,6 +699,7 @@ $(document).ready(function (){
             if(batch.length){
                 BX24.callBatch(batch, function(result)
                     {
+                        window.awz_helper.addBxTime(result);
                         window.awz_helper.getSmartData();
                     }
                 );
@@ -650,6 +721,7 @@ $(document).ready(function (){
             if(batch.length){
                 BX24.callBatch(batch, function(result)
                 {
+                    window.awz_helper.addBxTime(result);
                     window.awz_helper.getSmartData();
                 }
                 );
@@ -830,6 +902,7 @@ $(document).ready(function (){
                         dataType : "json",
                         type: "POST",
                         success: function (data, textStatus){
+                            window.awz_helper.addBxTime(data);
                             cbAjax(data);
                         },
                         error: function (err){
@@ -896,6 +969,7 @@ $(document).ready(function (){
             },
             function(res)
             {
+                window.awz_helper.addBxTime(res);
                 window.awz_helper.loadHandledApp();
             }
         );
@@ -921,6 +995,7 @@ $(document).ready(function (){
             },
             function(res)
             {
+                window.awz_helper.addBxTime(res);
                 if(res.answer.hasOwnProperty('error_description')){
                     alert(res.answer.error_description);
                 }else{
@@ -944,6 +1019,7 @@ $(document).ready(function (){
             },
             function(res)
             {
+                window.awz_helper.addBxTime(res);
                 window.awz_helper.loadHandledApp();
             }
         );
@@ -958,6 +1034,7 @@ $(document).ready(function (){
             },
             function(res)
             {
+                window.awz_helper.addBxTime(res);
                 window.awz_helper.loadHandledApp();
             }
         );

@@ -23,6 +23,12 @@ if(!Loader::includeModule('awz.bxapi')){
     return;
 }
 
+$tracker = null;
+if(Loader::includeModule('awz.bxapistats')){
+    $tracker = \Awz\BxApiStats\Tracker::getInstance();
+    $tracker->addCount();
+}
+
 global $APPLICATION;
 $appId = 'local.63c7b109704d98.56772413';
 if($_REQUEST['app']){
@@ -218,7 +224,10 @@ else
                       'app_id'=>$app->getConfig('APP_ID')
                   ))));
 
-
+                if($tracker){
+                    $tracker->setPortal($app->getRequest()->get('DOMAIN'))
+                        ->setAppId($app->getConfig('APP_ID'));
+                }
 
                 ?>
                 <div class="ui-alert ui-alert-success">Доступ к сервису активен</div>

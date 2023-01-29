@@ -27,6 +27,12 @@ if(!Loader::includeModule('awz.admin')){
     return;
 }
 
+$tracker = null;
+if(Loader::includeModule('awz.bxapistats')){
+    $tracker = \Awz\BxApiStats\Tracker::getInstance();
+    $tracker->addCount();
+}
+
 $eventManager = \Bitrix\Main\EventManager::getInstance();
 $eventManager->addEventHandlerCompatible('main', 'OnEndBufferContent', array('SmartList', 'OnEndBufferContent'), false, 999);
 
@@ -99,7 +105,16 @@ class SmartList extends IList implements IParams {
                     $row->AddInputField($fieldCode, array("size"=>$fieldData['settings']['SIZE']));
                 }
             }elseif($fieldCode == 'id'){
-                $row->AddViewField($fieldCode, '<a class="open-smart" data-ent="'.$this->getParam('SMART_ID').'" data-id="'.$row->arRes['id'].'" href="#">'.$row->arRes[$fieldCode].'</a>');
+                $addHtml = '';
+                if(Loader::includeModule('awz.bxapistats')){
+                    static $setStat = false;
+                    if(!$setStat){
+                        $setStat = true;
+                        $tracker = \Awz\BxApiStats\Tracker::getInstance();
+                        $addHtml = \Awz\BxApiStats\Helper::getHtmlStats($tracker);
+                    }
+                }
+                $row->AddViewField($fieldCode, $addHtml.'<a class="open-smart" data-ent="'.$this->getParam('SMART_ID').'" data-id="'.$row->arRes['id'].'" href="#">'.$row->arRes[$fieldCode].'</a>');
             }else{
                 if($fieldData['type'] == 'string'){
                     if(!$fieldData['isReadOnly']) {
@@ -244,12 +259,19 @@ class SmartList extends IList implements IParams {
             ],
             "ADD_LIST_ACTIONS"=> [
                 "delete",
-                "edit"=> [
+                "edit_row"=> [
                     "ICON"=>"edit",
                     "DEFAULT"=>true,
                     "TEXT"=>Loc::getMessage("MAIN_ADMIN_MENU_EDIT"),
                     "TITLE"=>Loc::getMessage("MAIN_ADMIN_MENU_EDIT"),
-                    "ACTION"=>'window.awz_helper.menuNewEl("edit", "#PRIMARY#");'
+                    "ACTION"=>'#PRIMARY#'
+                ],
+                "copy_row"=> [
+                    "ICON"=>"edit",
+                    "DEFAULT"=>true,
+                    "TEXT"=>Loc::getMessage("MAIN_ADMIN_MENU_COPY"),
+                    "TITLE"=>Loc::getMessage("MAIN_ADMIN_MENU_COPY"),
+                    "ACTION"=>'#PRIMARY#'
                 ]
             ],
             "FIND"=> []
@@ -380,15 +402,15 @@ class SmartList extends IList implements IParams {
 
         $this->AddAdminContextMenu(false, false);
 
-        if($this->getParam('FIND')){
-            $this->getAdminList()->DisplayFilter($this->getParam('FIND', array()));
-        }
-
-
         $defPrm = ["SHOW_COUNT_HTML" => false];
         if($this->getParam('ADD_REQUEST_KEY')){
             $defPrm['ADD_REQUEST_KEY'] = $this->getParam('ADD_REQUEST_KEY');
         }
+
+        if($this->getParam('FIND')){
+            $this->getAdminList()->DisplayFilter($this->getParam('FIND', array()));
+        }
+
         $this->getAdminList()->DisplayList($defPrm);
 
         if($this->getParam('SMART_ID')){
@@ -538,6 +560,11 @@ if(!$checkAuth){
         $arParams['ADD_REQUEST_KEY'] .= '|'.$hash;
         $app->getRequest()->set('key', $arParams['ADD_REQUEST_KEY']);
 
+        if($tracker){
+            $tracker->setPortal($checkAuthDomain)
+                ->setAppId($app->getConfig('APP_ID'));
+        }
+
         $cacheId = $app->getRequest()->get('DOMAIN').'fields_bagsmart_'.$arParams['SMART_ID'];
 
         $auth = TokensTable::getList(array(
@@ -549,6 +576,9 @@ if(!$checkAuth){
         $checkResult = $app->getRequest()->get('bx_result');
         if($checkResult['cache_action'] == 'remove'){
             $app->cleanCache($cacheId);
+        }
+        if($checkResult['bxTime'] && $tracker){
+            $tracker->addBxTime($checkResult['bxTime']);
         }
 
         $app->setCacheParams($cacheId);

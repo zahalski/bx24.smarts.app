@@ -118,3 +118,5 @@
     border: 1px solid #eef2f4;
     background-color: rgba(255,255,255,.14);
 }
+
+#stat-app-moved .main-grid-panel-content {width:auto;float:left;margin:5px 15px;}

@@ -114,7 +114,7 @@
     vertical-align: middle;
 }
 
-.adm-toolbar-panel-container .main-ui-filter-search {
+.ui-toolbar .main-ui-filter-search {
     border: 1px solid #eef2f4;
     background-color: rgba(255,255,255,.14);
 }

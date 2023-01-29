@@ -208,14 +208,52 @@ class SmartList extends IList implements IParams {
 
     public static function getParams(): array
     {
-        $arParams = array(
+        $arParams = [
             "PRIMARY"=>"id",
             "ENTITY" => "\\Awz\\Admin\\SmartTable",
-            "BUTTON_CONTEXTS"=>array(),
-            "ADD_GROUP_ACTIONS"=>array("edit","delete"),
-            "ADD_LIST_ACTIONS"=>array("delete"),
-            "FIND"=>array()
-        );
+            "BUTTON_CONTEXTS"=>[
+                [
+                    'add'=> [
+                        'TEXT' => 'Добавить',
+                        'ICON' => '',
+                        'LINK' => '',
+                        'ONCLICK' => 'window.awz_helper.menuNewEl();return false;',
+                    ]
+                ],
+                [
+                    'reload'=> [
+                        'TEXT' => 'Обновить',
+                        'ICON' => '',
+                        'LINK' => '',
+                        'ONCLICK' => 'window.awz_helper.reloadList();return false;',
+                    ],
+                    'rmcache'=> [
+                        'TEXT' => 'Удалить кеш полей',
+                        'ICON' => '',
+                        'LINK' => '',
+                        'ONCLICK' => 'window.awz_helper.rmCache();return false;',
+                    ]
+                ]
+            ],
+            "ADD_GROUP_ACTIONS"=> [
+                "edit",
+                "delete",
+                /*"summ"=>[
+                     'key'=>"summ","title"=>"Посчитать сумму"
+                ]*/
+            ],
+            "ADD_LIST_ACTIONS"=> [
+                "delete",
+                "edit"=> [
+                    "ICON"=>"edit",
+                    "DEFAULT"=>true,
+                    "TEXT"=>Loc::getMessage("MAIN_ADMIN_MENU_EDIT"),
+                    "TITLE"=>Loc::getMessage("MAIN_ADMIN_MENU_EDIT"),
+                    "ACTION"=>'window.awz_helper.menuNewEl("edit", "#PRIMARY#");'
+                ]
+            ],
+            "FIND"=> []
+        ];
 
         return $arParams;
     }
@@ -340,9 +378,12 @@ class SmartList extends IList implements IParams {
         $this->AddGroupActionTable();
         //$list_id = $this->getParam('TABLEID');
 
+        $this->AddAdminContextMenu(false, false);
+
         if($this->getParam('FIND')){
             $this->getAdminList()->DisplayFilter($this->getParam('FIND', array()));
         }
+
 
         $defPrm = ["SHOW_COUNT_HTML" => false];
         if($this->getParam('ADD_REQUEST_KEY')){
@@ -504,6 +545,11 @@ if(!$checkAuth){
             'filter'=>array('=PORTAL'=>$app->getRequest()->get('DOMAIN'), '=APP_ID'=>$app->getConfig('APP_ID'))
         ))->fetch();
         $resultAuth = $app->setAuth($auth['TOKEN']);
+
+        $checkResult = $app->getRequest()->get('bx_result');
+        if($checkResult['cache_action'] == 'remove'){
+            $app->cleanCache($cacheId);
+        }
 
         $app->setCacheParams($cacheId);
         $bxRowsResFields = $app->postMethod('crm.item.fields.json', array(

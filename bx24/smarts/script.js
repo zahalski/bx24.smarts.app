@@ -1,6 +1,7 @@
 $(document).ready(function (){
 
     window.awz_helper = {
+        cache_action: '',
         users: {},
         fields: {},
         filter_dates: {},
@@ -266,6 +267,10 @@ $(document).ready(function (){
             data['total'] = this.pagesize_total;
             data['next'] = this.pagesize_next;
             data['page_size'] = this.page_size;
+            if(this.cache_action){
+                data['cache_action'] = this.cache_action;
+                this.cache_action = '';
+            }
             BX.Main.gridManager.getById(this.gridId).instance.
             reloadTable('POST', {'bx_result':data, key: this.key},function(){
                 window.awz_helper.preventSortableClick = false;
@@ -542,7 +547,7 @@ $(document).ready(function (){
             BX.Event.EventEmitter
                 .subscribe('Grid::beforeRequest', (event) => {
                     var data = event.getData();
-
+                    console.log(data);
                     if(!window.awz_helper.grid_ob){
                         window.awz_helper.grid_ob = data[0];
                     }
@@ -555,6 +560,13 @@ $(document).ready(function (){
                         ){
                             data[1].cancelRequest = true;
                             window.awz_helper.editRows(data[1]['data']);
+                        }else if(data[1].hasOwnProperty('data') &&
+                            typeof data[1]['data'] == 'object'
+                            && data[1]['data'].hasOwnProperty('action_button_'+window.awz_helper.gridId) &&
+                            data[1]['data']['action_button_'+window.awz_helper.gridId] == 'delete'
+                        ){
+                            data[1].cancelRequest = true;
+                            window.awz_helper.deleteRows(data[1]['data']);
                         }else if(data[1].hasOwnProperty('data') &&
                             typeof data[1]['data'] == 'object'
                             && data[1]['data'].hasOwnProperty('bx_result')
@@ -598,6 +610,29 @@ $(document).ready(function (){
             FIELDS[4][title]:
             435646 - 2
             * */
+        },
+        deleteRows: function(data){
+            if (typeof data['ID'] === 'string'){
+                data['ID'] = [data['ID']];
+            }
+            var batch = [];
+            var k;
+            for(k in data['ID']){
+                batch.push({
+                    'method':'crm.item.delete',
+                    'params':{
+                        'entityTypeId':this.smartId,
+                        'id':data['ID'][k]
+                    }
+                });
+            }
+            if(batch.length){
+                BX24.callBatch(batch, function(result)
+                    {
+                        window.awz_helper.getSmartData();
+                    }
+                );
+            }
         },
         editRows: function(data){
             var batch = [];
@@ -813,6 +848,16 @@ $(document).ready(function (){
             }else{
                 BX24.refreshAuth(cb);
             }
+        },
+        menuNewEl: function(){
+            BX24.openPath('/crm/type/'+this.smartId+'/details/0/');
+        },
+        rmCache: function(){
+            this.cache_action = 'remove';
+            this.getSmartData();
+        },
+        reloadList: function(){
+            this.getSmartData();
         }
 
     }

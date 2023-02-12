@@ -302,6 +302,16 @@ else
 
             }else{
                 echo Helper::errorsHtml($authResult, 'Ошибка получения опций приложения');
+                ?>
+                <?if($app->getRequest()->get('DOMAIN')){?>
+                    <div data-page="list" class="tab-content tab-content-list">
+
+                        <div class="col-xs-12 text-center" style="padding:10px 0;">
+                            <a target="_blank" href="<?=$app->getAuthUrl()?>" class="ui-btn ui-btn-success ui-btn-icon-success">Авторизация</a>
+                        </div>
+                    </div>
+                <?}?>
+                <?
             }
 
         }

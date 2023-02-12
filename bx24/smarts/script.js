@@ -131,6 +131,36 @@ $(document).ready(function (){
             el.html(msg);
             this.scrollTop();
         },
+        getPlacementsList: function(all){
+            var c_val = $('#placement-sett #select-crm-entity-to').val();
+            //console.log(c_val);
+            var types = {
+                'CRM_DETAIL_TAB': 'верхнее меню карточки (таб)',
+                'CRM_DETAIL_TOOLBAR': 'список приложений в карточке',
+                'CRM_LIST_TOOLBAR': 'кнопка возле роботов'
+            };
+            var all_types = Object.assign({},types);
+            all_types['TASK_USER_LIST_TOOLBAR'] = 'кнопка возле роботов';
+            if(c_val === 'TASK_USER'){
+                types = {
+                    'TASK_USER_LIST_TOOLBAR': 'кнопка возле роботов'
+                };
+            }
+            all_types['TASK_GROUP_LIST_TOOLBAR'] = 'кнопка возле роботов в группе';
+            if(c_val === 'TASK_GROUP'){
+                types = {
+                    'TASK_GROUP_LIST_TOOLBAR': 'кнопка возле роботов в группе'
+                };
+            }
+            //console.log(types);
+            $('#select-crm-entity-type').html('');
+            var k;
+            for(k in types){
+                $('#select-crm-entity-type').append('<option value="'+k+'">'+types[k]+'</option>');
+            }
+            if(!!all) return all_types;
+            return types;
+        },
         loadHandledApp: function(){
             //crm.type.list
             var findIdsSmart = [];
@@ -146,39 +176,63 @@ $(document).ready(function (){
                 },
                 'COMPANY':{
                     'title': 'Компании'
+                },
+                'TASK_USER':{
+                    'title': 'Задачи'
+                },
+                'TASK_GROUP':{
+                    'title': 'Задачи в группе'
                 }
             };
-            var types = {
-                'CRM_DETAIL_TAB': 'верхнее меню карточки (таб)',
-                'CRM_DETAIL_TOOLBAR': 'список приложений в карточке',
-                'CRM_LIST_TOOLBAR': 'кнопка возле роботов',
-            };
+
             var k;
-            $('#select-crm-entity-type').html('');
+
             $('#placement-sett #select-crm-entity').html('');
             $('#placement-sett #select-crm-entity-to').html('');
-            for(k in types){
-                $('#select-crm-entity-type').append('<option value="'+k+'">'+types[k]+'</option>');
-            }
-            var k;
             for(k in linksSmart){
                 $('#placement-sett #select-crm-entity-to').append('<option value="'+k+'">'+linksSmart[k].title+'</option>');
             }
+            //this.getPlacementsList();
+            var types = this.getPlacementsList(true);
+            //console.log(types);
 
-            BX24.callMethod(
-                'crm.type.list',
-                {},
+            var batch = [];
+
+            batch.push({
+                'method':'crm.type.list',
+                'params':{}
+            });
+            batch.push({
+                'method':'sonet_group.get',
+                'params':{
+                    'IS_ADMIN':'Y',
+                    'arFilter':{'ACTIVE':'Y'}
+                }
+            });
+
+            BX24.callBatch(
+                batch,
                 function(res)
                 {
                     window.awz_helper.addBxTime(res);
+
                     //console.log(res);
                     $('.rows-smarts').html('');
 
+                    var items_smart_types = [];
+                    var items_groups = [];
+                    if(res.hasOwnProperty('length') && res.length>0 && res[0].hasOwnProperty('answer')){
+                        items_smart_types = res[0].answer.result['types'];
+                    }
+                    if(res.hasOwnProperty('length') && res.length>1 && res[1].hasOwnProperty('answer')){
+                        items_groups = res[1].answer.result;
+                    }
+
                     try {
-                        if(res.answer.result['types'].length){
+                        if(items_smart_types.length){
                             var k;
-                            for (k in res.answer.result['types']) {
-                                var item = res.answer.result['types'][k];
+                            for (k in items_smart_types) {
+                                var item = items_smart_types[k];
                                 findIdsSmart.push(item.entityTypeId);
                                 item.title = 'Смарт: '+item.title;
                                 linksSmart[item.entityTypeId] = item;
@@ -191,6 +245,29 @@ $(document).ready(function (){
                     } catch (e) {
                         console.log(e);
                     }
+
+                    try {
+                        if(items_groups.length){
+                            var k;
+                            for (k in items_groups) {
+                                var item = items_groups[k];
+                                //findIdsSmart.push(item.entityTypeId);
+                                item.title = 'Задачи в группе: '+item.NAME;
+                                item.entityTypeId = item.ID;
+                                linksSmart['group_'+item.entityTypeId] = item;
+                                //console.log(item);
+
+                                $('#placement-sett #select-crm-entity').append('<option value="TASK_GROUP_'+item.entityTypeId+'">'+item.title+'</option>');
+                                //$('#placement-sett #select-crm-entity-to').append('<option value="TASK_GROUP_'+item.entityTypeId+'">'+item.title+'</option>');
+                            }
+                        }
+                    } catch (e) {
+                        console.log(e);
+                    }
+
+                    $('#placement-sett #select-crm-entity').append('<option value="TASK_USER">'+linksSmart['TASK_USER'].title+'</option>');
+                    $('#placement-sett #select-crm-entity-to').append('<option value="TASK_USER">'+linksSmart['TASK_USER'].title+'</option>');
+                    $('#placement-sett #select-crm-entity-to').append('<option value="TASK_GROUP">'+linksSmart['TASK_GROUP'].title+'</option>');
 
                     BX24.callMethod(
                         'placement.get',
@@ -212,7 +289,7 @@ $(document).ready(function (){
                                         //CRM_DYNAMIC_
                                         var candidate = placement['placement'].split('_');
                                         //console.log(candidate);
-                                        if(candidate[0] === 'CRM'){
+                                        if(['CRM','TASK'].indexOf(candidate[0])>-1){
 
                                             var code_type = '';
                                             var code_to = '';
@@ -220,36 +297,67 @@ $(document).ready(function (){
                                             if(candidate[1] === 'DYNAMIC'){
                                                 code_to = parseInt(candidate[2]);
                                                 code_type = [candidate[0], candidate[3], candidate[4]].join("_");
+                                            }else if(candidate[1] === 'USER'){
+                                                code_to = candidate[0]+'_'+candidate[1];
+                                                code_type = [candidate[0], candidate[1], candidate[2], candidate[3]].join("_");
+                                            }else if(candidate[1] === 'GROUP'){
+                                                code_to = candidate[0]+'_'+candidate[1];
+                                                code_type = [candidate[0], candidate[1], candidate[2], candidate[3]].join("_");
                                             }else if(['LEAD','DEAL','CONTACT','COMPANY','INVOICE'].indexOf(candidate[1])>-1){
                                                 var code_to = candidate[1];
                                                 code_type = [candidate[0], candidate[2], candidate[3]].join("_");
                                             }
-                                            code = placement['handler'].replace(/.*smartId=[A-Z]+_([0-9]+)(.*)/g, "$1");
+                                            if(placement['handler'].indexOf('smartId=TASK_USER')>-1){
+                                                code = 'TASK_USER';
+                                            }else if(placement['handler'].indexOf('smartId=TASK_GROUP_')>-1){
+                                                code = 'group_'+placement['handler'].replace(/.*smartId=[A-Z]+_[A-Z]+_([0-9]+)(.*)/g, "$1");
+                                            }else{
+                                                code = placement['handler'].replace(/.*smartId=[A-Z]+_([0-9]+)(.*)/g, "$1");
+                                            }
 
-                                            //console.log([code_type, code, code_to, placement['handler']]);
+                                            //console.log([linksSmart, code_type, code, code_to, placement['handler']]);
                                             var item = linksSmart[code];
                                             var item_to = linksSmart[code_to];
+                                            //console.log([item, item_to]);
 
-                                            $('.rows-smarts').append('<div class="row" style="margin-bottom:10px;">' +
-                                                '<div class="col-xs-2 no-padding">' +
-                                                '<label class="main-grid-control-label">'+item.title+'</label>' +
-                                                '</div>' +
-                                                '<div class="col-xs-2">' +
-                                                '<label class="main-grid-control-label">'+item_to.title+'</label>' +
-                                                '</div>' +
-                                                '<div class="col-xs-3">' +
-                                                '<label class="main-grid-control-label">'+types[code_type]+'</label>' +
-                                                '</div>' +
-                                                '<div class="col-xs-3">' +
-                                                '<label class="main-grid-control-label">'+placement.title+'</label>' +
-                                                '</div>' +
-                                                '<div class="col-xs-2">' +
-                                                '<a href="#" data-placement="'+placement['placement']+'" class="remove_smart_handled ui-btn ui-btn-icon-alert">Деактивировать</a>' +
-                                                '</div>' +
-                                                '</div>');
+                                            if(!item || !item_to){
+                                                $('.rows-smarts').append('<div class="row" style="margin-bottom:10px;">' +
+                                                    '<div class="col-xs-4 no-padding">' +
+                                                    '<label class="main-grid-control-label">'+placement['handler']+'</label>' +
+                                                    '</div>' +
+                                                    '<div class="col-xs-3">' +
+                                                    '<label class="main-grid-control-label">'+types[code_type]+'</label>' +
+                                                    '</div>' +
+                                                    '<div class="col-xs-3">' +
+                                                    '<label class="main-grid-control-label">'+placement.title+'</label>' +
+                                                    '</div>' +
+                                                    '<div class="col-xs-2">' +
+                                                    '<a href="#" data-handler="'+placement['handler']+'" data-placement="'+placement['placement']+'" class="remove_smart_handled ui-btn ui-btn-icon-alert">Деактивировать</a>' +
+                                                    '</div>' +
+                                                    '</div>');
+                                            }else{
+                                                $('.rows-smarts').append('<div class="row" style="margin-bottom:10px;">' +
+                                                    '<div class="col-xs-2 no-padding">' +
+                                                    '<label class="main-grid-control-label">'+item.title+'</label>' +
+                                                    '</div>' +
+                                                    '<div class="col-xs-2">' +
+                                                    '<label class="main-grid-control-label">'+item_to.title+'</label>' +
+                                                    '</div>' +
+                                                    '<div class="col-xs-3">' +
+                                                    '<label class="main-grid-control-label">'+types[code_type]+'</label>' +
+                                                    '</div>' +
+                                                    '<div class="col-xs-3">' +
+                                                    '<label class="main-grid-control-label">'+placement.title+'</label>' +
+                                                    '</div>' +
+                                                    '<div class="col-xs-2">' +
+                                                    '<a href="#" data-handler="'+placement['handler']+'" data-placement="'+placement['placement']+'" class="remove_smart_handled ui-btn ui-btn-icon-alert">Деактивировать</a>' +
+                                                    '</div>' +
+                                                    '</div>');
+                                            }
 
 
-                                            find_smarts_1.push(parseInt(code));
+
+                                            //find_smarts_1.push(parseInt(code));
                                         }
                                     }
                                 }
@@ -274,7 +382,7 @@ $(document).ready(function (){
                                     $('.app_handled2').html('<a href="#" id="remove_app_handled2" class="ui-btn ui-btn-icon-alert">Деактивировать</a>');
                                 }*/
                             } catch (e) {
-
+                                console.log(e);
                             }
                         }
                     );
@@ -314,7 +422,7 @@ $(document).ready(function (){
         getSmartDataFiltered: function(filter){
             var format_filter = {};
             var k;
-            //console.log(filter);
+            console.log(filter);
             for(k in filter){
                 if(k === 'FIND') {
                     if(format_filter[k])
@@ -421,7 +529,10 @@ $(document).ready(function (){
                     }
                     continue;
                 }
-
+                //console.log(typeof filter[k]);
+                if(typeof filter[k] === 'object'){
+                    format_filter[k] = [8,10];
+                }
                 format_filter[k] = filter[k];
             }
             console.log('filtered',format_filter);
@@ -430,7 +541,6 @@ $(document).ready(function (){
         getSmartData: function(order, filter){
 
             var params = {
-                'entityTypeId': this.smartId
             };
             params['order'] = {};
             params['filter'] = {};
@@ -440,6 +550,7 @@ $(document).ready(function (){
             }else{
                 params['order'] = this.lastOrder;
             }
+
             if(filter){
                 params['filter'] = filter;
                 this.lastFilter = params['filter'];
@@ -452,7 +563,55 @@ $(document).ready(function (){
                 params['start'] = Math.floor(params['start']/50) * 50;
             }
 
-            this.callApi('crm.item.list', params, function(res){
+            var method = 'crm.item.list';
+            var check_order_upper = false;
+            if(this.smartId == 'TASK_USER'){
+                method = 'tasks.task.list';
+                check_order_upper = true;
+            }else if((typeof this.smartId == 'string') && this.smartId.indexOf('TASK_GROUP_')>-1){
+                method = 'tasks.task.list';
+                params['filter']['GROUP_ID'] = this.smartId.replace(/TASK_GROUP_(.*)/,"$1");
+                check_order_upper = true;
+            }else{
+                params['entityTypeId'] = this.smartId;
+                //params['select'] = ['*','ufCrm22Items'];
+            }
+
+            var key_order = {};
+            if(!!this.lastOrder){
+                var tmp = Object.keys(this.lastOrder);
+                key_order['by'] = tmp[0];
+                key_order['order'] = this.lastOrder[tmp[0]];
+            }
+            //console.log(key_order);
+            if(check_order_upper && !!this.fields && !!this.lastOrder && this.fields.hasOwnProperty(key_order['by'])){
+                if(this.fields[key_order['by']].hasOwnProperty('upperCase')){
+                    this.lastOrder = {};
+                    this.lastOrder[this.fields[key_order['by']]['upperCase']] = key_order['order'];
+                    params['order'] = this.lastOrder;
+                }
+            }
+
+            if(method == 'tasks.task.list' && !window.awz_helper.groups){
+                window.awz_helper.callApi('sonet_group.get', {}, function(res){
+                    if(!window.awz_helper.groups){
+                        window.awz_helper.groups = {};
+                    }
+                    try{
+                        var k;
+                        for(k in res['result']){
+                            window.awz_helper.groups[res['result'][k]['ID']] = {
+                                ID: res['result'][k]['NAME'],
+                                NAME: res['result'][k]['NAME']
+                            };
+                        }
+                    }catch (e) {
+
+                    }
+                });
+            }
+
+            window.awz_helper.callApi(method, params, function(res){
                 if(typeof res == 'object'){
                     //console.log(res.result);
                     if(res.hasOwnProperty('total')){
@@ -473,8 +632,15 @@ $(document).ready(function (){
                         }
                         try{
 
-                            for(k in res.result['items']){
-                                var item = res.result['items'][k];
+                            var items = [];
+                            if(method == 'tasks.task.list'){
+                                items = res.result['tasks'];
+                            }else{
+                                items = res.result['items'];
+                            }
+
+                            for(k in items){
+                                var item = items[k];
                                 var k2;
                                 for(k2 in user_fields){
                                     if(item[user_fields[k2]]){
@@ -532,6 +698,8 @@ $(document).ready(function (){
                 }
             });
 
+
+
         },
         preventSortableClick: false,
         grid_ob: null,
@@ -544,12 +712,26 @@ $(document).ready(function (){
             this.gridId = gridId;
             this.smartId = smartId;
 
+            if(!!window.awz_helper.fields){
+                var k;
+                for(k in window.awz_helper.fields){
+                    var field = window.awz_helper.fields[k];
+                    if(field.hasOwnProperty('upperCase')){
+                        window.awz_helper.fields[field['upperCase']] = field;
+                    }
+                }
+            }
             if(!window.awz_helper.grid_ob){
                 var Grid = BX.Main.gridManager.getById(window.awz_helper.gridId);
                 if(Grid){
                     Grid.instance.getLoader().show();
                 }
             }
+
+            /*BX.Event.EventEmitter.emit = (e,t,r) =>{
+                if(t != 'oniframebeforegetvalue')
+                    console.log([e,t,r]);
+            };*/
 
             BX.Event.EventEmitter
                 .subscribe('BX.Main.Filter:beforeApply', (event) => {
@@ -558,6 +740,11 @@ $(document).ready(function (){
                     var values = data[2].getFilterFieldsValues();
                     window.awz_helper.getSmartDataFiltered(values);
                 });
+            BX.Event.EventEmitter
+                .subscribe('BX.Main.Filter:apply', (event) => {
+                });
+
+
 
             BX.Event.EventEmitter
                 .subscribe('BX.Main.grid:onBeforeSort', (event) => {
@@ -689,13 +876,23 @@ $(document).ready(function (){
             var batch = [];
             var k;
             for(k in data['ID']){
-                batch.push({
-                    'method':'crm.item.delete',
-                    'params':{
-                        'entityTypeId':this.smartId,
-                        'id':data['ID'][k]
-                    }
-                });
+                if(this.smartId == 'TASK_USER' || this.smartId == 'TASK_GROUP'){
+                    batch.push({
+                        'method':'tasks.task.delete',
+                        'params':{
+                            'taskId':data['ID'][k]
+                        }
+                    });
+                }else{
+                    batch.push({
+                        'method':'crm.item.delete',
+                        'params':{
+                            'entityTypeId':this.smartId,
+                            'id':data['ID'][k]
+                        }
+                    });
+                }
+
             }
             if(batch.length){
                 BX24.callBatch(batch, function(result)
@@ -709,22 +906,58 @@ $(document).ready(function (){
         editRows: function(data){
             var batch = [];
             var k;
+            //console.log(['edit', data]);
+            var formatFields = {};
+            /*for(k in data['FIELDS']){
+                if(this.fields[k])
+            }*/
             for(k in data['FIELDS']){
-                batch.push({
-                    'method':'crm.item.update',
-                    'params':{
-                        'entityTypeId':this.smartId,
-                        'id':k,
-                        'fields':data['FIELDS'][k]
+                if(this.smartId == 'TASK_USER'){
+                    var itm = {};
+                    var k2;
+                    for(k2 in data['FIELDS'][k]){
+                        itm[this.fields[k2]['upperCase']] = data['FIELDS'][k][k2];
                     }
-                });
+                    batch.push({
+                        'method':'tasks.task.update',
+                        'params':{
+                            'taskId':k,
+                            'fields':itm
+                        }
+                    });
+                }else if((typeof this.smartId == 'string') && this.smartId.indexOf('TASK_GROUP_')>-1){
+                    var itm = {};
+                    var k2;
+                    for(k2 in data['FIELDS'][k]){
+                        itm[this.fields[k2]['upperCase']] = data['FIELDS'][k][k2];
+                    }
+                    console.log(itm);
+                    console.log(k);
+                    batch.push({
+                        'method':'tasks.task.update',
+                        'params':{
+                            'taskId':k,
+                            'fields':itm
+                        }
+                    });
+                }else{
+                    batch.push({
+                        'method':'crm.item.update',
+                        'params':{
+                            'entityTypeId':this.smartId,
+                            'id':k,
+                            'fields':data['FIELDS'][k]
+                        }
+                    });
+                }
+
             }
             if(batch.length){
                 BX24.callBatch(batch, function(result)
-                {
-                    window.awz_helper.addBxTime(result);
-                    window.awz_helper.getSmartData();
-                }
+                    {
+                        window.awz_helper.addBxTime(result);
+                        window.awz_helper.getSmartData();
+                    }
                 );
             }
 
@@ -798,7 +1031,7 @@ $(document).ready(function (){
                     var data = '', objects = [];
                     if (util_type.isString(arData) || arData == null)
                     {
-                        callback.call(document, arData||'');
+                        callback.call(window.document, arData||'');
                     }
                     else
                     {
@@ -837,7 +1070,7 @@ $(document).ready(function (){
                                 data += (!!str ? '&' : '') + str;
                                 if(--cnt <= 0)
                                 {
-                                    callback.call(document, data)
+                                    callback.call(window.document, data)
                                 }
                             }
 
@@ -889,19 +1122,20 @@ $(document).ready(function (){
                         }
                         else
                         {
-                            callback.call(document, data)
+                            callback.call(window.document, data)
                         }
                     }
                 };
 
                 prepareData(data, '', function(res){
                     query_data += '&' + res;
-
+                    //console.log(url);
                     $.ajax({
                         url: url,
                         data: query_data,
                         dataType : "json",
                         type: "POST",
+                        CORS: false,
                         success: function (data, textStatus){
                             window.awz_helper.addBxTime(data);
                             cbAjax(data);
@@ -932,10 +1166,296 @@ $(document).ready(function (){
         },
         reloadList: function(){
             this.getSmartData();
+        },
+        applyButton: function(action, entityId, smartId){
+            var param = $('#paramId_control').attr('data-value');
+            var actionId = $('#base_action_select_control').attr('data-value');
+            var crm_items = $('#crm_entry_control').val();
+            var check_all = $('#apply_button_for_all_control').is(':checked');
+
+            var values = Object.keys(this.grid_ob.getParent().getRows().getEditSelectedValues(true));
+            var values_f = [];
+            var k;
+            for(k in values){
+                if(parseInt(values[k]) > 0){
+                    values_f.push(parseInt(values[k]));
+                }
+            }
+
+            var fields = {
+                'title': actionId+'|'+param
+            };
+            if(param){
+                fields['ufCrm'+smartId+'Params'] = param.replace(/param_/,'');
+            }
+            if(actionId){
+                fields['ufCrm'+smartId+'Controls'] = actionId.replace(/control_/,'');
+            }
+            if(crm_items){
+                fields['ufCrm'+smartId+'Items'] = crm_items.split(',');
+            }
+            if(values_f.length){
+                fields['ufCrm'+smartId+'Elements'] = values_f;
+            }
+
+            var send_item = function(entityId, fields, smartId){
+                BX24.callMethod('crm.item.add', {
+                    'entityTypeId': entityId,
+                    'fields': fields
+                },function(res){
+                    window.awz_helper.addBxTime(res);
+
+                    var myProgress = new BX.UI.ProgressBar({
+                        textBefore: "Получение результата",
+                        textAfter: "...",
+                        size: BX.UI.ProgressBar.Size.LARGE,
+                        fill: true,
+                        maxValue: 5,
+                        value: 0,
+                        column: true,
+                        color: BX.UI.ProgressBar.Color.SUCCESS,
+                        statusType: BX.UI.ProgressBar.Status.COUNTER
+                    });
+                    $('#'+window.awz_helper.gridId+'_bottom_panels .ui-progressbar').remove();
+                    $('#'+window.awz_helper.gridId+'_bottom_panels').append(myProgress.getContainer());
+                    BX24.fitWindow();
+
+                    var timerResult_cnt = 0;
+                    var timerResult = setTimeout(function steps(){
+                        timerResult_cnt++;
+                        myProgress.update(timerResult_cnt);
+
+                        BX24.callMethod('crm.item.get', {
+                            'entityTypeId': entityId,
+                            'id': res['answer']['result']['item']['id']
+                        },function(resUpdated){
+                            window.awz_helper.addBxTime(resUpdated);
+                            //console.log(resUpdated);
+
+                            var itm = resUpdated['answer']['result']['item'];
+                            if(itm['ufCrm'+smartId+'Result']){
+                                myProgress.setTextAfter('<a href="#" class="open-smart" data-id="'+res['answer']['result']['item']['id']+'" data-ent="'+entityId+'">элемент</a>: '+itm['ufCrm'+smartId+'Result']);
+                                myProgress.update(5);
+                                clearTimeout(timerResult);
+                                return;
+                            }
+                            if(timerResult_cnt == 5){
+                                myProgress.setTextAfter('<a href="#" class="open-smart" data-id="'+res['answer']['result']['item']['id']+'" data-ent="'+entityId+'">элемент</a>: результат не получен за 25 секунд');
+                                myProgress.update(timerResult_cnt);
+                                clearTimeout(timerResult);
+                                return;
+                            }
+                            setTimeout(steps, 5000);
+
+                        });
+
+
+                    },5000);
+
+                    console.log(res);
+                });
+            };
+
+            if(check_all && !window.awz_helper.pagesize_total){
+                this.grid_ob.getParent().arParams['MESSAGES'] = [{
+                    'TYPE': 'ERROR',
+                    'TITLE': 'Ошибка',
+                    'TEXT': 'Общее количество элементов не указано'
+                }];
+                this.grid_ob.getParent().messages.show();
+            }else if(check_all && window.awz_helper.pagesize_total>1000){
+                this.grid_ob.getParent().arParams['MESSAGES'] = [{
+                    'TYPE': 'ERROR',
+                    'TITLE': 'Ошибка',
+                    'TEXT': 'Общее количество по фильтру не должно быть больше 1000'
+                }];
+                this.grid_ob.getParent().messages.show();
+            }else if(check_all){
+
+                var myProgress = new BX.UI.ProgressBar({
+                    textBefore: "Получение элементов по фильтру <a class=\"close_ids_change\" href=\"#\">отменить</a>",
+                    size: BX.UI.ProgressBar.Size.LARGE,
+                    fill: true,
+                    maxValue: window.awz_helper.pagesize_total,
+                    value: 0,
+                    column: true,
+                    color: BX.UI.ProgressBar.Color.SUCCESS,
+                    statusType: BX.UI.ProgressBar.Status.COUNTER
+                });
+                $('#'+window.awz_helper.gridId+'_bottom_panels .ui-progressbar').remove();
+                $('#'+this.gridId+'_bottom_panels').append(myProgress.getContainer());
+                BX24.fitWindow();
+
+                var batch_prepare = [];
+                var method = 'crm.item.list';
+                var params = {};
+                params['filter'] = this.lastFilter;
+                params['select'] = ['id'];
+                params['order'] = this.lastOrder;
+                if(this.smartId == 'TASK_USER'){
+                    method = 'tasks.task.list';
+                    params['select'] = ['ID'];
+                }else if((typeof this.smartId == 'string') && this.smartId.indexOf('TASK_GROUP_')>-1){
+                    method = 'tasks.task.list';
+                    params['filter']['GROUP_ID'] = this.smartId.replace(/TASK_GROUP_(.*)/,"$1");
+                    params['select'] = ['ID', 'GROUP_ID'];
+                }
+                var step = 50;
+                for(var k=0; k < (window.awz_helper.pagesize_total/step); k++){
+                    var params_copy = Object.assign({},params);
+                    params_copy['start'] = step*k;
+
+                    batch_prepare.push({
+                        'method':method,
+                        'params':params_copy
+                    });
+
+                }
+
+                window.awz_helper.prepared_ids_timeouts = [];
+                var promBach = function(batch_prepare){
+                    return new Promise((resolve, reject) => {
+                        var timer = 10;
+                        var cur_cnt = 0;
+                        var i = 0;
+                        var selectIds = [];
+                        window.awz_helper.prepared_ids = true;
+                        BX24.callBatch(batch_prepare, function(result)
+                        {
+                            window.awz_helper.addBxTime(result);
+                            var k;
+                            for(k in result){
+                                var answer = result[k]['answer'];
+                                if(method == 'tasks.task.list'){
+                                    var k2;
+                                    for(k2 in answer['result']['tasks']){
+                                        i++;
+                                        selectIds.push(answer['result']['tasks'][k2]['id']);
+                                        var timeout = setTimeout(function(){
+                                            if(!window.awz_helper.prepared_ids) {
+                                                reject(new Error("canseled"));
+                                                return false;
+                                            }
+                                            cur_cnt += 1;
+                                            myProgress.update(cur_cnt);
+                                            console.log(window.awz_helper.prepared_ids);
+                                        },timer*i);
+                                        window.awz_helper.prepared_ids_timeouts.push(timeout);
+                                    }
+                                }else if(method == 'crm.item.list'){
+                                    var k2;
+                                    for(k2 in answer['result']['items']){
+                                        i++;
+                                        selectIds.push(answer['result']['items'][k2]['id']);
+                                        var timeout = setTimeout(function(){
+                                            if(!window.awz_helper.prepared_ids) {
+                                                reject(new Error("canseled"));
+                                                return false;
+                                            }
+                                            cur_cnt += 1;
+                                            myProgress.update(cur_cnt);
+                                        },timer*i);
+                                        window.awz_helper.prepared_ids_timeouts.push(timeout);
+                                    }
+                                }
+                            }
+                            var timeout = setTimeout(function() {
+                                resolve(selectIds);
+                            },timer*i + 500);
+                            window.awz_helper.prepared_ids_timeouts.push(timeout);
+                        });
+                    });
+                };
+
+                promBach(batch_prepare).then(function(ids){
+                    fields['ufCrm'+smartId+'Elements'] = ids;
+                    send_item(entityId, fields, smartId);
+                    myProgress.destroy();
+                    BX24.fitWindow();
+                    window.awz_helper.prepared_ids_timeouts = [];
+                },function(){
+                    myProgress.destroy();
+                    BX24.fitWindow();
+                    var k;
+                    for(k in window.awz_helper.prepared_ids_timeouts){
+                        clearTimeout(window.awz_helper.prepared_ids_timeouts[k]);
+                    }
+                    window.awz_helper.prepared_ids_timeouts = [];
+                });
+
+            }else{
+                send_item(entityId, fields, smartId);
+            }
+        },
+        sleep: function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        },
+        canselGroupActions: function(){
+
+            /*var dropdown = BX('base_action_select_control');
+            var container = dropdown.parentNode;
+            this.grid_ob.getParent().getActionsPanel().onChangeHandler(container);
+            this.grid_ob.getParent().getActionsPanel().activateControl('default');*/
+            this.reloadList();
+            //this.grid_ob.getParent().getActionsPanel().removeItemsRelativeCurrent(BX('base_action_select_control'));
+        },
+        openDialogCrm: function(controlId, entityIds){
+            var ent = entityIds.split(',');
+            BX24.selectCRM({
+                entityType: ent,
+                multiple: true,
+                value: ''
+            },function(res){
+                var ids = [];
+                var k;
+                var j;
+                for(k in ent){
+                    if(res.hasOwnProperty(ent[k])){
+                        for(j in res[ent[k]]){
+                            ids.push(res[ent[k]][j].id);
+                        }
+                    }
+                }
+                $('#'+controlId).val(ids.join(","));
+            });
+        },
+        openUserDialog: function(controlId){
+            BX24.selectUser('Выберите сотрудника',function(res){
+                $(controlId).val(res.id);
+            });
+        },
+        openCustomDialog: function(){
+
+            const button = document.getElementById('button');
+            const dialog = new BX.UI.EntitySelector.Dialog({
+                targetNode: button,
+                enableSearch: true,
+                context: 'MY_MODULE_CONTEXT',
+                entities: [
+                    {
+                        id: 'user', // пользователи
+                    },
+                    {
+                        id: 'department', // структура компании: выбор только пользователей
+                    },
+                ],
+            });
+
+            dialog.show();
+
         }
 
     }
 
+    //$('#placement-sett #select-crm-entity-to')
+    $(document).on('click', '.close_ids_change', function(e){
+        e.preventDefault();
+        window.awz_helper.prepared_ids = false;
+    });
+    $(document).on('change', '#placement-sett #select-crm-entity-to', function(e){
+        //var c_val = $(this).val();
+        window.awz_helper.getPlacementsList();
+    });
     $(document).on('click', '.open-dialog-deal, .open-dialog-company', function(e){
         e.preventDefault();
         var type = '';
@@ -963,10 +1483,12 @@ $(document).ready(function (){
     $(document).on('click', '.remove_smart_handled', function(e){
         e.preventDefault();
         var placement = $(this).attr('data-placement');
+        var handler = $(this).attr('data-handler');
         BX24.callMethod(
             'placement.unbind',
             {
-                'PLACEMENT': placement
+                'PLACEMENT': placement,
+                'HANDLER': handler
             },
             function(res)
             {
@@ -982,12 +1504,23 @@ $(document).ready(function (){
         var smart_to = $('#select-crm-entity-to').val();
         var name = $('#select-crm-entity-name').val();
         var placement = $('#select-crm-entity-type').val().replace(/CRM_/g,'CRM_'+smart_to+'_');
+        var url_code = 'smart';
+        if(['TASK_USER','TASK_GROUP'].indexOf(smart_to)>-1){
+            placement = $('#select-crm-entity-type').val();
+        }
+        if(['TASK_USER'].indexOf(smart)>-1){
+            url_code = 'task';
+        }
+        if(smart.indexOf('TASK_GROUP_')>-1){
+            url_code = 'task';
+        }
+
 
         BX24.callMethod(
             'placement.bind',
             {
                 'PLACEMENT': placement,
-                'HANDLER': window.awz_helper.APP_URL+'smart.php?plc='+placement+'&smartId='+smart+'&app='+window.awz_helper.APP_ID,
+                'HANDLER': window.awz_helper.APP_URL+url_code+'.php?plc='+placement+'&smartId='+smart+'&app='+window.awz_helper.APP_ID,
                 'LANG_ALL': {
                     ru : {
                         'TITLE': name
@@ -1014,7 +1547,7 @@ $(document).ready(function (){
                 'HANDLER': window.awz_helper.APP_URL+'smart.php?app='+window.awz_helper.APP_ID,
                 'LANG_ALL': {
                     ru : {
-                        'TITLE': 'Баг-Смарты'
+                        'TITLE': 'CRM Сущности'
                     }
                 }
             },
@@ -1045,7 +1578,17 @@ $(document).ready(function (){
         e.preventDefault();
         var id = $(this).attr('data-id');
         var ent = $(this).attr('data-ent');
-        BX24.openPath('/crm/type/'+ent+'/details/'+id+'/');
+        if(ent === 'task'){
+            BX24.openPath('/company/personal/user/0/tasks/task/view/'+id+'/');
+        }else if(ent === 'deal'){
+            BX24.openPath('/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/');
+        }else if(ent === 'user'){
+            BX24.openPath('/company/personal/'+ent+'/'+id+'/');
+        }else if(ent === 'group'){
+            BX24.openPath('/workgroups/'+ent+'/'+id+'/');
+        }else{
+            BX24.openPath('/crm/type/'+ent+'/details/'+id+'/');
+        }
     });
     $(document).on('click', '.ui-block-title-actions-show-hide', function(e){
         e.preventDefault();

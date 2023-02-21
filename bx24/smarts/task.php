@@ -456,8 +456,9 @@ if(!$checkAuth){
     }
     if($_REQUEST['smartId'] && (strpos($_REQUEST['smartId'], 'TASK_GROUP_') !== false)){
         $arParams['SMART_ID'] = 'TASK_GROUP_'.preg_replace('/([^0-9])/','',$_REQUEST['smartId']);
+        $checkAuthGroupId = preg_replace('/([^0-9])/','',$_REQUEST['smartId']);
     }
-    if($_REQUEST['grid_id'] && strpos($_REQUEST['grid_id'],'awz_smart_TASK_GROUP_')!==false){
+    if(!$checkAuthGroupId && $_REQUEST['grid_id'] && strpos($_REQUEST['grid_id'],'awz_smart_TASK_GROUP_')!==false){
         $checkAuthGroupId = preg_replace('/([^0-9])/','',$_REQUEST['grid_id']);
     }
     if($checkAuthGroupId){
@@ -686,6 +687,13 @@ if(!$checkAuth){
             }
             \Awz\Admin\Helper::addFilter($arParams, $obField);
         }
+        foreach($arParams['FIND'] as &$field){
+            //echo'<pre>';print_r($field);echo'</pre>';
+            if($field['id'] == 'STATUS'){
+                $field['params']['multiple'] = 'Y';
+            }
+        }
+        //die();
 
         $arParams['ACTION_PANEL'] = [
             "GROUPS"=>[
@@ -731,7 +739,7 @@ if(!$checkAuth){
                      * */
 
 
-                    $tmp = explode('|',$itm['VALUE']);
+                    $tmp = explode('||',$itm['VALUE']);
                     $tmp[2] = explode(',',$tmp[2]);
                     $tmp[3] = explode(',',$tmp[3]);
                     $tmp[4] = explode(',',$tmp[4]);
@@ -753,9 +761,18 @@ if(!$checkAuth){
                     }
                     //echo'<pre>';print_r($itmParams);echo'</pre>';
                     //echo'<pre>';print_r($adminCustom->getParam('TABLEID'));echo'</pre>';
-                    if(strtolower($itmParams['grid']) != strtolower($adminCustom->getParam('TABLEID'))) continue;
+                    $checkGridName = false;
+                    $gridPrepare = preg_replace('/([^0-9a-z_*[]{},()|])/','',strtolower($itmParams['grid']));
+                    $gridPrepare = str_replace('*','.*',$gridPrepare);
+                    $regex = '/^('.$gridPrepare.')$/is';
+                    if(strtolower($itmParams['grid']) == strtolower($adminCustom->getParam('TABLEID'))){
+                        $checkGridName = true;
+                    }elseif(preg_match($regex,strtolower($adminCustom->getParam('TABLEID')))){
+                        $itmParams['grid'] = $adminCustom->getParam('TABLEID');
+                        $checkGridName = true;
+                    }
+                    if(!$checkGridName) continue;
                     if(!in_array($checkAuthMember, $itmParams['users'])) continue;
-
 
                     $generatedItem['NAME'] = $itmParams['name'];
                     $generatedItem['VALUE'] = 'control_'.$itm['ID'];

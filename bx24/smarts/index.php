@@ -12,8 +12,8 @@ use Bitrix\Main\Page\Asset;
 use Bitrix\Main\Web\Json;
 use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\Security;
-use Awz\bxApi\App;
-use Awz\bxApi\Helper;
+use Awz\BxApi\App;
+use Awz\BxApi\Helper;
 
 use Bitrix\Iblock\PropertyEnumerationTable;
 use Bitrix\Main\Grid\Options as GridOptions;
@@ -117,49 +117,52 @@ elseif($app->getRequest()->get('server_domain') == 'oauth.bitrix.info')
     $app->setAuth($resultData['result']);
     $appInfoResult = $app->getAppInfo();
     if($appInfoResult->isSuccess()){
-    $appInfo = $appInfoResult->getData();
-    if(isset($appInfo['result']['LICENSE'])/* &&
-    strpos($appInfo['result']['LICENSE'], 'by_')!==false*/)
-    {
-    $authData = $app->getAuth();
-    $authKey = \Bitrix\Main\Security\Random::getString(32);
+        $appInfo = $appInfoResult->getData();
+        if(isset($appInfo['result']['LICENSE'])/* &&
+        strpos($appInfo['result']['LICENSE'], 'by_')!==false*/)
+        {
+            $authData = $app->getAuth();
+            $authKey = \Bitrix\Main\Security\Random::getString(32);
+            if($app->getRequest()->get('app_key')){
+                $authKey = $app->getRequest()->get('app_key');
+            }
 
-    $resKeyAdd = $app->postMethod('app.option.set.json',
-                                  array(
-                                      'options'=>array(
-                                          'auth'=>$authKey
-                                      )
-                                  )
-    );
-    if($resKeyAdd->isSuccess()){
-    $portal = str_replace(array('/rest/','https://'),'',$authData['client_endpoint']);
-    \Awz\BxApi\TokensTable::updateToken(
-        $app->getConfig('APP_ID'), $portal,
-        $authData
-    );
-    \Awz\BxApi\TokensTable::updateParams(
-        $app->getConfig('APP_ID'), $portal,
-        array('key'=>$authKey)
-    );
-    ?>
-        <div class="center-error-wrap">
-            <h2>Авторизация принята, токен успешно записан.</h2>
-            <div class="tab-content tab-content-list">
-                <div class="ui-alert ui-alert-success">
-                    Перейдите на портал и обновите страницу для настройки приложения.
-                </div>
-            </div>
-        </div>
-    <?
-    }else{
-        echo Helper::errorsHtml($resKeyAdd, 'Ошибка записи ключа доступа');
-    }
-    }else{
-        echo Helper::errorsHtmlFromText(array('Приложение доступно только для Беларуси','Лицензия '.$appInfo['result']['LICENSE']));
-    }
-    }else{
-        echo Helper::errorsHtml($result, 'Произошла ошибка при проверке токена');
-    }
+            $resKeyAdd = $app->postMethod('app.option.set.json',
+                                          array(
+                                              'options'=>array(
+                                                  'auth'=>$authKey
+                                              )
+                                          )
+            );
+            if($resKeyAdd->isSuccess()){
+                $portal = str_replace(array('/rest/','https://'),'',$authData['client_endpoint']);
+                \Awz\BxApi\TokensTable::updateToken(
+                    $app->getConfig('APP_ID'), $portal,
+                    $authData
+                );
+                \Awz\BxApi\TokensTable::updateParams(
+                    $app->getConfig('APP_ID'), $portal,
+                    array('key'=>$authKey)
+                );
+                ?>
+                    <div class="center-error-wrap">
+                        <h2>Авторизация принята, токен успешно записан.</h2>
+                        <div class="tab-content tab-content-list">
+                            <div class="ui-alert ui-alert-success">
+                                Перейдите на портал и обновите страницу для настройки приложения.
+                            </div>
+                        </div>
+                    </div>
+                <?
+            }else{
+                echo Helper::errorsHtml($resKeyAdd, 'Ошибка записи ключа доступа');
+            }
+            }else{
+                echo Helper::errorsHtmlFromText(array('Приложение доступно только для Беларуси','Лицензия '.$appInfo['result']['LICENSE']));
+            }
+        }else{
+            echo Helper::errorsHtml($result, 'Произошла ошибка при проверке токена');
+        }
     //echo'<pre>';print_r($appInfoResult);echo'</pre>';
     }else{
         echo Helper::errorsHtml($result, 'Произошла ошибка при авторизации');
@@ -179,6 +182,13 @@ else
     UIExt::load("ui.icons.service");
     Asset::getInstance()->addJs("/bx24/smarts/script.js");
     $portalData = $app->getCurrentPortalData();
+    $portalOldKey = '';
+    if(!$portalData){
+        $portalDataOld = $app->getCurrentPortalData('', 'N');
+        if(isset($portalDataOld['PARAMS']['key'])){
+            $portalOldKey = $portalDataOld['PARAMS']['key'];
+        }
+    }
     $authResult = null;
 ?>
     <div class="container"><div class="row"><div class="ui-block-wrapper">
@@ -201,7 +211,7 @@ else
                     </span>
                     </div>
                     <div class="col-xs-12" style="padding:10px 0;">
-                        <a target="_blank" href="<?=$app->getAuthUrl()?>" class="ui-btn ui-btn-success ui-btn-icon-success">Авторизация</a>
+                        <a target="_blank" href="<?=$app->getAuthUrl($portalOldKey)?>" class="ui-btn ui-btn-success ui-btn-icon-success">Авторизация</a>
                     </div>
                 </div>
             <?}?>
@@ -230,7 +240,9 @@ else
                 }
 
                 ?>
-                <div class="ui-alert ui-alert-success">Доступ к сервису активен</div>
+                <div class="ui-alert ui-alert-success">Доступ к сервису активен.
+                    После обновления приложения или блокировке API следует &nbsp;<a target="_blank" href="<?=$app->getAuthUrl($app->getCurrentPortalOption('auth'))?>">Обновить токен</a>
+                </div>
                 <div class="container">
                     <form>
                         <div class="row" style="margin-bottom:10px;">
@@ -307,7 +319,7 @@ else
                     <div data-page="list" class="tab-content tab-content-list">
 
                         <div class="col-xs-12 text-center" style="padding:10px 0;">
-                            <a target="_blank" href="<?=$app->getAuthUrl()?>" class="ui-btn ui-btn-success ui-btn-icon-success">Авторизация</a>
+                            <a target="_blank" href="<?=$app->getAuthUrl($portalOldKey)?>" class="ui-btn ui-btn-success ui-btn-icon-success">Авторизация</a>
                         </div>
                     </div>
                 <?}?>

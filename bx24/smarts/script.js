@@ -137,7 +137,7 @@ $(document).ready(function (){
             var types = {
                 'CRM_DETAIL_TAB': 'верхнее меню карточки (таб)',
                 'CRM_DETAIL_TOOLBAR': 'список приложений в карточке',
-                'CRM_LIST_TOOLBAR': 'кнопка возле роботов'
+                'CRM_LIST_TOOLBAR': 'кнопка возле роботов',
             };
             var all_types = Object.assign({},types);
             all_types['TASK_USER_LIST_TOOLBAR'] = 'кнопка возле роботов';
@@ -147,9 +147,25 @@ $(document).ready(function (){
                 };
             }
             all_types['TASK_GROUP_LIST_TOOLBAR'] = 'кнопка возле роботов в группе';
+            all_types['SONET_GROUP_DETAIL_TAB'] = 'закладка рабочей группы';
+            all_types['SONET_GROUP_TOOLBAR'] = 'кнопка на вкладке основное в группе';
             if(c_val === 'TASK_GROUP'){
                 types = {
-                    'TASK_GROUP_LIST_TOOLBAR': 'кнопка возле роботов в группе'
+                    'TASK_GROUP_LIST_TOOLBAR': all_types['TASK_GROUP_LIST_TOOLBAR'],
+                    'SONET_GROUP_DETAIL_TAB': all_types['SONET_GROUP_DETAIL_TAB'],
+                    'SONET_GROUP_TOOLBAR': all_types['SONET_GROUP_TOOLBAR'],
+                };
+            }
+            all_types['CRM_DEAL_DOCUMENTGENERATOR_BUTTON'] = 'Кнопка в документах сделки';
+            all_types['CRM_LEAD_DOCUMENTGENERATOR_BUTTON'] = 'Кнопка в документах лида';
+            all_types['CRM_CONTACT_DOCUMENTGENERATOR_BUTTON'] = 'Кнопка в документах контакта';
+            all_types['CRM_COMPANY_DOCUMENTGENERATOR_BUTTON'] = 'Кнопка в документах компании';
+            if(c_val === 'DOCS'){
+                types = {
+                    'CRM_DEAL_DOCUMENTGENERATOR_BUTTON': all_types['CRM_DEAL_DOCUMENTGENERATOR_BUTTON'],
+                    'CRM_LEAD_DOCUMENTGENERATOR_BUTTON': all_types['CRM_LEAD_DOCUMENTGENERATOR_BUTTON'],
+                    'CRM_CONTACT_DOCUMENTGENERATOR_BUTTON': all_types['CRM_CONTACT_DOCUMENTGENERATOR_BUTTON'],
+                    'CRM_COMPANY_DOCUMENTGENERATOR_BUTTON': all_types['CRM_COMPANY_DOCUMENTGENERATOR_BUTTON'],
                 };
             }
             //console.log(types);
@@ -180,8 +196,11 @@ $(document).ready(function (){
                 'TASK_USER':{
                     'title': 'Задачи'
                 },
+                'DOCS':{
+                    'title': 'Документы'
+                },
                 'TASK_GROUP':{
-                    'title': 'Задачи в группе'
+                    'title': 'Группа'
                 }
             };
 
@@ -190,7 +209,8 @@ $(document).ready(function (){
             $('#placement-sett #select-crm-entity').html('');
             $('#placement-sett #select-crm-entity-to').html('');
             for(k in linksSmart){
-                $('#placement-sett #select-crm-entity-to').append('<option value="'+k+'">'+linksSmart[k].title+'</option>');
+                //if(k != 'DOCS')
+                    $('#placement-sett #select-crm-entity-to').append('<option value="'+k+'">'+linksSmart[k].title+'</option>');
             }
             //this.getPlacementsList();
             var types = this.getPlacementsList(true);
@@ -265,9 +285,11 @@ $(document).ready(function (){
                         console.log(e);
                     }
 
+                    $('#placement-sett #select-crm-entity').append('<option value="DOCS">'+linksSmart['DOCS'].title+'</option>');
+
                     $('#placement-sett #select-crm-entity').append('<option value="TASK_USER">'+linksSmart['TASK_USER'].title+'</option>');
-                    $('#placement-sett #select-crm-entity-to').append('<option value="TASK_USER">'+linksSmart['TASK_USER'].title+'</option>');
-                    $('#placement-sett #select-crm-entity-to').append('<option value="TASK_GROUP">'+linksSmart['TASK_GROUP'].title+'</option>');
+                    //$('#placement-sett #select-crm-entity-to').append('<option value="TASK_USER">'+linksSmart['TASK_USER'].title+'</option>');
+                    //$('#placement-sett #select-crm-entity-to').append('<option value="TASK_GROUP">'+linksSmart['TASK_GROUP'].title+'</option>');
 
                     BX24.callMethod(
                         'placement.get',
@@ -288,8 +310,8 @@ $(document).ready(function (){
                                         }
                                         //CRM_DYNAMIC_
                                         var candidate = placement['placement'].split('_');
-                                        //console.log(candidate);
-                                        if(['CRM','TASK'].indexOf(candidate[0])>-1){
+                                        console.log(candidate);
+                                        if(['CRM','TASK','SONET'].indexOf(candidate[0])>-1){
 
                                             var code_type = '';
                                             var code_to = '';
@@ -303,12 +325,22 @@ $(document).ready(function (){
                                             }else if(candidate[1] === 'GROUP'){
                                                 code_to = candidate[0]+'_'+candidate[1];
                                                 code_type = [candidate[0], candidate[1], candidate[2], candidate[3]].join("_");
+                                                if(candidate[0] == 'SONET'){
+                                                    code_type = candidate.join("_");
+                                                    code_to = 'TASK_GROUP';
+                                                }
                                             }else if(['LEAD','DEAL','CONTACT','COMPANY','INVOICE'].indexOf(candidate[1])>-1){
                                                 var code_to = candidate[1];
                                                 code_type = [candidate[0], candidate[2], candidate[3]].join("_");
+                                                if(candidate[2] == 'DOCUMENTGENERATOR'){
+                                                    code_to = 'DOCS';
+                                                    code_type = [candidate[0], candidate[1], candidate[2], candidate[3]].join("_");
+                                                }
                                             }
                                             if(placement['handler'].indexOf('smartId=TASK_USER')>-1){
                                                 code = 'TASK_USER';
+                                            }else if(placement['handler'].indexOf('smartId=DOCS')>-1){
+                                                code = 'DOCS';
                                             }else if(placement['handler'].indexOf('smartId=TASK_GROUP_')>-1){
                                                 code = 'group_'+placement['handler'].replace(/.*smartId=[A-Z]+_[A-Z]+_([0-9]+)(.*)/g, "$1");
                                             }else{
@@ -568,13 +600,25 @@ $(document).ready(function (){
             if(this.smartId == 'TASK_USER'){
                 method = 'tasks.task.list';
                 check_order_upper = true;
+            }else if(this.smartId == 'DOCS' || this.smartId.indexOf('DOCS_GROUP_')>-1){
+                method = 'crm.documentgenerator.document.list';
+                //check_order_upper = true;
             }else if((typeof this.smartId == 'string') && this.smartId.indexOf('TASK_GROUP_')>-1){
                 method = 'tasks.task.list';
                 params['filter']['GROUP_ID'] = this.smartId.replace(/TASK_GROUP_(.*)/,"$1");
                 check_order_upper = true;
+            }else if(this.smartId.indexOf('SMART_GROUP_')>-1){
+                params['entityTypeId'] = this.smartId.replace(/SMART_GROUP_.*_(.*)/,"$1");
             }else{
                 params['entityTypeId'] = this.smartId;
                 //params['select'] = ['*','ufCrm22Items'];
+            }
+
+            if(window.awz_helper.hasOwnProperty('addFilter') && typeof window.awz_helper.addFilter === 'object'){
+                var fl_key;
+                for(fl_key in window.awz_helper.addFilter){
+                    params['filter'][fl_key] = window.awz_helper.addFilter[fl_key];
+                }
             }
 
             var key_order = {};
@@ -635,6 +679,8 @@ $(document).ready(function (){
                             var items = [];
                             if(method == 'tasks.task.list'){
                                 items = res.result['tasks'];
+                            }else if(method == 'crm.documentgenerator.document.list'){
+                                items = res.result['documents'];
                             }else{
                                 items = res.result['items'];
                             }
@@ -876,11 +922,33 @@ $(document).ready(function (){
             var batch = [];
             var k;
             for(k in data['ID']){
-                if(this.smartId == 'TASK_USER' || this.smartId == 'TASK_GROUP'){
+                if(this.smartId == 'TASK_USER'){
                     batch.push({
                         'method':'tasks.task.delete',
                         'params':{
                             'taskId':data['ID'][k]
+                        }
+                    });
+                }else if(this.smartId == 'DOCS' || this.smartId.indexOf('DOCS_GROUP_')>-1){
+                    batch.push({
+                        'method':'crm.documentgenerator.document.delete',
+                        'params':{
+                            'id':data['ID'][k]
+                        }
+                    });
+                }else if((typeof this.smartId == 'string') && this.smartId.indexOf('TASK_GROUP_')>-1){
+                    batch.push({
+                        'method':'tasks.task.delete',
+                        'params':{
+                            'taskId':data['ID'][k]
+                        }
+                    });
+                }else if(this.smartId.indexOf('SMART_GROUP_')>-1){
+                    batch.push({
+                        'method':'crm.item.delete',
+                        'params':{
+                            'entityTypeId':this.smartId.replace(/SMART_GROUP_.*_(.*)/,"$1"),
+                            'id':data['ID'][k]
                         }
                     });
                 }else{
@@ -925,6 +993,14 @@ $(document).ready(function (){
                             'fields':itm
                         }
                     });
+                }else if(this.smartId == 'DOCS' || this.smartId.indexOf('DOCS_GROUP_')>-1){
+                    batch.push({
+                        'method':'crm.documentgenerator.document.update',
+                        'params':{
+                            'id':k,
+                            'values':data['FIELDS'][k]
+                        }
+                    });
                 }else if((typeof this.smartId == 'string') && this.smartId.indexOf('TASK_GROUP_')>-1){
                     var itm = {};
                     var k2;
@@ -938,6 +1014,15 @@ $(document).ready(function (){
                         'params':{
                             'taskId':k,
                             'fields':itm
+                        }
+                    });
+                }else if(this.smartId.indexOf('SMART_GROUP_')>-1){
+                    batch.push({
+                        'method':'crm.item.update',
+                        'params':{
+                            'entityTypeId':this.smartId.replace(/SMART_GROUP_.*_(.*)/,"$1"),
+                            'id':k,
+                            'fields':data['FIELDS'][k]
                         }
                     });
                 }else{
@@ -1295,6 +1380,9 @@ $(document).ready(function (){
                 if(this.smartId == 'TASK_USER'){
                     method = 'tasks.task.list';
                     params['select'] = ['ID'];
+                }else if(this.smartId == 'DOCS' || this.smartId.indexOf('DOCS_GROUP_')>-1){
+                    method = 'crm.documentgenerator.document.list';
+                    //params['select'] = ['ID'];
                 }else if((typeof this.smartId == 'string') && this.smartId.indexOf('TASK_GROUP_')>-1){
                     method = 'tasks.task.list';
                     params['filter']['GROUP_ID'] = this.smartId.replace(/TASK_GROUP_(.*)/,"$1");
@@ -1502,8 +1590,10 @@ $(document).ready(function (){
 
         var smart = $('#select-crm-entity').val();
         var smart_to = $('#select-crm-entity-to').val();
+        if(smart_to == 'DOCS') smart_to = '';
         var name = $('#select-crm-entity-name').val();
         var placement = $('#select-crm-entity-type').val().replace(/CRM_/g,'CRM_'+smart_to+'_');
+        placement = placement.replace(/__/g, '_');
         var url_code = 'smart';
         if(['TASK_USER','TASK_GROUP'].indexOf(smart_to)>-1){
             placement = $('#select-crm-entity-type').val();
@@ -1513,6 +1603,9 @@ $(document).ready(function (){
         }
         if(smart.indexOf('TASK_GROUP_')>-1){
             url_code = 'task';
+        }
+        if(smart.indexOf('DOCS')>-1){
+            url_code = 'docs';
         }
 
 
@@ -1581,6 +1674,8 @@ $(document).ready(function (){
         if(ent === 'task'){
             BX24.openPath('/company/personal/user/0/tasks/task/view/'+id+'/');
         }else if(ent === 'deal'){
+            BX24.openPath('/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/');
+        }else if(ent === 'company'){
             BX24.openPath('/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/');
         }else if(ent === 'user'){
             BX24.openPath('/company/personal/'+ent+'/'+id+'/');

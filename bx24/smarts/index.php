@@ -245,27 +245,16 @@ else
                 </div>
                 <div class="container">
                     <form>
-                        <div class="row" style="margin-bottom:10px;">
-                            <div class="col-xs-4 no-padding">
-                                <label class="main-grid-control-label" for="app_key_prior">Встройка приложения (ссылка с параметрами)</label>
-                            </div>
-                            <div class="col-xs-3 app_handled">
 
-                            </div>
-                            <div class="col-xs-5">
-
-                            </div>
-                        </div>
                         <div class="row" style="margin-bottom:10px;">
-                            <h4>Новая встройка сущности</h4>
+                            <h4>Добавить встройку</h4>
                         </div>
-                        <div class="row" id="placement-sett" style="margin-bottom:10px;">
+                        <div class="row" id="placement-sett-manager" style="margin-bottom:10px;">
                             <div class="col-xs-2 no-padding">
                                 <div class="ui-ctl ui-ctl-after-icon ui-ctl-dropdown">
                                     <div class="ui-ctl-after ui-ctl-icon-angle"></div>
                                     <div class="ui-ctl-tag">что встраиваем</div>
-                                    <select class="ui-ctl-element" id="select-crm-entity">
-
+                                    <select class="ui-ctl-element" id="placement-sett-manager-from">
                                     </select>
                                 </div>
                             </div>
@@ -273,8 +262,7 @@ else
                                 <div class="ui-ctl ui-ctl-after-icon ui-ctl-dropdown">
                                     <div class="ui-ctl-after ui-ctl-icon-angle"></div>
                                     <div class="ui-ctl-tag">куда встраиваем</div>
-                                    <select class="ui-ctl-element" id="select-crm-entity-to">
-
+                                    <select class="ui-ctl-element" id="placement-sett-manager-to">
                                     </select>
                                 </div>
                             </div>
@@ -282,20 +270,17 @@ else
                                 <div class="ui-ctl ui-ctl-after-icon ui-ctl-dropdown">
                                     <div class="ui-ctl-after ui-ctl-icon-angle"></div>
                                     <div class="ui-ctl-tag">место встройки</div>
-                                    <select class="ui-ctl-element" id="select-crm-entity-type">
-                                        <option value="CRM_DETAIL_TAB">верхнее меню карточки (таб)</option>
-                                        <option value="CRM_DETAIL_TOOLBAR">список приложений в карточке</option>
-                                        <option value="CRM_LIST_TOOLBAR">кнопка возле роботов</option>
+                                    <select class="ui-ctl-element" id="placement-sett-manager-type">
                                     </select>
                                 </div>
                             </div>
                             <div class="col-xs-3 no-padding">
                                 <div class="ui-ctl ui-ctl-textbox">
-                                    <input type="text" id="select-crm-entity-name" class="ui-ctl-element" placeholder="Название встройки">
+                                    <input type="text" id="placement-sett-manager-name" class="ui-ctl-element" placeholder="Название встройки">
                                 </div>
                             </div>
                             <div class="col-xs-2 no-padding">
-                                <a href="#" class="add_smart_handled ui-btn ui-btn-success ui-btn-icon-success">Активировать</a>
+                                <a href="#" id="placement-sett-manager-add" class="ui-btn ui-btn-success ui-btn-icon-success">Активировать</a>
                             </div>
                         </div>
                         <div class="row" style="margin-bottom:10px;">

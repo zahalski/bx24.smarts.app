@@ -121,3 +121,110 @@
 
 #stat-app-moved .main-grid-panel-content {width:auto;float:left;margin:5px 15px;}
 #apply_button_for_all .main-grid-checkbox-container {position:relative;}
+
+.tasks-grid-group,
+.tasks-grid-username {
+    max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+    overflow: hidden;
+    vertical-align: middle;
+    color: #525c69;
+    text-decoration: none;
+    white-space: nowrap;
+    padding: 3.5px 13px 3.5px 4px;
+    margin: -4px 0;
+    transition: 250ms linear all;
+    box-sizing: border-box;
+    height: 29px;
+    background: transparent;
+    border-radius: 14.5px;
+}
+
+.tasks-grid-tag {
+    cursor: pointer;
+}
+
+.tasks-grid-group:hover,
+.tasks-grid-group.tasks-grid-filter-active,
+.tasks-grid-username:hover,
+.tasks-grid-username.tasks-grid-filter-active,
+.tasks-grid-tag:hover,
+.tasks-grid-tag.tasks-grid-filter-active {
+    background: #C0EDFD;
+    text-decoration: none !important;
+}
+
+.tasks-grid-group-inner,
+.tasks-grid-username-inner {
+    display: inline-block;
+    vertical-align: middle;
+    max-width: 155px;
+    height: 20px;
+    line-height: 20px;
+    color: #525C69;
+    padding-left: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis
+}
+
+.tasks-grid-group-inner {
+    max-width: 100%;
+}
+
+.tasks-grid-username-inner-orange {
+    color: #eb9134;
+}
+
+.tasks-grid-group:hover .tasks-grid-group-inner,
+.tasks-grid-username:hover .tasks-grid-username-inner{
+    color: #525C69;
+    text-decoration: none;
+    border-bottom: none;
+}
+
+.tasks-grid-wrapper,
+.tasks-grid-wrapper:hover{
+    display: block;
+    overflow: hidden;
+    height: 46px;
+    margin: -16px -32px;
+    padding: 0 10px;
+    background: #f1f5f7;
+    font-weight: var(--ui-font-weight-semi-bold, 600);
+    line-height: 46px;
+    text-align: left;
+}
+
+.main-grid-cell-content .tasks-grid-group-link,
+.main-grid-cell-content .tasks-grid-group-link:hover {
+    font-size: 13px;
+    color: #525c69;
+    text-decoration: none;
+}
+
+.tasks-grid-wrapper:hover {
+    text-decoration: none;
+    color: #525c69;
+}
+
+.tasks-grid-avatar.ui-icon.ui-icon-common-user,
+.tasks-grid-avatar.ui-icon.ui-icon-common-user-group,
+.tasks-grid-avatar.sonet-common-workgroup-avatar {
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
+}
+
+.tasks-grid-avatar.sonet-common-workgroup-avatar {
+    background-size: 14px;
+    margin: 0;
+}
+
+.tasks-grid-avatar.sonet-common-workgroup-avatar.--folder {
+    background-position: center 4px!important;
+}
+
+.tasks-grid-avatar.sonet-common-workgroup-avatar.--chart {
+    background-position: 5px 3px !important;
+}

@@ -1,3 +1,247 @@
+function AwzBx24PlacementManager(){};
+AwzBx24PlacementManager.prototype = {
+    placements: {
+        'codes':[]
+    },
+    onAfterShow: function(from, to, type, name){},
+    addHandler: function(from, to, type, name){},
+    onBeforeGetList: function(option, from, to){
+        if(!from) return false;
+        if(!to) return false;
+        if(!option) return false;
+        if(typeof option !== 'object') return false;
+        return true;
+    },
+    init: function(options){
+        if(!options) options = {};
+        if(options.hasOwnProperty('placements')){
+            this.add(options['placements']);
+        }
+        if(options.hasOwnProperty('onBeforeGetList') &&
+            !!options['onBeforeGetList'] &&
+            typeof options['onBeforeGetList'] === 'function'
+        ){
+            this.onBeforeGetList = options['onBeforeGetList'];
+        }
+        if(options.hasOwnProperty('onAfterShow') &&
+            !!options['onAfterShow'] &&
+            typeof options['onAfterShow'] === 'function'
+        ){
+            this.onAfterShow = options['onAfterShow'];
+        }
+        if(options.hasOwnProperty('addHandler') &&
+            !!options['addHandler'] &&
+            typeof options['addHandler'] === 'function'
+        ){
+            this.addHandler = options['addHandler'];
+        }
+        this.initHandlers();
+        return this;
+    },
+    getPlacementNames: function(){
+        var k;
+        var items = {};
+        for(k in this.placements.codes){
+            var pls = this.placements.codes[k];
+            items[pls.value] = pls.title;
+        }
+        return items;
+    },
+    add: function(placements){
+        var k;
+        for (k in placements){
+            var p = placements[k];
+            this.placements.codes.push(p);
+        }
+    },
+    getList: function(from, to){
+        var placements = [];
+        var k;
+        for(k in this.placements.codes){
+            var p = this.placements.codes[k];
+            if(this.onBeforeGetList(p, from, to)){
+                placements.push(p);
+            }
+        }
+        return placements;
+    },
+    show: function(step){
+        if(!step) step = 1;
+        if(step === 1){
+            $('#placement-sett-manager-from').html('<option value="">выберите сущность</option>');
+            $('#placement-sett-manager-to').html('<option value="">выберите сущность</option>').parent().addClass('ui-ctl-disabled');
+            $('#placement-sett-manager-type').html('<option value="">выберите место встройки</option>').parent().addClass('ui-ctl-disabled');
+            $('#placement-sett-manager-name').val('').parent().addClass('ui-ctl-disabled');
+        }
+        if(step === 2){
+            var val1 = $('#placement-sett-manager-from').val();
+            if(!val1) {
+                return this.show();
+            }
+            $('#placement-sett-manager-to').html('<option value="">выберите сущность</option>').parent().removeClass('ui-ctl-disabled');
+            $('#placement-sett-manager-type').html('<option value="">выберите место встройки</option>').parent().addClass('ui-ctl-disabled');
+            $('#placement-sett-manager-name').parent().addClass('ui-ctl-disabled');
+        }
+        if(step === 3){
+            var val1 = $('#placement-sett-manager-from').val();
+            if(!val1) {
+                return this.show();
+            }
+            var val2 = $('#placement-sett-manager-to').val();
+            if(!val2) {
+                return this.show(2);
+            }
+            $('#placement-sett-manager-type').html('').parent().removeClass('ui-ctl-disabled');
+            $('#placement-sett-manager-name').parent().removeClass('ui-ctl-disabled');
+        }
+        this.showFrom();
+        this.showTo();
+        this.showType();
+
+        var v = this.getValues();
+        this.onAfterShow(v['from'],v['to'],v['type'], v['name']);
+    },
+    getValues: function(){
+        return {
+            'from':$('#placement-sett-manager-from').val(),
+            'to':$('#placement-sett-manager-to').val(),
+            'type':$('#placement-sett-manager-type').val(),
+            'name':$('#placement-sett-manager-name').val()
+        };
+    },
+    removeFrom: function(options){
+        this.from = [];
+    },
+    removeTo: function(options){
+        this.to = [];
+    },
+    removeType: function(options){
+        this.type = [];
+    },
+    addOptionHtml: function(node, option){
+        var check = false;
+        var nodeId = '#placement-sett-manager-'+node;
+        $(nodeId).find('option').each(function(){
+            if($(this).attr('value') === option.value) {
+                check = true;
+                return false;
+            }
+        });
+        if(!check){
+            var dataCode = option.hasOwnProperty('data-code') ? option['data-code'] : '';
+            $(nodeId).append('<option data-code="'+dataCode+'" value="'+option.value+'">'+option.title+'</option>');
+        }
+
+    },
+    appendFrom: function(option){
+        if(!this.hasOwnProperty('from')) this.from = [];
+        var check = false;
+        var k;
+        for(k in this.from) {
+            var option_row = this.from[k];
+            if(option_row.value === option.value){
+                check = true;
+                break;
+            }
+        }
+        if(!check) this.from.push(option);
+        this.addOptionHtml('from', option);
+    },
+    appendTo: function(option){
+        if(!this.hasOwnProperty('to')) this.to = [];
+        var check = false;
+        var k;
+        for(k in this.to) {
+            var option_row = this.to[k];
+            if(option_row.value === option.value){
+                check = true;
+                break;
+            }
+        }
+        if(!check) this.to.push(option);
+        this.addOptionHtml('to', option);
+    },
+    appendType: function(option){
+        if(!this.hasOwnProperty('type')) this.type = [];
+        var check = false;
+        var k;
+        for(k in this.type) {
+            var option_row = this.type[k];
+            if(option_row.value === option.value){
+                check = true;
+                break;
+            }
+        }
+        if(!check) this.type.push(option);
+        this.addOptionHtml('type', option);
+    },
+    showFrom: function(options){
+        if(!this.hasOwnProperty('from')) this.from = [];
+        if(!options) {
+            options = this.from;
+        }
+        var k;
+        for(k in options){
+            var option = options[k];
+            if(typeof option !== 'object') continue;
+            if(!option.hasOwnProperty('value')) continue;
+            if(!option.hasOwnProperty('title')) continue;
+            this.appendFrom(option);
+        }
+    },
+    showTo: function(options){
+        if(!this.hasOwnProperty('to')) this.to = [];
+        if(!options) {
+            options = this.to;
+        }
+        var k;
+        for(k in options){
+            var option = options[k];
+            if(typeof option !== 'object') continue;
+            if(!option.hasOwnProperty('value')) continue;
+            if(!option.hasOwnProperty('title')) continue;
+            this.appendTo(option);
+        }
+    },
+    showType: function(options){
+        var from = $('#placement-sett-manager-from').val();
+        var to = $('#placement-sett-manager-to').val();
+        this.type = this.getList(from, to);
+        if(!options) {
+            options = this.type;
+        }
+        var k;
+        for(k in options){
+            var option = options[k];
+            if(typeof option !== 'object') continue;
+            if(!option.hasOwnProperty('value')) continue;
+            if(!option.hasOwnProperty('title')) continue;
+            this.appendType(option);
+        }
+
+        var val3 = $('#placement-sett-manager-type').val();
+        if(!val3) {
+            $('#placement-sett-manager-add').addClass('ui-btn-disabled');
+        }else{
+            $('#placement-sett-manager-add').removeClass('ui-btn-disabled');
+        }
+    },
+    initHandlers: function(){
+        var parentConstructor = this;
+        $(document).on('change', '#placement-sett-manager-from', function(){
+            parentConstructor.show(2);
+        });
+        $(document).on('change', '#placement-sett-manager-to', function(){
+            parentConstructor.show(3);
+        });
+        $(document).on('click', '#placement-sett-manager-add', function(e){
+            e.preventDefault();
+            var v = parentConstructor.getValues();
+            parentConstructor.addHandler(v['from'],v['to'],v['type'], v['name']);
+        });
+    },
+};
+
 $(document).ready(function (){
 
     window.awz_helper = {
@@ -15,6 +259,7 @@ $(document).ready(function (){
         lastFilter: {},
         arParams: {},
         loader_class: 'awz-main-preload',
+        placements: null,
         get_preload_html: function (loader_mess) {
             if (!loader_mess) loader_mess = 'загрузка...';
             var ht = '<div class="' + this.loader_class + '">' +
@@ -69,6 +314,10 @@ $(document).ready(function (){
                 }
                 return '<div class="ui-alert ui-alert-danger">'+mess.join('; ')+'</div>';
             }
+        },
+        resize: function(){
+            BX24.fitWindow();
+            BX24.resizeWindow($('body').width(), $('body').height()+50);
         },
         addBxTime: function(res){
             //console.log(res);
@@ -131,53 +380,242 @@ $(document).ready(function (){
             el.html(msg);
             this.scrollTop();
         },
-        getPlacementsList: function(all){
-            var c_val = $('#placement-sett #select-crm-entity-to').val();
-            //console.log(c_val);
-            var types = {
-                'CRM_DETAIL_TAB': 'верхнее меню карточки (таб)',
-                'CRM_DETAIL_TOOLBAR': 'список приложений в карточке',
-                'CRM_LIST_TOOLBAR': 'кнопка возле роботов',
-            };
-            var all_types = Object.assign({},types);
-            all_types['TASK_USER_LIST_TOOLBAR'] = 'кнопка возле роботов';
-            if(c_val === 'TASK_USER'){
-                types = {
-                    'TASK_USER_LIST_TOOLBAR': 'кнопка возле роботов'
-                };
+        getPlacementManager: function(){
+            if(!this.placements){
+                this.placements = new AwzBx24PlacementManager;
+                this.placements.init({
+                    'placements':[
+                        {
+                            'value':'REST_APP_URI',
+                            'title':'Ссылка на приложение с параметрами',
+                            'data-code':'REST_APP_URI'
+                        },
+                        {
+                            'value':'CRM_LIST_TOOLBAR',
+                            'title':'Кнопка возле роботов',
+                            'data-code':'CRM_#1#_LIST_TOOLBAR'
+                        },
+                        {
+                            'value':'CRM_DETAIL_TAB',
+                            'title':'Верхнее меню карточки (таб)',
+                            'data-code':'CRM_#1#_DETAIL_TAB'
+                        },
+                        {
+                            'value':'CRM_DETAIL_TOOLBAR',
+                            'title':'Список приложений в карточке',
+                            'data-code':'CRM_#1#_DETAIL_TOOLBAR'
+                        },
+                        {
+                            'value':'TASK_USER_LIST_TOOLBAR',
+                            'title':'Кнопка возле роботов',
+                            'data-code':'TASK_USER_LIST_TOOLBAR'
+                        },
+                        {
+                            'value':'TASK_USER_CRM_CRM_DETAIL_TAB',
+                            'title':'Таб в CRM сущности',
+                            'data-code':'CRM_#1#_DETAIL_TAB'
+                        },
+                        {
+                            'value':'TASK_GROUP_LIST_TOOLBAR',
+                            'title':'Кнопка возле роботов в группе',
+                            'data-code':'TASK_GROUP_LIST_TOOLBAR'
+                        },
+                        {
+                            'value':'SONET_GROUP_DETAIL_TAB',
+                            'title':'Закладка рабочей группы',
+                            'data-code':'SONET_GROUP_DETAIL_TAB'
+                        },
+                        {
+                            'value':'SONET_GROUP_TOOLBAR',
+                            'title':'Кнопка на вкладке основное в группе',
+                            'data-code':'SONET_GROUP_TOOLBAR'
+                        },
+                        {
+                            'value':'CRM_DEAL_DOCUMENTGENERATOR_BUTTON',
+                            'title':'Кнопка в документах сделки',
+                            'data-code':'CRM_DEAL_DOCUMENTGENERATOR_BUTTON'
+                        },
+                        {
+                            'value':'CRM_LEAD_DOCUMENTGENERATOR_BUTTON',
+                            'title':'Кнопка в документах лида',
+                            'data-code':'CRM_LEAD_DOCUMENTGENERATOR_BUTTON'
+                        },
+                        {
+                            'value':'CRM_CONTACT_DOCUMENTGENERATOR_BUTTON',
+                            'title':'Кнопка в документах контакта',
+                            'data-code':'CRM_CONTACT_DOCUMENTGENERATOR_BUTTON'
+                        },
+                        {
+                            'value':'CRM_COMPANY_DOCUMENTGENERATOR_BUTTON',
+                            'title':'Кнопка в документах компании',
+                            'data-code':'CRM_COMPANY_DOCUMENTGENERATOR_BUTTON'
+                        },
+                    ],
+                    'onBeforeGetList': function(option, from, to){
+                        if(!from) return false;
+                        if(!to) return false;
+                        if(from === 'APP_LINK'){
+                            if(to === 'APP_LINK' && option.value === 'REST_APP_URI'){
+                                return true;
+                            }
+                            return false;
+                        }
+                        if(['TASK_USER_CRM'].indexOf(from)>-1){
+                            if(['TASK_USER_CRM_CRM_DETAIL_TAB'].indexOf(option.value)>-1) {
+                                return true;
+                            }
+                            return false;
+                        }
+                        if(to.indexOf('DYNAMIC_')>-1){
+                            if(['CRM_LIST_TOOLBAR','CRM_DETAIL_TAB','CRM_DETAIL_TOOLBAR'].indexOf(option.value)>-1) {
+                                return true;
+                            }
+                        }
+                        if(['LEAD','DEAL','CONTACT','COMPANY'].indexOf(to)>-1){
+                            if(['CRM_LIST_TOOLBAR','CRM_DETAIL_TAB','CRM_DETAIL_TOOLBAR'].indexOf(option.value)>-1) {
+                                return true;
+                            }
+                        }
+                        if(['DOCS'].indexOf(to)>-1){
+                            if(['CRM_DEAL_DOCUMENTGENERATOR_BUTTON','CRM_LEAD_DOCUMENTGENERATOR_BUTTON',
+                                'CRM_CONTACT_DOCUMENTGENERATOR_BUTTON','CRM_COMPANY_DOCUMENTGENERATOR_BUTTON'].indexOf(option.value)>-1) {
+                                return true;
+                            }
+                        }
+                        if(['TASK_USER'].indexOf(to)>-1){
+                            if(['TASK_USER_LIST_TOOLBAR'].indexOf(option.value)>-1) {
+                                return true;
+                            }
+                        }
+                        if(['TASK_GROUP'].indexOf(to)>-1){
+                            if(['TASK_GROUP_LIST_TOOLBAR','SONET_GROUP_DETAIL_TAB','SONET_GROUP_TOOLBAR'].indexOf(option.value)>-1) {
+                                return true;
+                            }
+                        }
+
+                        console.log([option, from, to]);
+                        return false;
+                    },
+                    onAfterShow: function(from, to, type, name){
+                        if(from === 'APP_LINK'){
+                            $('#placement-sett-manager-to').find('option').each(function(){
+                                if($(this).attr('value') && $(this).attr('value')!=='APP_LINK') $(this).remove();
+                            });
+                        }else{
+                            $('#placement-sett-manager-to').find('option').each(function(){
+                                if($(this).attr('value') && $(this).attr('value')==='APP_LINK') $(this).remove();
+                            });
+                        }
+                        $('#placement-sett-manager-to').find('option').each(function(){
+                            if($(this).attr('value') && $(this).attr('value')==='TASK_USER_CRM') $(this).remove();
+                        });
+                        if(from === 'TASK_USER_CRM'){
+                            $('#placement-sett-manager-to').find('option').each(function(){
+                                if($(this).attr('value') && ['LEAD','DEAL','CONTACT','COMPANY'].indexOf($(this).attr('value'))>-1){
+
+                                }else if($(this).attr('value') && $(this).attr('value').indexOf('DYNAMIC_')>-1){
+
+                                }else if($(this).attr('value')){
+                                    $(this).remove();
+                                }
+                            });
+                        }
+                    },
+                    addHandler: function(from, to, type, name){
+                        if(type === 'REST_APP_URI'){
+                            if(!name) name = 'CRM Сущности';
+                            BX24.callMethod(
+                                'placement.bind',
+                                {
+                                    'PLACEMENT': type,
+                                    'HANDLER': window.awz_helper.APP_URL+'smart.php?app='+window.awz_helper.APP_ID,
+                                    'LANG_ALL': {
+                                        ru : {
+                                            'TITLE': name
+                                        }
+                                    }
+                                },
+                                function(res)
+                                {
+                                    window.awz_helper.addBxTime(res);
+                                    if(res.answer.hasOwnProperty('error_description')){
+                                        alert(res.answer.error_description);
+                                    }else{
+                                        window.awz_helper.loadHandledApp();
+                                    }
+                                }
+                            );
+                        }else{
+                            if(!name) name = 'Без названия';
+                            var smart = from;
+                            var smart_to = to;
+                            if(smart_to == 'DOCS') smart_to = '';
+                            var placement = type.replace(/CRM_/g,'CRM_'+smart_to+'_');
+                            placement = placement.replace(/__/g, '_');
+                            var url_code = 'smart';
+                            if(['TASK_USER','TASK_GROUP'].indexOf(smart_to)>-1){
+                                placement = type;
+                            }
+                            if(['TASK_USER'].indexOf(smart)>-1){
+                                url_code = 'task';
+                            }
+                            if(smart.indexOf('TASK_GROUP_')>-1){
+                                url_code = 'task';
+                            }
+                            if(smart.indexOf('DOCS')>-1){
+                                url_code = 'docs';
+                            }
+                            if(smart === 'TASK_USER_CRM'){
+                                url_code = 'task';
+                                $('#placement-sett-manager-type').find('option').each(function(){
+                                    if($(this).attr('value') === type){
+                                        placement = $(this).attr('data-code').replace(/#1#/g, smart_to);
+                                    }
+                                });
+                            }
+
+                            BX24.callMethod(
+                                'placement.bind',
+                                {
+                                    'PLACEMENT': placement,
+                                    'HANDLER': window.awz_helper.APP_URL+url_code+'.php?plc='+placement+'&smartId='+smart+'&app='+window.awz_helper.APP_ID,
+                                    'LANG_ALL': {
+                                        ru : {
+                                            'TITLE': name
+                                        }
+                                    }
+                                },
+                                function(res)
+                                {
+                                    window.awz_helper.addBxTime(res);
+                                    if(res.answer.hasOwnProperty('error_description')){
+                                        alert(res.answer.error_description);
+                                    }else{
+                                        window.awz_helper.loadHandledApp();
+                                    }
+                                }
+                            );
+
+                        }
+                    },
+                });
             }
-            all_types['TASK_GROUP_LIST_TOOLBAR'] = 'кнопка возле роботов в группе';
-            all_types['SONET_GROUP_DETAIL_TAB'] = 'закладка рабочей группы';
-            all_types['SONET_GROUP_TOOLBAR'] = 'кнопка на вкладке основное в группе';
-            if(c_val === 'TASK_GROUP'){
-                types = {
-                    'TASK_GROUP_LIST_TOOLBAR': all_types['TASK_GROUP_LIST_TOOLBAR'],
-                    'SONET_GROUP_DETAIL_TAB': all_types['SONET_GROUP_DETAIL_TAB'],
-                    'SONET_GROUP_TOOLBAR': all_types['SONET_GROUP_TOOLBAR'],
-                };
-            }
-            all_types['CRM_DEAL_DOCUMENTGENERATOR_BUTTON'] = 'Кнопка в документах сделки';
-            all_types['CRM_LEAD_DOCUMENTGENERATOR_BUTTON'] = 'Кнопка в документах лида';
-            all_types['CRM_CONTACT_DOCUMENTGENERATOR_BUTTON'] = 'Кнопка в документах контакта';
-            all_types['CRM_COMPANY_DOCUMENTGENERATOR_BUTTON'] = 'Кнопка в документах компании';
-            if(c_val === 'DOCS'){
-                types = {
-                    'CRM_DEAL_DOCUMENTGENERATOR_BUTTON': all_types['CRM_DEAL_DOCUMENTGENERATOR_BUTTON'],
-                    'CRM_LEAD_DOCUMENTGENERATOR_BUTTON': all_types['CRM_LEAD_DOCUMENTGENERATOR_BUTTON'],
-                    'CRM_CONTACT_DOCUMENTGENERATOR_BUTTON': all_types['CRM_CONTACT_DOCUMENTGENERATOR_BUTTON'],
-                    'CRM_COMPANY_DOCUMENTGENERATOR_BUTTON': all_types['CRM_COMPANY_DOCUMENTGENERATOR_BUTTON'],
-                };
-            }
-            //console.log(types);
-            $('#select-crm-entity-type').html('');
-            var k;
-            for(k in types){
-                $('#select-crm-entity-type').append('<option value="'+k+'">'+types[k]+'</option>');
-            }
-            if(!!all) return all_types;
-            return types;
+            return this.placements;
         },
         loadHandledApp: function(){
+
+            var placementManager = this.getPlacementManager();
+            placementManager.show();
+
+            placementManager.appendFrom({
+                'value':'APP_LINK',
+                'title':'Приложение'
+            });
+            placementManager.appendTo({
+                'value':'APP_LINK',
+                'title':'Битрикс24'
+            });
+
             //crm.type.list
             var findIdsSmart = [];
             var linksSmart = {
@@ -196,25 +634,25 @@ $(document).ready(function (){
                 'TASK_USER':{
                     'title': 'Задачи'
                 },
+                'TASK_USER_CRM':{
+                    'title': 'Задачи CRM сущности'
+                },
                 'DOCS':{
                     'title': 'Документы'
                 },
                 'TASK_GROUP':{
                     'title': 'Группа'
-                }
+                },
             };
 
             var k;
-
-            $('#placement-sett #select-crm-entity').html('');
-            $('#placement-sett #select-crm-entity-to').html('');
             for(k in linksSmart){
-                //if(k != 'DOCS')
-                    $('#placement-sett #select-crm-entity-to').append('<option value="'+k+'">'+linksSmart[k].title+'</option>');
+                placementManager.appendTo({
+                    'value':k,
+                    'title':linksSmart[k].title
+                });
             }
-            //this.getPlacementsList();
-            var types = this.getPlacementsList(true);
-            //console.log(types);
+            var types = placementManager.getPlacementNames();
 
             var batch = [];
 
@@ -256,10 +694,15 @@ $(document).ready(function (){
                                 findIdsSmart.push(item.entityTypeId);
                                 item.title = 'Смарт: '+item.title;
                                 linksSmart[item.entityTypeId] = item;
-                                //console.log(item);
 
-                                $('#placement-sett #select-crm-entity').append('<option value="DYNAMIC_'+item.entityTypeId+'">'+item.title+'</option>');
-                                $('#placement-sett #select-crm-entity-to').append('<option value="DYNAMIC_'+item.entityTypeId+'">'+item.title+'</option>');
+                                placementManager.appendFrom({
+                                    'value':'DYNAMIC_'+item.entityTypeId,
+                                    'title':item.title
+                                });
+                                placementManager.appendTo({
+                                    'value':'DYNAMIC_'+item.entityTypeId,
+                                    'title':item.title
+                                });
                             }
                         }
                     } catch (e) {
@@ -275,21 +718,29 @@ $(document).ready(function (){
                                 item.title = 'Задачи в группе: '+item.NAME;
                                 item.entityTypeId = item.ID;
                                 linksSmart['group_'+item.entityTypeId] = item;
-                                //console.log(item);
 
-                                $('#placement-sett #select-crm-entity').append('<option value="TASK_GROUP_'+item.entityTypeId+'">'+item.title+'</option>');
-                                //$('#placement-sett #select-crm-entity-to').append('<option value="TASK_GROUP_'+item.entityTypeId+'">'+item.title+'</option>');
+                                placementManager.appendFrom({
+                                    'value':'TASK_GROUP_'+item.entityTypeId,
+                                    'title':item.title
+                                });
                             }
                         }
                     } catch (e) {
                         console.log(e);
                     }
 
-                    $('#placement-sett #select-crm-entity').append('<option value="DOCS">'+linksSmart['DOCS'].title+'</option>');
-
-                    $('#placement-sett #select-crm-entity').append('<option value="TASK_USER">'+linksSmart['TASK_USER'].title+'</option>');
-                    //$('#placement-sett #select-crm-entity-to').append('<option value="TASK_USER">'+linksSmart['TASK_USER'].title+'</option>');
-                    //$('#placement-sett #select-crm-entity-to').append('<option value="TASK_GROUP">'+linksSmart['TASK_GROUP'].title+'</option>');
+                    placementManager.appendFrom({
+                        'value':'DOCS',
+                        'title':linksSmart['DOCS'].title
+                    });
+                    placementManager.appendFrom({
+                        'value':'TASK_USER',
+                        'title':linksSmart['TASK_USER'].title
+                    });
+                    placementManager.appendFrom({
+                        'value':'TASK_USER_CRM',
+                        'title':linksSmart['TASK_USER_CRM'].title
+                    });
 
                     BX24.callMethod(
                         'placement.get',
@@ -297,7 +748,6 @@ $(document).ready(function (){
                         function(res)
                         {
                             window.awz_helper.addBxTime(res);
-                            //console.log(res);
                             try {
                                 var find = false;
                                 var find_smarts_1 = [];
@@ -305,13 +755,9 @@ $(document).ready(function (){
                                     var k;
                                     for (k in res.answer.result) {
                                         var placement = res.answer.result[k];
-                                        if(placement['placement'] === "REST_APP_URI"){
-                                            find = true;
-                                        }
-                                        //CRM_DYNAMIC_
                                         var candidate = placement['placement'].split('_');
                                         console.log(candidate);
-                                        if(['CRM','TASK','SONET'].indexOf(candidate[0])>-1){
+                                        if(['CRM','TASK','SONET','REST'].indexOf(candidate[0])>-1){
 
                                             var code_type = '';
                                             var code_to = '';
@@ -329,15 +775,17 @@ $(document).ready(function (){
                                                     code_type = candidate.join("_");
                                                     code_to = 'TASK_GROUP';
                                                 }
-                                            }else if(['LEAD','DEAL','CONTACT','COMPANY','INVOICE'].indexOf(candidate[1])>-1){
+                                            }else if(['LEAD','DEAL','CONTACT','COMPANY','INVOICE'].indexOf(candidate[1])>-1) {
                                                 var code_to = candidate[1];
                                                 code_type = [candidate[0], candidate[2], candidate[3]].join("_");
-                                                if(candidate[2] == 'DOCUMENTGENERATOR'){
+                                                if (candidate[2] == 'DOCUMENTGENERATOR') {
                                                     code_to = 'DOCS';
                                                     code_type = [candidate[0], candidate[1], candidate[2], candidate[3]].join("_");
                                                 }
                                             }
-                                            if(placement['handler'].indexOf('smartId=TASK_USER')>-1){
+                                            if(placement['handler'].indexOf('smartId=TASK_USER_CRM')>-1){
+                                                code = 'TASK_USER_CRM';
+                                            }else if(placement['handler'].indexOf('smartId=TASK_USER')>-1){
                                                 code = 'TASK_USER';
                                             }else if(placement['handler'].indexOf('smartId=DOCS')>-1){
                                                 code = 'DOCS';
@@ -346,11 +794,25 @@ $(document).ready(function (){
                                             }else{
                                                 code = placement['handler'].replace(/.*smartId=[A-Z]+_([0-9]+)(.*)/g, "$1");
                                             }
+                                            if(candidate[0]==='REST'){
+                                                code = 'APP_LINK';
+                                                code_to = 'APP_LINK';
+                                                code_type = [candidate[0], candidate[1], candidate[2]].join("_");
+                                            }
 
                                             //console.log([linksSmart, code_type, code, code_to, placement['handler']]);
                                             var item = linksSmart[code];
                                             var item_to = linksSmart[code_to];
                                             //console.log([item, item_to]);
+
+                                            if(candidate[0]==='REST'){
+                                                item = {
+                                                    'title':'Приложение'
+                                                };
+                                                item_to = {
+                                                    'title':'Битрикс24'
+                                                };
+                                            }
 
                                             if(!item || !item_to){
                                                 $('.rows-smarts').append('<div class="row" style="margin-bottom:10px;">' +
@@ -386,33 +848,11 @@ $(document).ready(function (){
                                                     '</div>' +
                                                     '</div>');
                                             }
-
-
-
                                             //find_smarts_1.push(parseInt(code));
                                         }
                                     }
                                 }
-                                if(!find){
-                                    $('.app_handled').html('<a href="#" id="add_app_handled" class="ui-btn ui-btn-success ui-btn-icon-success">Активировать</a>');
-                                }else{
-                                    $('.app_handled').html('<a href="#" id="remove_app_handled" class="ui-btn ui-btn-icon-alert">Деактивировать</a>');
-                                }
 
-                                /*var find = false;
-                                if(res.answer.result.length){
-                                    var k;
-                                    for (k in res.answer.result) {
-                                        if(res.answer.result[k]['placement'] === "CRM_DEAL_ACTIVITY_TIMELINE_MENU"){
-                                            find = true;
-                                        }
-                                    }
-                                }
-                                if(!find){
-                                    $('.app_handled2').html('<a href="#" id="add_app_handled2" class="ui-btn ui-btn-success ui-btn-icon-success">Активировать</a>');
-                                }else{
-                                    $('.app_handled2').html('<a href="#" id="remove_app_handled2" class="ui-btn ui-btn-icon-alert">Деактивировать</a>');
-                                }*/
                             } catch (e) {
                                 console.log(e);
                             }
@@ -448,7 +888,7 @@ $(document).ready(function (){
             BX.Main.gridManager.getById(this.gridId).instance.
             reloadTable('POST', {'bx_result':data, key: this.key},function(){
                 window.awz_helper.preventSortableClick = false;
-                BX24.fitWindow();
+                window.awz_helper.resize();
             });
         },
         getSmartDataFiltered: function(filter){
@@ -595,9 +1035,31 @@ $(document).ready(function (){
                 params['start'] = Math.floor(params['start']/50) * 50;
             }
 
+            var plc_info = BX24.placement.info();
+
             var method = 'crm.item.list';
             var check_order_upper = false;
-            if(this.smartId == 'TASK_USER'){
+            if(this.smartId == 'TASK_USER_CRM'){
+                method = 'tasks.task.list';
+                check_order_upper = true;
+                if(plc_info.placement){
+                    var entity_code_id = plc_info.placement.replace(/CRM_(.*)_DETAIL_TAB/g, "$1");
+                    if(entity_code_id === 'DEAL'){
+                        params['filter']['UF_CRM_TASK'] = 'D_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'LEAD'){
+                        params['filter']['UF_CRM_TASK'] = 'L_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'CONTACT'){
+                        params['filter']['UF_CRM_TASK'] = 'C_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'COMPANY'){
+                        params['filter']['UF_CRM_TASK'] = 'CO_'+plc_info.options.ID;
+                    }
+                }
+                console.log(plc_info);
+                //params['filter']['GROUP_ID']
+            }else if(this.smartId == 'TASK_USER'){
                 method = 'tasks.task.list';
                 check_order_upper = true;
             }else if(this.smartId == 'DOCS' || this.smartId.indexOf('DOCS_GROUP_')>-1){
@@ -612,6 +1074,9 @@ $(document).ready(function (){
             }else{
                 params['entityTypeId'] = this.smartId;
                 //params['select'] = ['*','ufCrm22Items'];
+            }
+            if(this.hasOwnProperty('fields_select')){
+                params['select'] = this.fields_select;
             }
 
             if(window.awz_helper.hasOwnProperty('addFilter') && typeof window.awz_helper.addFilter === 'object'){
@@ -750,6 +1215,7 @@ $(document).ready(function (){
         preventSortableClick: false,
         grid_ob: null,
         init: function(key, smartId, gridId, startSize){
+
             if(key) this.key = key;
             if(this.gridId) return; //inited
             if(startSize){
@@ -818,8 +1284,20 @@ $(document).ready(function (){
 
                     window.awz_helper.getSmartData();
                 });
-
-
+            BX.Event.EventEmitter
+                .subscribe('Grid::thereEditedRows', (event) => {
+                    window.awz_helper.resize();
+                });
+            BX.Event.EventEmitter
+                .subscribe('Grid::noEditedRows', (event) => {
+                    window.awz_helper.resize();
+                    window.awz_helper.canselGroupActions();
+                });
+            BX.Event.EventEmitter
+                .subscribe('Grid::resize', (event) => {
+                    window.awz_helper.resize();
+                });
+            //Grid::thereEditedRows
 
             BX.Event.EventEmitter
                 .subscribe('Grid::beforeRequest', (event) => {
@@ -922,7 +1400,14 @@ $(document).ready(function (){
             var batch = [];
             var k;
             for(k in data['ID']){
-                if(this.smartId == 'TASK_USER'){
+                if(this.smartId == 'TASK_USER_CRM'){
+                    batch.push({
+                        'method':'tasks.task.delete',
+                        'params':{
+                            'taskId':data['ID'][k]
+                        }
+                    });
+                }else if(this.smartId == 'TASK_USER'){
                     batch.push({
                         'method':'tasks.task.delete',
                         'params':{
@@ -980,7 +1465,35 @@ $(document).ready(function (){
                 if(this.fields[k])
             }*/
             for(k in data['FIELDS']){
-                if(this.smartId == 'TASK_USER'){
+                for(k2 in data['FIELDS'][k]) {
+                    //console.log(k2);
+                    //console.log(data['FIELDS'][k]);
+                    if(k2.indexOf('_custom')>-1) {
+                        delete data['FIELDS'][k][k2];
+                        continue;
+                    }
+                    if (this.fields[k2].hasOwnProperty('isMultiple') && this.fields[k2]['isMultiple']) {
+                        if (typeof data['FIELDS'][k][k2] !== 'object') {
+                            var delimeter = ',';
+                            data['FIELDS'][k][k2] = data['FIELDS'][k][k2].split(delimeter);
+                        }
+                    }
+                }
+
+                if(this.smartId == 'TASK_USER_CRM'){
+                    var itm = {};
+                    var k2;
+                    for(k2 in data['FIELDS'][k]){
+                        itm[this.fields[k2]['upperCase']] = data['FIELDS'][k][k2];
+                    }
+                    batch.push({
+                        'method':'tasks.task.update',
+                        'params':{
+                            'taskId':k,
+                            'fields':itm
+                        }
+                    });
+                }else if(this.smartId == 'TASK_USER'){
                     var itm = {};
                     var k2;
                     for(k2 in data['FIELDS'][k]){
@@ -1243,7 +1756,76 @@ $(document).ready(function (){
             }
         },
         menuNewEl: function(){
-            BX24.openPath('/crm/type/'+this.smartId+'/details/0/');
+            /*
+            * if(this.smartId == 'TASK_USER_CRM'){
+                method = 'tasks.task.list';
+                check_order_upper = true;
+                if(plc_info.placement){
+                    var entity_code_id = plc_info.placement.replace(/CRM_(.*)_DETAIL_TAB/g, "$1");
+                    if(entity_code_id === 'DEAL'){
+                        params['filter']['UF_CRM_TASK'] = 'D_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'LEAD'){
+                        params['filter']['UF_CRM_TASK'] = 'L_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'CONTACT'){
+                        params['filter']['UF_CRM_TASK'] = 'C_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'COMPANY'){
+                        params['filter']['UF_CRM_TASK'] = 'CO_'+plc_info.options.ID;
+                    }
+                }
+                console.log(plc_info);
+                //params['filter']['GROUP_ID']
+            }else if(this.smartId == 'TASK_USER'){
+                method = 'tasks.task.list';
+                check_order_upper = true;
+            }else if(this.smartId == 'DOCS' || this.smartId.indexOf('DOCS_GROUP_')>-1){
+                method = 'crm.documentgenerator.document.list';
+                //check_order_upper = true;
+            }else if((typeof this.smartId == 'string') && this.smartId.indexOf('TASK_GROUP_')>-1){
+                method = 'tasks.task.list';
+                params['filter']['GROUP_ID'] = this.smartId.replace(/TASK_GROUP_(.*)/,"$1");
+                check_order_upper = true;
+            }else if(this.smartId.indexOf('SMART_GROUP_')>-1){
+                params['entityTypeId'] = this.smartId.replace(/SMART_GROUP_.*_(.*)/,"$1");
+            }else{
+                params['entityTypeId'] = this.smartId;
+                //params['select'] = ['*','ufCrm22Items'];
+            }
+            * */
+            //if(this.smartId)
+            var plc_info = BX24.placement.info();
+            var crm_item_id = '';
+            var cur_user_id = this.hasOwnProperty('currentUserId') ? this.currentUserId : '0';
+            if(this.smartId == 'TASK_USER_CRM'){
+                ///company/personal/user/1/tasks/task/edit/0/?UF_CRM_TASK=D_186&TITLE=CRM%3A%20&TAGS=crm
+                if(plc_info.placement){
+                    var entity_code_id = plc_info.placement.replace(/CRM_(.*)_DETAIL_TAB/g, "$1");
+                    if(entity_code_id === 'DEAL'){
+                        crm_item_id = 'D_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'LEAD'){
+                        crm_item_id = 'L_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'CONTACT'){
+                        crm_item_id = 'C_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'COMPANY'){
+                        crm_item_id = 'CO_'+plc_info.options.ID;
+                    }
+                }
+                BX24.openPath('/company/personal/user/'+parseInt(cur_user_id)+'/tasks/task/edit/0/?UF_CRM_TASK='+crm_item_id+'&TITLE=CRM%3A%20&TAGS=crm');
+            }else if(this.smartId == 'TASK_USER'){
+                BX24.openPath('/company/personal/user/'+parseInt(cur_user_id)+'/tasks/task/edit/0/');
+            }else if((typeof this.smartId == 'string') && this.smartId.indexOf('TASK_GROUP_')>-1){
+                var g_id = this.smartId.replace(/TASK_GROUP_(.*)/,"$1");
+                BX24.openPath('/workgroups/group/'+g_id+'/tasks/task/edit/0/?SCOPE=tasks_grid&GROUP_ID='+g_id);
+            }else if(this.smartId.indexOf('SMART_GROUP_')>-1){
+                BX24.openPath('/crm/type/'+this.smartId.replace(/SMART_GROUP_.*_(.*)/,"$1")+'/details/0/');
+            }else{
+                BX24.openPath('/crm/type/'+this.smartId+'/details/0/');
+            }
         },
         rmCache: function(){
             this.cache_action = 'remove';
@@ -1303,7 +1885,7 @@ $(document).ready(function (){
                     });
                     $('#'+window.awz_helper.gridId+'_bottom_panels .ui-progressbar').remove();
                     $('#'+window.awz_helper.gridId+'_bottom_panels').append(myProgress.getContainer());
-                    BX24.fitWindow();
+                    window.awz_helper.resize();
 
                     var timerResult_cnt = 0;
                     var timerResult = setTimeout(function steps(){
@@ -1369,7 +1951,7 @@ $(document).ready(function (){
                 });
                 $('#'+window.awz_helper.gridId+'_bottom_panels .ui-progressbar').remove();
                 $('#'+this.gridId+'_bottom_panels').append(myProgress.getContainer());
-                BX24.fitWindow();
+                window.awz_helper.resize();
 
                 var batch_prepare = [];
                 var method = 'crm.item.list';
@@ -1377,7 +1959,10 @@ $(document).ready(function (){
                 params['filter'] = this.lastFilter;
                 params['select'] = ['id'];
                 params['order'] = this.lastOrder;
-                if(this.smartId == 'TASK_USER'){
+                if(this.smartId == 'TASK_USER_CRM'){
+                    method = 'tasks.task.list';
+                    params['select'] = ['ID'];
+                }else if(this.smartId == 'TASK_USER'){
                     method = 'tasks.task.list';
                     params['select'] = ['ID'];
                 }else if(this.smartId == 'DOCS' || this.smartId.indexOf('DOCS_GROUP_')>-1){
@@ -1459,11 +2044,11 @@ $(document).ready(function (){
                     fields['ufCrm'+smartId+'Elements'] = ids;
                     send_item(entityId, fields, smartId);
                     myProgress.destroy();
-                    BX24.fitWindow();
+                    window.awz_helper.resize();
                     window.awz_helper.prepared_ids_timeouts = [];
                 },function(){
                     myProgress.destroy();
-                    BX24.fitWindow();
+                    window.awz_helper.resize();
                     var k;
                     for(k in window.awz_helper.prepared_ids_timeouts){
                         clearTimeout(window.awz_helper.prepared_ids_timeouts[k]);
@@ -1489,10 +2074,12 @@ $(document).ready(function (){
         },
         openDialogCrm: function(controlId, entityIds){
             var ent = entityIds.split(',');
+            var value = $('#'+controlId).val();
+            if(value) value = value.split(',');
             BX24.selectCRM({
                 entityType: ent,
                 multiple: true,
-                value: ''
+                value: value
             },function(res){
                 var ids = [];
                 var k;
@@ -1585,97 +2172,27 @@ $(document).ready(function (){
             }
         );
     });
-    $(document).on('click', '.add_smart_handled', function(e){
-        e.preventDefault();
-
-        var smart = $('#select-crm-entity').val();
-        var smart_to = $('#select-crm-entity-to').val();
-        if(smart_to == 'DOCS') smart_to = '';
-        var name = $('#select-crm-entity-name').val();
-        var placement = $('#select-crm-entity-type').val().replace(/CRM_/g,'CRM_'+smart_to+'_');
-        placement = placement.replace(/__/g, '_');
-        var url_code = 'smart';
-        if(['TASK_USER','TASK_GROUP'].indexOf(smart_to)>-1){
-            placement = $('#select-crm-entity-type').val();
-        }
-        if(['TASK_USER'].indexOf(smart)>-1){
-            url_code = 'task';
-        }
-        if(smart.indexOf('TASK_GROUP_')>-1){
-            url_code = 'task';
-        }
-        if(smart.indexOf('DOCS')>-1){
-            url_code = 'docs';
-        }
-
-
-        BX24.callMethod(
-            'placement.bind',
-            {
-                'PLACEMENT': placement,
-                'HANDLER': window.awz_helper.APP_URL+url_code+'.php?plc='+placement+'&smartId='+smart+'&app='+window.awz_helper.APP_ID,
-                'LANG_ALL': {
-                    ru : {
-                        'TITLE': name
-                    }
-                }
-            },
-            function(res)
-            {
-                window.awz_helper.addBxTime(res);
-                if(res.answer.hasOwnProperty('error_description')){
-                    alert(res.answer.error_description);
-                }else{
-                    window.awz_helper.loadHandledApp();
-                }
-            }
-        );
-    });
-    $(document).on('click', '#add_app_handled', function(e){
-        e.preventDefault();
-        BX24.callMethod(
-            'placement.bind',
-            {
-                'PLACEMENT': 'REST_APP_URI',
-                'HANDLER': window.awz_helper.APP_URL+'smart.php?app='+window.awz_helper.APP_ID,
-                'LANG_ALL': {
-                    ru : {
-                        'TITLE': 'CRM Сущности'
-                    }
-                }
-            },
-            function(res)
-            {
-                window.awz_helper.addBxTime(res);
-                window.awz_helper.loadHandledApp();
-            }
-        );
-    });
-
-    $(document).on('click', '#remove_app_handled', function(e){
-        e.preventDefault();
-        BX24.callMethod(
-            'placement.unbind',
-            {
-                'PLACEMENT': 'REST_APP_URI'
-            },
-            function(res)
-            {
-                window.awz_helper.addBxTime(res);
-                window.awz_helper.loadHandledApp();
-            }
-        );
-    });
 
     $(document).on('click', '.open-smart', function(e){
         e.preventDefault();
         var id = $(this).attr('data-id');
         var ent = $(this).attr('data-ent');
+        if (ent === 'auto'){
+            var tmp = id.replace(/([\d\+])/g,'');
+            if(tmp == 'C_') ent = 'contact';
+            if(tmp == 'CO_') ent = 'company';
+            if(tmp == 'D_') ent = 'deal';
+            if(tmp == 'L_') ent = 'lead';
+        }
         if(ent === 'task'){
             BX24.openPath('/company/personal/user/0/tasks/task/view/'+id+'/');
         }else if(ent === 'deal'){
             BX24.openPath('/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/');
+        }else if(ent === 'lead'){
+            BX24.openPath('/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/');
         }else if(ent === 'company'){
+            BX24.openPath('/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/');
+        }else if(ent === 'contact'){
             BX24.openPath('/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/');
         }else if(ent === 'user'){
             BX24.openPath('/company/personal/'+ent+'/'+id+'/');

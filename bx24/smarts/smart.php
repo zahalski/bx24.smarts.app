@@ -189,6 +189,7 @@ class SmartList extends IList implements IParams {
                 //echo'<pre>';print_r($row);echo'</pre>';
                 $n++;
                 if($ost && ($ost>$n)) continue;
+                if(($n-$ost) == 0) continue;
                 if ((($n-$ost) > $pageSize) && !$this->excelMode)
                 {
                     break;

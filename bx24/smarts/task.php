@@ -119,8 +119,40 @@ class TaskList extends IList implements IParams {
         return $groups[$id] ?? array();
     }
 
+
+
     public function trigerGetRowListAdmin($row){
         \Awz\Admin\Helper::defTrigerList($row, $this);
+        $entity = $this->getParam('ENTITY');
+        $fields = $entity::$fields;
+        $primaryCode = $this->getParam('PRIMARY', 'ID');
+
+        foreach($fields as $fieldCode=>$fieldData){
+            if($fieldData['type'] == 'crm'){
+                if(!$fieldData['isReadOnly']) {
+                    $row->AddInputField($fieldCode, array("size" => $fieldData['settings']['SIZE']));
+                }else{
+                    $row->AddViewField($fieldCode, $row->arRes[$fieldCode]);
+                }
+                if($fieldData['isMultiple']){
+                    $value = '';
+                    if(empty($row->arRes[$fieldCode]) || $row->arRes[$fieldCode] == 'false'){
+                        $row->AddViewField($fieldCode, '');
+                        $row->arRes[$fieldCode] = '';
+                    }elseif(!empty($row->arRes[$fieldCode])){
+                        $viewedAr = [];
+                        foreach($row->arRes[$fieldCode] as $val){
+                            $viewedAr[] = \Awz\Admin\Helper::createCrmLink($val);
+                        }
+                        $row->AddViewField($fieldCode, implode(", ",$viewedAr));
+                        $value = implode(',',$row->arRes[$fieldCode]);
+                    }
+                    $editId = $fieldCode.'_'.$row->arRes[$primaryCode];
+                    $fieldHtml = '<div class="wrp" id="'.$editId.'"><input style="width:80%;" value="'.$value.'" name="'.$fieldCode.'" class="main-grid-editor main-grid-editor-text" id="'.$fieldCode.'_control"/><button class="ui-btn ui-btn-xs ui-btn-light-border" onclick="window.awz_helper.openDialogCrm(\''.$editId.' input\',\'deal,lead,contact,company\');return false;">...</button></div>';
+                    $row->AddEditField($fieldCode, $fieldHtml);
+                }
+            }
+        }
     }
 
     public function trigerInitFilter(){
@@ -143,14 +175,14 @@ class TaskList extends IList implements IParams {
             "PRIMARY"=>"id",
             "ENTITY" => "\\Awz\\Admin\\TaskTable",
             "BUTTON_CONTEXTS"=>[
-                /*[
+                [
                     'add'=> [
-                        'TEXT' => 'Добавить',
+                        'TEXT' => 'Новая задача',
                         'ICON' => '',
                         'LINK' => '',
                         'ONCLICK' => 'window.awz_helper.menuNewEl();return false;',
                     ]
-                ],*/
+                ],
                 [
                     'reload'=> [
                         'TEXT' => 'Обновить',
@@ -235,10 +267,12 @@ class TaskList extends IList implements IParams {
         if(isset($res['tasks'])){
             foreach ($res['tasks'] as $row){
                 if(empty($row)) continue;
-                //$row['id'] = 'n: '.$n.', ost: '.$ost.', pageSize: '.$pageSize;
+
                 //echo'<pre>';print_r($row);echo'</pre>';
                 $n++;
+                //$row['id'] = 'n: '.$n.', ost: '.$ost.', pageSize: '.$pageSize;
                 if($ost && ($ost>$n)) continue;
+                if(($n-$ost) == 0) continue;
                 if ((($n-$ost) > $pageSize) && !$this->excelMode)
                 {
                     break;
@@ -302,9 +336,11 @@ class TaskList extends IList implements IParams {
                             $gridOptions = new GridOptions($this->getParam('TABLEID'));
                             $sort = $gridOptions->getSorting(['sort'=>['ID'=>'desc']]);
                             ?>
+                            window.awz_helper.currentUserId = '<?=$this->getParam('CURRENT_USER')?>';
                             window.awz_helper.lastOrder = <?=\CUtil::PhpToJSObject($sort['sort'])?>;
                             window.awz_helper.groups = <?=\CUtil::PhpToJSObject($groups)?>;
                             window.awz_helper.fields = <?=\CUtil::PhpToJSObject($this->getParam('SMART_FIELDS'))?>;
+                            window.awz_helper.fields_select = <?=\CUtil::PhpToJSObject($this->getParam('SMART_FIELDS_SELECT'))?>;
                             window.awz_helper.filter_dates = <?=\CUtil::PhpToJSObject(\Awz\Admin\Helper::getDates())?>;
                             window.awz_helper.init(
                                 '<?=$this->getParam('ADD_REQUEST_KEY')?>',
@@ -408,591 +444,483 @@ if($placement) {
 $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
 
 ?>
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <?
-    if($checkAuth){
-        CJsCore::init('jquery');
-        CJSCore::Init(array('popup', 'date'));
-        Asset::getInstance()->addCss("/bitrix/css/main/font-awesome.css");
-        Asset::getInstance()->addJs("/bx24/smarts/script.js");
-    }
-    Asset::getInstance()->addCss("/bx24/smarts/style.css");
-    ?>
-    <?if($checkAuth){?>
-    <script type="text/javascript">
-        window.awz_ajax_proxy = {
-            UpdatePageData:  function(proxyContent){
-                BX.ajax.UpdatePageData(proxyContent);
-            }
-        };
-    </script>
-    <script src="//api.bitrix24.com/api/v1/"></script>
-    <?}?>
-    <?$APPLICATION->ShowHead()?>
-</head>
-<body>
-<?php
-if(!$checkAuth){
-    ?>
-    <div class="container"><div class="row"><div class="ui-block-wrapper">
-    <?
-    echo Helper::errorsHtmlFromText(
-        array(
-            'Проверка авторизации провалена'),
-        'Ошибка получения опций приложения');?>
-    </div></div></div>
-    <?
-}else{
-    $arParams['SMART_ID'] = $placement['smart'];
-    //$arParams['GROUP_ID'] = $checkAuthGroupId;
-    if(!$arParams['SMART_ID']) $arParams['SMART_ID'] = preg_replace('/awz_smart_([0-9A-Z]+).*/',"$1",$_REQUEST['grid_id']);
-    if($_REQUEST['grid_id'] && (strpos($_REQUEST['grid_id'], 'awz_smart_TASK_USER')!==false)){
-        $arParams['SMART_ID'] = 'TASK_USER';
-    }
-    if($_REQUEST['smartId'] == 'TASK_USER'){
-        $arParams['SMART_ID'] = 'TASK_USER';
-    }
-    if($_REQUEST['smartId'] && (strpos($_REQUEST['smartId'], 'TASK_GROUP_') !== false)){
-        $arParams['SMART_ID'] = 'TASK_GROUP_'.preg_replace('/([^0-9])/','',$_REQUEST['smartId']);
-        $checkAuthGroupId = preg_replace('/([^0-9])/','',$_REQUEST['smartId']);
-    }
-    if(!$checkAuthGroupId && $_REQUEST['grid_id'] && strpos($_REQUEST['grid_id'],'awz_smart_TASK_GROUP_')!==false){
-        $checkAuthGroupId = preg_replace('/([^0-9])/','',$_REQUEST['grid_id']);
-    }
-    if($checkAuthGroupId){
-        $arParams['SMART_ID'] = 'TASK_GROUP_'.$checkAuthGroupId;
-    }
-    //TASK_GROUP_
-    if($arParams['SMART_ID']){
-        if(strpos($arParams['SMART_ID'], 'TASK_GROUP_')!==false){
-            $arParams['GROUP_ID'] =preg_replace('/([^0-9])/','',$arParams['SMART_ID']);
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <?
+        if($checkAuth){
+            CJsCore::init('jquery');
+            CJSCore::Init(array('popup', 'date'));
+            Asset::getInstance()->addCss("/bitrix/css/main/font-awesome.css");
+            Asset::getInstance()->addJs("/bx24/smarts/script.js");
         }
-
-        $arParams['ADD_REQUEST_KEY'] = $checkAuthKey.'|'.$checkAuthDomain.'|'.$checkAuthMember.'|'.$app->getConfig('APP_ID');
-        /*if($arParams['GROUP_ID']){
-            $arParams['ADD_REQUEST_KEY'] .= '|'.$arParams['GROUP_ID'];
-        }*/
-        $hash = hash_hmac('sha256', $arParams['ADD_REQUEST_KEY'], $app->getConfig('APP_SECRET_CODE'));
-        $arParams['ADD_REQUEST_KEY'] .= '|'.$hash;
-        $app->getRequest()->set('key', $arParams['ADD_REQUEST_KEY']);
-
-        if($app->getRequest()->get('plc')){
-            $arParams['SMART_ID2'] = mb_strtolower($app->getRequest()->get('plc'));
-        }
-
-        if($tracker){
-            $tracker->setPortal($checkAuthDomain)
-                ->setAppId($app->getConfig('APP_ID'));
-        }
-
-        $cacheId = $app->getRequest()->get('DOMAIN').'fields_bagsmart_'.$arParams['SMART_ID'];
-
-        $auth = TokensTable::getList(array(
-            'select'=>array('*'),
-            'filter'=>array('=PORTAL'=>$app->getRequest()->get('DOMAIN'), '=APP_ID'=>$app->getConfig('APP_ID'))
-        ))->fetch();
-        $resultAuth = $app->setAuth($auth['TOKEN']);
-
-        $checkResult = $app->getRequest()->get('bx_result');
-        if($checkResult['cache_action'] == 'remove'){
-            $app->cleanCache($cacheId);
-            for($i=0;$i<10;$i++){
-                $app->cleanCache($cacheId.'_'.$i);
-            }
-        }
-        if($checkResult['bxTime'] && $tracker){
-            $tracker->addBxTime($checkResult['bxTime']);
-        }
-
-        $app->setCacheParams($cacheId);
-        $bxRowsResFields = $app->postMethod('tasks.task.getFields');
-
-        if($bxRowsResFields->isSuccess()) {
-
-            $bxFields = $bxRowsResFields->getData();
-            $allFields = $bxFields['result']['result']['fields'];
-            if(isset($allFields['CREATED_BY'])){
-                $allFields['CREATED_BY']['type'] = 'user';
-            }
-            if(isset($allFields['RESPONSIBLE_ID'])){
-                $allFields['RESPONSIBLE_ID']['type'] = 'user';
-            }
-            if(isset($allFields['CHANGED_BY'])){
-                $allFields['CHANGED_BY']['type'] = 'user';
-            }
-            if(isset($allFields['CLOSED_BY'])){
-                $allFields['CLOSED_BY']['type'] = 'user';
-            }
-            if(isset($allFields['STATUS_CHANGED_BY'])){
-                $allFields['STATUS_CHANGED_BY']['type'] = 'user';
-            }
-            if(isset($allFields['GROUP_ID'])){
-                $allFields['GROUP_ID']['type'] = 'group';
-            }
-
-            $sortableField = [
-                'ID',
-                'TITLE',
-                'DATE_START',
-                'CREATED_DATE',
-                'CHANGED_DATE',
-                'CLOSED_DATE',
-                'DEADLINE',
-                'REAL_STATUS',
-                'STATUS_COMPLETE',
-                'PRIORITY',
-                'MARK',
-                'GROUP_ID',
-                'TIME_ESTIMATE',
-                'ALLOW_CHANGE_DEADLINE',
-                'ALLOW_TIME_TRACKING',
-                'MATCH_WORK_TIME',
-                'FAVORITE',
-                'SORTING',
-                'MESSAGE_ID'
-            ];
-            $disabledFields = [
-                'PARENT_ID',
-                'DESCRIPTION',
-                'ACCOMPLICES',
-                'AUDITORS',
-                'GUID',
-                'XML_ID',
-                'COMMENTS_COUNT',
-                'SERVICE_COMMENTS_COUNT',
-                'NEW_COMMENTS_COUNT',
-                'MATCH_WORK_TIME',
-                'FORUM_TOPIC_ID',
-                'FORUM_ID',
-                'SITE_ID',
-                'EXCHANGE_MODIFIED',
-                'EXCHANGE_ID',
-                'CHECKLIST',
-                'UF_TASK_WEBDAV_FILES',
-                'SORTING'
-            ];
-            $readOnlyFields = [
-                'NOT_VIEWED',
-                'FORKED_BY_TEMPLATE_ID',
-                'TIME_SPENT_IN_LOGS',
-                'SUBORDINATE',
-                'FAVORITE',
-                'OUTLOOK_VERSION',
-                'VIEWED_DATE',
-                'DURATION_FACT',
-                'DURATION_TYPE',
-                'IS_MUTED',
-                'IS_PINNED',
-                'IS_PINNED_IN_GROUP',
-            ];
-            if($arParams['GROUP_ID']){
-                $disabledFields[] = 'GROUP_ID';
-            }
-
-            $app->setCacheParams($cacheId.'_0');
-            if($arParams['GROUP_ID']){
-                $bxRowsResStages = $app->postMethod('task.stages.get', ['entityId'=>$arParams['GROUP_ID']]);
-            }else{
-                $bxRowsResStages = $app->postMethod('task.stages.get', ['entityId'=>0]);
-            }
-
-            if($bxRowsResStages->isSuccess()){
-                $bxStages = $bxRowsResStages->getData();
-                if(!empty($bxStages['result']['result'])){
-                    $allFields['STAGE_ID']['values'] = [];
-                    $allFields['STAGE_ID']['type'] = 'enum';
-                    foreach($bxStages['result']['result'] as $stage){
-                        $allFields['STAGE_ID']['values'][$stage['ID']] = $stage['TITLE'];
+        Asset::getInstance()->addCss("/bx24/smarts/style.css");
+        ?>
+        <?if($checkAuth){?>
+            <script type="text/javascript">
+                window.awz_ajax_proxy = {
+                    UpdatePageData:  function(proxyContent){
+                        BX.ajax.UpdatePageData(proxyContent);
                     }
-                }
-            }else{
-                $disabledFields[] = 'STAGE_ID';
-                $app->cleanCache($cacheId.'_0');
+                };
+            </script>
+            <script src="//api.bitrix24.com/api/v1/"></script>
+        <?}?>
+        <?$APPLICATION->ShowHead()?>
+    </head>
+    <body>
+    <?php
+    if(!$checkAuth){
+        ?>
+        <div class="container"><div class="row"><div class="ui-block-wrapper">
+                    <?
+                    echo Helper::errorsHtmlFromText(
+                        array(
+                            'Проверка авторизации провалена'),
+                        'Ошибка получения опций приложения');?>
+                </div></div></div>
+        <?
+    }else{
+        $arParams['SMART_ID'] = $placement['smart'];
+        //$arParams['GROUP_ID'] = $checkAuthGroupId;
+        if(!$arParams['SMART_ID']) $arParams['SMART_ID'] = preg_replace('/awz_smart_([0-9A-Z]+).*/',"$1",$_REQUEST['grid_id']);
+        if($_REQUEST['grid_id'] && (strpos($_REQUEST['grid_id'], 'awz_smart_TASK_USER')!==false)){
+            $arParams['SMART_ID'] = 'TASK_USER';
+        }
+        if($_REQUEST['grid_id'] && (strpos($_REQUEST['grid_id'], 'awz_smart_TASK_USER_CRM')!==false)){
+            $arParams['SMART_ID'] = 'TASK_USER_CRM';
+        }
+        if($_REQUEST['smartId'] == 'TASK_USER'){
+            $arParams['SMART_ID'] = 'TASK_USER';
+        }
+        if($_REQUEST['smartId'] == 'TASK_USER_CRM'){
+            $arParams['SMART_ID'] = 'TASK_USER_CRM';
+        }
+        if($_REQUEST['smartId'] && (strpos($_REQUEST['smartId'], 'TASK_GROUP_') !== false)){
+            $arParams['SMART_ID'] = 'TASK_GROUP_'.preg_replace('/([^0-9])/','',$_REQUEST['smartId']);
+            $checkAuthGroupId = preg_replace('/([^0-9])/','',$_REQUEST['smartId']);
+        }
+        if(!$checkAuthGroupId && $_REQUEST['grid_id'] && strpos($_REQUEST['grid_id'],'awz_smart_TASK_GROUP_')!==false){
+            $checkAuthGroupId = preg_replace('/([^0-9])/','',$_REQUEST['grid_id']);
+        }
+        if($checkAuthGroupId){
+            $arParams['SMART_ID'] = 'TASK_GROUP_'.$checkAuthGroupId;
+        }
+        //TASK_GROUP_
+        if($arParams['SMART_ID']){
+            if(strpos($arParams['SMART_ID'], 'TASK_GROUP_')!==false){
+                $arParams['GROUP_ID'] =preg_replace('/([^0-9])/','',$arParams['SMART_ID']);
             }
 
-            $app->setCacheParams($cacheId.'_1');
-            $bxRowsResActions = $app->postMethod('crm.type.list', ['filter'=>['title'=>'Умный смарт']]);
-            if($bxRowsResActions->isSuccess()){
-                $bxActions = $bxRowsResActions->getData();
-                if(isset($bxActions['result']['result']['types'][0]['id'])){
-                    $app->setCacheParams($cacheId.'_2');
-                    $bxRowsResActionsFields = $app->postMethod('crm.item.fields', ['entityTypeId'=>$bxActions['result']['result']['types'][0]['entityTypeId']]);
-                    if($bxRowsResActionsFields->isSuccess()){
-                        $bxActionsFields = $bxRowsResActionsFields->getData();
-                        if(!empty($bxActionsFields['result']['result']['fields'])){
-                            $arParams['CLEVER_FIELDS'] = $bxActionsFields['result']['result']['fields'];
-                            $arParams['CLEVER_SMART'] = $bxActions['result']['result']['types'][0];
-                        }
-                    }else{
-                        $app->cleanCache($cacheId.'_2');
-                    }
-                }
-            }else{
-                $app->cleanCache($cacheId.'_1');
+            $arParams['ADD_REQUEST_KEY'] = $checkAuthKey.'|'.$checkAuthDomain.'|'.$checkAuthMember.'|'.$app->getConfig('APP_ID');
+            /*if($arParams['GROUP_ID']){
+                $arParams['ADD_REQUEST_KEY'] .= '|'.$arParams['GROUP_ID'];
+            }*/
+            $arParams['CURRENT_USER'] = $checkAuthMember;
+            $hash = hash_hmac('sha256', $arParams['ADD_REQUEST_KEY'], $app->getConfig('APP_SECRET_CODE'));
+            $arParams['ADD_REQUEST_KEY'] .= '|'.$hash;
+            $app->getRequest()->set('key', $arParams['ADD_REQUEST_KEY']);
+
+            if($app->getRequest()->get('plc')){
+                $arParams['SMART_ID2'] = mb_strtolower($app->getRequest()->get('plc'));
             }
 
-            $newFormatFields = [];
-            foreach($allFields as $key=>$val){
-                if(in_array($key, $disabledFields)) continue;
-                if(in_array($key, $readOnlyFields)){
-                    $val['isReadOnly'] = true;
+            if($tracker){
+                $tracker->setPortal($checkAuthDomain)
+                    ->setAppId($app->getConfig('APP_ID'));
+            }
+
+            $cacheId = $app->getRequest()->get('DOMAIN').'fields_bagsmart_'.$arParams['SMART_ID'];
+
+            $auth = TokensTable::getList(array(
+                'select'=>array('*'),
+                'filter'=>array('=PORTAL'=>$app->getRequest()->get('DOMAIN'), '=APP_ID'=>$app->getConfig('APP_ID'))
+            ))->fetch();
+            $resultAuth = $app->setAuth($auth['TOKEN']);
+
+            $checkResult = $app->getRequest()->get('bx_result');
+            if($checkResult['cache_action'] == 'remove'){
+                $app->cleanCache($cacheId);
+                for($i=0;$i<10;$i++){
+                    $app->cleanCache($cacheId.'_'.$i);
                 }
-                if(in_array($key, $sortableField)){
-                    $val['sort'] = $key;
+            }
+            if($checkResult['bxTime'] && $tracker){
+                $tracker->addBxTime($checkResult['bxTime']);
+            }
+
+            //tasks.task.update
+            /*$app->postMethod('tasks.task.update', [
+                'taskId'=>616,
+                'fields'=>[
+                       'UF_CRM_TASK'=>['C_64', 'CO_38', 'D_188']
+                ]
+            ]);*/
+
+            $app->setCacheParams($cacheId);
+            $bxRowsResFields = $app->postMethod('tasks.task.getFields');
+
+            if($bxRowsResFields->isSuccess()) {
+
+                $bxFields = $bxRowsResFields->getData();
+                $allFields = $bxFields['result']['result']['fields'];
+                if(isset($allFields['CREATED_BY'])){
+                    $allFields['CREATED_BY']['type'] = 'user';
+                }
+                if(isset($allFields['RESPONSIBLE_ID'])){
+                    $allFields['RESPONSIBLE_ID']['type'] = 'user';
+                }
+                if(isset($allFields['CHANGED_BY'])){
+                    $allFields['CHANGED_BY']['type'] = 'user';
+                }
+                if(isset($allFields['CLOSED_BY'])){
+                    $allFields['CLOSED_BY']['type'] = 'user';
+                }
+                if(isset($allFields['STATUS_CHANGED_BY'])){
+                    $allFields['STATUS_CHANGED_BY']['type'] = 'user';
+                }
+                if(isset($allFields['GROUP_ID'])){
+                    $allFields['GROUP_ID']['type'] = 'group';
+                }
+
+                $sortableField = [
+                    'ID',
+                    'TITLE',
+                    'DATE_START',
+                    'CREATED_DATE',
+                    'CHANGED_DATE',
+                    'CLOSED_DATE',
+                    'DEADLINE',
+                    'REAL_STATUS',
+                    'STATUS_COMPLETE',
+                    'PRIORITY',
+                    'MARK',
+                    'GROUP_ID',
+                    'TIME_ESTIMATE',
+                    'ALLOW_CHANGE_DEADLINE',
+                    'ALLOW_TIME_TRACKING',
+                    'MATCH_WORK_TIME',
+                    'FAVORITE',
+                    'SORTING',
+                    'MESSAGE_ID'
+                ];
+                $disabledFields = [
+                    'PARENT_ID',
+                    'DESCRIPTION',
+                    'ACCOMPLICES',
+                    'AUDITORS',
+                    'GUID',
+                    'XML_ID',
+                    'COMMENTS_COUNT',
+                    'SERVICE_COMMENTS_COUNT',
+                    'NEW_COMMENTS_COUNT',
+                    'MATCH_WORK_TIME',
+                    'FORUM_TOPIC_ID',
+                    'FORUM_ID',
+                    'SITE_ID',
+                    'EXCHANGE_MODIFIED',
+                    'EXCHANGE_ID',
+                    'CHECKLIST',
+                    'UF_TASK_WEBDAV_FILES',
+                    'SORTING'
+                ];
+                $readOnlyFields = [
+                    'NOT_VIEWED',
+                    'FORKED_BY_TEMPLATE_ID',
+                    'TIME_SPENT_IN_LOGS',
+                    'SUBORDINATE',
+                    'FAVORITE',
+                    'OUTLOOK_VERSION',
+                    'VIEWED_DATE',
+                    'DURATION_FACT',
+                    'DURATION_TYPE',
+                    'IS_MUTED',
+                    'IS_PINNED',
+                    'IS_PINNED_IN_GROUP',
+                ];
+                if($arParams['GROUP_ID']){
+                    $disabledFields[] = 'GROUP_ID';
+                }
+
+                $app->setCacheParams($cacheId.'_0');
+                if($arParams['GROUP_ID']){
+                    $bxRowsResStages = $app->postMethod('task.stages.get', ['entityId'=>$arParams['GROUP_ID']]);
                 }else{
-                    $val['sort'] = false;
+                    $bxRowsResStages = $app->postMethod('task.stages.get', ['entityId'=>0]);
                 }
-                if($key=='STATUS'){
-                    $val['sort'] = 'REAL_STATUS';
+
+                if($bxRowsResStages->isSuccess()){
+                    $bxStages = $bxRowsResStages->getData();
+                    if(!empty($bxStages['result']['result'])){
+                        $allFields['STAGE_ID']['values'] = [];
+                        $allFields['STAGE_ID']['type'] = 'enum';
+                        foreach($bxStages['result']['result'] as $stage){
+                            $allFields['STAGE_ID']['values'][$stage['ID']] = $stage['TITLE'];
+                        }
+                    }
+                }else{
+                    $disabledFields[] = 'STAGE_ID';
+                    $app->cleanCache($cacheId.'_0');
                 }
-                $val['upperCase'] = $key;
-                $key = lcfirst(\Bitrix\Main\Text\StringHelper::snake2camel($key));
-                $newFormatFields[$key] = $val;
+
+                $app->setCacheParams($cacheId.'_1');
+                $bxRowsResActions = $app->postMethod('crm.type.list', ['filter'=>['title'=>'Умный смарт']]);
+                if($bxRowsResActions->isSuccess()){
+                    $bxActions = $bxRowsResActions->getData();
+                    if(isset($bxActions['result']['result']['types'][0]['id'])){
+                        $app->setCacheParams($cacheId.'_2');
+                        $bxRowsResActionsFields = $app->postMethod('crm.item.fields', ['entityTypeId'=>$bxActions['result']['result']['types'][0]['entityTypeId']]);
+                        if($bxRowsResActionsFields->isSuccess()){
+                            $bxActionsFields = $bxRowsResActionsFields->getData();
+                            if(!empty($bxActionsFields['result']['result']['fields'])){
+                                $arParams['CLEVER_FIELDS'] = $bxActionsFields['result']['result']['fields'];
+                                $arParams['CLEVER_SMART'] = $bxActions['result']['result']['types'][0];
+                            }
+                        }else{
+                            $app->cleanCache($cacheId.'_2');
+                        }
+                    }
+                }else{
+                    $app->cleanCache($cacheId.'_1');
+                }
+
+                $newFormatFields = [];
+                $selectFormatFields = [];
+                foreach($allFields as $key=>$val){
+                    if(in_array($key, $disabledFields)) continue;
+                    if(in_array($key, $readOnlyFields)){
+                        $val['isReadOnly'] = true;
+                    }
+                    if(in_array($key, $sortableField)){
+                        $val['sort'] = $key;
+                    }else{
+                        $val['sort'] = false;
+                    }
+                    if($key=='STATUS'){
+                        $val['sort'] = 'REAL_STATUS';
+                    }
+                    $val['upperCase'] = $key;
+                    if($key == 'UF_CRM_TASK')
+                        $val['isMultiple'] = true;
+                    $key = lcfirst(\Bitrix\Main\Text\StringHelper::snake2camel($key));
+                    $newFormatFields[$key] = $val;
+                    $selectFormatFields[] = $val['upperCase'];
+                }
+
+                unset($allFields);
+                $arParams['SMART_FIELDS'] = $newFormatFields;
+                $arParams['SMART_FIELDS_SELECT'] = $selectFormatFields;
+
+            }else{
+                $app->cleanCache($cacheId);
             }
-
-            unset($allFields);
-            $arParams['SMART_FIELDS'] = $newFormatFields;
-
-        }else{
-            $app->cleanCache($cacheId);
         }
-    }
-    if($arParams['SMART_ID'] && !$customPrint){
-        PageList::$smartId = $arParams['SMART_ID'];
-        $adminCustom = new PageList($arParams, true);
+        if($arParams['SMART_ID'] && !$customPrint){
+            PageList::$smartId = $arParams['SMART_ID'];
+            $adminCustom = new PageList($arParams, true);
 
-        $fields = \Awz\Admin\TaskTable::getMap();
-        foreach($fields as $obField){
-            /*
-             * $arParams['FIND'][] = array(
-                    'id'=>$obField->getColumnName(),
-                    'name'=>$obField->getTitle(),
-                    'type'=>'custom',
-                    "SUB_TYPE" => ['name'=>'test', 'value'=>'test'],
-                    "SUB_TYPES" => [
-                        ['name'=>'test', 'value'=>'test'],
-                        ['name'=>'test2', 'value'=>'test2']
-                    ],
-                    "VALUES"=>["_from" => "", "_to" => ""],
-                    "SELECT_PARAMS" => ["isMulti" => false]
-                );
-             * */
-            if($obField instanceof \Bitrix\Main\ORM\Fields\IntegerField){
-                if($arParams['SMART_FIELDS'][$obField->getColumnName()]['type']=='group'){
-                    $groups = PageList::getFromCacheSt('groups', $arParams['ADD_REQUEST_KEY']);
-                    $arParams['SMART_FIELDS'][$obField->getColumnName()]['items'] = $groups;
+            $fields = \Awz\Admin\TaskTable::getMap();
+            foreach($fields as $obField){
+                /*
+                 * $arParams['FIND'][] = array(
+                        'id'=>$obField->getColumnName(),
+                        'name'=>$obField->getTitle(),
+                        'type'=>'custom',
+                        "SUB_TYPE" => ['name'=>'test', 'value'=>'test'],
+                        "SUB_TYPES" => [
+                            ['name'=>'test', 'value'=>'test'],
+                            ['name'=>'test2', 'value'=>'test2']
+                        ],
+                        "VALUES"=>["_from" => "", "_to" => ""],
+                        "SELECT_PARAMS" => ["isMulti" => false]
+                    );
+                 * */
+                if($obField instanceof \Bitrix\Main\ORM\Fields\IntegerField){
+                    if($arParams['SMART_FIELDS'][$obField->getColumnName()]['type']=='group'){
+                        $groups = PageList::getFromCacheSt('groups', $arParams['ADD_REQUEST_KEY']);
+                        $arParams['SMART_FIELDS'][$obField->getColumnName()]['items'] = $groups;
+                    }
+                }
+                \Awz\Admin\Helper::addFilter($arParams, $obField);
+            }
+            foreach($arParams['FIND'] as &$field){
+                //echo'<pre>';print_r($field);echo'</pre>';
+                if($field['id'] == 'STATUS'){
+                    $field['params']['multiple'] = 'Y';
                 }
             }
-            \Awz\Admin\Helper::addFilter($arParams, $obField);
-        }
-        foreach($arParams['FIND'] as &$field){
-            //echo'<pre>';print_r($field);echo'</pre>';
-            if($field['id'] == 'STATUS'){
-                $field['params']['multiple'] = 'Y';
-            }
-        }
-        //die();
+            //die();
 
-        $arParams['ACTION_PANEL'] = [
-            "GROUPS"=>[
-                [
-                    "ITEMS"=>[
-                        \Awz\Admin\Helper::getGroupAction('edit'),
-                        \Awz\Admin\Helper::getGroupAction('delete')
+            $arParams['ACTION_PANEL'] = [
+                "GROUPS"=>[
+                    [
+                        "ITEMS"=>[
+                            \Awz\Admin\Helper::getGroupAction('edit'),
+                            \Awz\Admin\Helper::getGroupAction('delete')
+                        ]
                     ]
                 ]
-            ]
-        ];
-
-        if(!empty($arParams['CLEVER_FIELDS'])){
-
-            $createItemAction = [
-                'TYPE'=>'DROPDOWN',
-                'ID' => 'base_action_select',
-                'NAME' => 'action_button_awz_smart',
-                'ITEMS'=>[]
             ];
-            $createItemAction['ITEMS'][] = [
-                'NAME'=>'- действия -',
-                'VALUE'=>'default',
-                'ONCHANGE'=>[
-                    ['ACTION'=>'RESET_CONTROLS']
-                ]
-            ];
-            $fieldid = 'ufCrm'.$arParams['CLEVER_SMART']['id'].'Controls';
-            $fieldid2 = 'ufCrm'.$arParams['CLEVER_SMART']['id'].'Params';
 
-            if(!empty($arParams['CLEVER_FIELDS'][$fieldid]['items'])){
-                $generatedItem = [];
-                foreach($arParams['CLEVER_FIELDS'][$fieldid]['items'] as $itm){
+            if(!empty($arParams['CLEVER_FIELDS'])){
 
-                    //Генерация отчета|Y|1|deal,contact,company|216,218|AWZ_SMART_TASK_USER_CRM_LEAD_LIST_TOOLBAR
-                    /*
-                     * 0 название действия
-                     * 1 разрешить для всех элементов по фильтру
-                     * 2 ид пользователя
-                     * 3 crm сущности для выбора (lead,contact,company,deal,quote)
-                     * 4 ид доступных параметров
-                     * 5 ид грида
-                     * */
+                $createItemAction = [
+                    'TYPE'=>'DROPDOWN',
+                    'ID' => 'base_action_select',
+                    'NAME' => 'action_button_awz_smart',
+                    'ITEMS'=>[]
+                ];
+                $createItemAction['ITEMS'][] = [
+                    'NAME'=>'- действия -',
+                    'VALUE'=>'default',
+                    'ONCHANGE'=>[
+                        ['ACTION'=>'RESET_CONTROLS']
+                    ]
+                ];
+                $fieldid = 'ufCrm'.$arParams['CLEVER_SMART']['id'].'Controls';
+                $fieldid2 = 'ufCrm'.$arParams['CLEVER_SMART']['id'].'Params';
+
+                if(!empty($arParams['CLEVER_FIELDS'][$fieldid]['items'])){
+                    $generatedItem = [];
+                    foreach($arParams['CLEVER_FIELDS'][$fieldid]['items'] as $itm){
+
+                        //Генерация отчета|Y|1|deal,contact,company|216,218|AWZ_SMART_TASK_USER_CRM_LEAD_LIST_TOOLBAR
+                        /*
+                         * 0 название действия
+                         * 1 разрешить для всех элементов по фильтру
+                         * 2 ид пользователя
+                         * 3 crm сущности для выбора (lead,contact,company,deal,quote)
+                         * 4 ид доступных параметров
+                         * 5 ид грида
+                         * */
 
 
-                    $tmp = explode('||',$itm['VALUE']);
-                    $tmp[2] = explode(',',$tmp[2]);
-                    $tmp[3] = explode(',',$tmp[3]);
-                    $tmp[4] = explode(',',$tmp[4]);
-                    //echo'<pre>';print_r($tmp);echo'</pre>';
-                    //die();
-                    $itmParams = [
-                        'name'=>$tmp[0],
-                        'showAll'=>$tmp[1] == 'Y',
-                        'users'=>$tmp[2],
-                        'crm'=>$tmp[3],
-                        'params'=>$tmp[4],
-                        'grid'=>$tmp[5]
-                    ];
-                    if(!$itmParams['grid']){
-                        $itmParams['grid'] = $adminCustom->getParam('TABLEID');
-                    }
-                    if(empty($itmParams['users'])){
-                        $itmParams['users'][] = $checkAuthMember;
-                    }
-                    //echo'<pre>';print_r($itmParams);echo'</pre>';
-                    //echo'<pre>';print_r($adminCustom->getParam('TABLEID'));echo'</pre>';
-                    $checkGridName = false;
-                    $gridPrepare = preg_replace('/([^0-9a-z_*[]{},()|])/','',strtolower($itmParams['grid']));
-                    $gridPrepare = str_replace('*','.*',$gridPrepare);
-                    $regex = '/^('.$gridPrepare.')$/is';
-                    if(strtolower($itmParams['grid']) == strtolower($adminCustom->getParam('TABLEID'))){
-                        $checkGridName = true;
-                    }elseif(preg_match($regex,strtolower($adminCustom->getParam('TABLEID')))){
-                        $itmParams['grid'] = $adminCustom->getParam('TABLEID');
-                        $checkGridName = true;
-                    }
-                    if(!$checkGridName) continue;
-                    if(!in_array($checkAuthMember, $itmParams['users'])) continue;
-
-                    $generatedItem['NAME'] = $itmParams['name'];
-                    $generatedItem['VALUE'] = 'control_'.$itm['ID'];
-                    $generatedItem['ONCHANGE'] = [
-                        ['ACTION'=>'RESET_CONTROLS'],
-                        [
-                            'ACTION'=>'CREATE',
-                            'DATA'=>[]
-                        ]
-                    ];
-                    $dopActions = [];
-                    if(!empty($arParams['CLEVER_FIELDS'][$fieldid2]['items'])){
-                        foreach($arParams['CLEVER_FIELDS'][$fieldid2]['items'] as $dItm){
-                            if(!in_array($dItm['ID'], $itmParams['params'])) continue;
-                            $dopActions[] = [
-                                'NAME'=>$dItm['VALUE'],
-                                'VALUE'=>'param_'.$dItm['ID'],
-                            ];
+                        $tmp = explode('||',$itm['VALUE']);
+                        $tmp[2] = explode(',',$tmp[2]);
+                        $tmp[3] = explode(',',$tmp[3]);
+                        $tmp[4] = explode(',',$tmp[4]);
+                        //echo'<pre>';print_r($tmp);echo'</pre>';
+                        //die();
+                        $itmParams = [
+                            'name'=>$tmp[0],
+                            'showAll'=>$tmp[1] == 'Y',
+                            'users'=>$tmp[2],
+                            'crm'=>$tmp[3],
+                            'params'=>$tmp[4],
+                            'grid'=>$tmp[5]
+                        ];
+                        if(!$itmParams['grid']){
+                            $itmParams['grid'] = $adminCustom->getParam('TABLEID');
                         }
-                    }
+                        if(empty($itmParams['users'])){
+                            $itmParams['users'][] = $checkAuthMember;
+                        }
+                        //echo'<pre>';print_r($itmParams);echo'</pre>';
+                        //echo'<pre>';print_r($adminCustom->getParam('TABLEID'));echo'</pre>';
+                        $checkGridName = false;
+                        $gridPrepare = preg_replace('/([^0-9a-z_*[]{},()|])/','',strtolower($itmParams['grid']));
+                        $gridPrepare = str_replace('*','.*',$gridPrepare);
+                        $regex = '/^('.$gridPrepare.')$/is';
+                        if(strtolower($itmParams['grid']) == strtolower($adminCustom->getParam('TABLEID'))){
+                            $checkGridName = true;
+                        }elseif(preg_match($regex,strtolower($adminCustom->getParam('TABLEID')))){
+                            $itmParams['grid'] = $adminCustom->getParam('TABLEID');
+                            $checkGridName = true;
+                        }
+                        if(!$checkGridName) continue;
+                        if(!in_array($checkAuthMember, $itmParams['users'])) continue;
 
-                    if(!empty($dopActions)){
-
-                        $values = [
+                        $generatedItem['NAME'] = $itmParams['name'];
+                        $generatedItem['VALUE'] = 'control_'.$itm['ID'];
+                        $generatedItem['ONCHANGE'] = [
+                            ['ACTION'=>'RESET_CONTROLS'],
                             [
-                                'NAME'=>'- параметр -',
-                                'VALUE'=>'default',
-                                'ONCHANGE'=>[
-                                    ['ACTION'=>'RESET_CONTROLS']
-                                ]
+                                'ACTION'=>'CREATE',
+                                'DATA'=>[]
                             ]
                         ];
-                        foreach($dopActions as $tmp){
-                            $values[] = $tmp;
+                        $dopActions = [];
+                        if(!empty($arParams['CLEVER_FIELDS'][$fieldid2]['items'])){
+                            foreach($arParams['CLEVER_FIELDS'][$fieldid2]['items'] as $dItm){
+                                if(!in_array($dItm['ID'], $itmParams['params'])) continue;
+                                $dopActions[] = [
+                                    'NAME'=>$dItm['VALUE'],
+                                    'VALUE'=>'param_'.$dItm['ID'],
+                                ];
+                            }
                         }
 
-                        $generatedItem['ONCHANGE'][1]['DATA'][] = [
-                            'TYPE'=>'DROPDOWN',
-                            'ID'=>'paramId',
-                            'NAME'=>'paramId',
-                            'TEXT'=>'Доп. параметр',
-                            'ITEMS'=>$values
-                        ];
-                    }
+                        if(!empty($dopActions)){
 
-                    if($itmParams['showAll']){
-                        $generatedItem['ONCHANGE'][1]['DATA'][] = [
-                            'TYPE'=>'CHECKBOX',
-                            'ID'=>'apply_button_for_all',
-                            'TEXT'=>' все ид',
-                            'TITLE'=>' все ид',
-                            'LABEL'=>' все ид',
-                            'CLASS'=>'main-grid-panel-control',
-                            'ONCHANGE'=>[
-                                ['ACTION'=>'RESET_CONTROLS']
-                            ]
-                        ];
-                    }
-                    if(!empty($itmParams['crm'])){
-                        $generatedItem['ONCHANGE'][1]['DATA'][] = [
-                            'TYPE'=>'TEXT',
-                            'ID'=>'crm_entry',
-                            'NAME'=>'crm_entry',
-                            'CLASS'=>'apply',
-                            'ONCHANGE'=>[
-                                ['ACTION'=>'RESET_CONTROLS'],
+                            $values = [
                                 [
-                                    'ACTION'=>'CALLBACK',
-                                    'DATA'=>[
-                                        ['JS'=>"window.awz_helper.openDialogCrm()"]
-                                    ]
-                                ]
-                            ]
-                        ];
-                        $generatedItem['ONCHANGE'][1]['DATA'][] = [
-                            'TYPE'=>'BUTTON',
-                            'ID'=>'open_crm_dialog',
-                            'CLASS'=>'cansel',
-                            'TEXT'=>'...',
-                            'ONCHANGE'=>[
-                                [
-                                    'ACTION'=>'CALLBACK',
-                                    'DATA'=>[
-                                        ['JS'=>"window.awz_helper.openDialogCrm('crm_entry_control','".implode(',', $itmParams['crm'])."')"]
-                                    ]
-                                ]
-                            ]
-                        ];
-                    }
-
-
-                    $generatedItem['ONCHANGE'][1]['DATA'][] = [
-                        'TYPE'=>'BUTTON',
-                        'ID'=>'apply_button',
-                        'CLASS'=>'apply',
-                        'TEXT'=>'Применить',
-                        'ONCHANGE'=>[
-                            [
-                                'ACTION'=>'CALLBACK',
-                                'DATA'=>[
-                                    ['JS'=>"window.awz_helper.applyButton('add_item','".$arParams['CLEVER_SMART']['entityTypeId']."','".$arParams['CLEVER_SMART']['id']."')"]
-                                ]
-                            ]
-                        ]
-                    ];
-                    $generatedItem['ONCHANGE'][1]['DATA'][] = [
-                        'TYPE'=>'BUTTON',
-                        'ID'=>'cansel_button',
-                        'CLASS'=>'main-grid-buttons cancel',
-                        'TEXT'=>'Отменить',
-                        'ONCHANGE'=>[
-                            [
-                                'ACTION'=>'CALLBACK',
-                                'DATA'=>[
-                                    ['JS'=>"window.awz_helper.canselGroupActions()"]
-                                ]
-                            ]
-                        ]
-                    ];
-
-                    $createItemAction['ITEMS'][] = $generatedItem;
-                }
-
-            }
-            //echo'<pre>';print_r($createItemAction['ITEMS']);echo'</pre>';
-            //die();
-            if(count($createItemAction['ITEMS'])>1)
-                $arParams['ACTION_PANEL']['GROUPS'][0]['ITEMS'][] = $createItemAction;
-        }
-
-        /*
-        $createItemAction['ITEMS'][] = [
-            'NAME'=>'Создать элемент',
-            'VALUE'=>'add_entity',
-            'ONCHANGE'=>[
-                ['ACTION'=>'RESET_CONTROLS'],
-                [
-                    'ACTION'=>'CREATE',
-                    'DATA'=>[
-                        [
-                            'TYPE'=>'DROPDOWN',
-                            'ID'=>'entityId',
-                            'NAME'=>'entityId',
-                            'TEXT'=>'Смарт процесс',
-                            'ITEMS'=>[
-                                [
-                                    'NAME'=>'test',
-                                    'VALUE'=>'test',
+                                    'NAME'=>'- параметр -',
+                                    'VALUE'=>'default',
                                     'ONCHANGE'=>[
                                         ['ACTION'=>'RESET_CONTROLS']
                                     ]
-                                ],
-                                [
-                                    'NAME'=>'test2',
-                                    'VALUE'=>'test2',
-                                    'ONCHANGE'=>[
-                                        ['ACTION'=>'RESET_CONTROLS'],
-                                        [
-                                            'ACTION'=>'CALLBACK',
-                                            'DATA'=>[
-                                                //['JS'=>"alert('test2')"]
-                                            ]
+                                ]
+                            ];
+                            foreach($dopActions as $tmp){
+                                $values[] = $tmp;
+                            }
+
+                            $generatedItem['ONCHANGE'][1]['DATA'][] = [
+                                'TYPE'=>'DROPDOWN',
+                                'ID'=>'paramId',
+                                'NAME'=>'paramId',
+                                'TEXT'=>'Доп. параметр',
+                                'ITEMS'=>$values
+                            ];
+                        }
+
+                        if($itmParams['showAll']){
+                            $generatedItem['ONCHANGE'][1]['DATA'][] = [
+                                'TYPE'=>'CHECKBOX',
+                                'ID'=>'apply_button_for_all',
+                                'TEXT'=>' все ид',
+                                'TITLE'=>' все ид',
+                                'LABEL'=>' все ид',
+                                'CLASS'=>'main-grid-panel-control',
+                                'ONCHANGE'=>[
+                                    ['ACTION'=>'RESET_CONTROLS']
+                                ]
+                            ];
+                        }
+                        if(!empty($itmParams['crm'])){
+                            $generatedItem['ONCHANGE'][1]['DATA'][] = [
+                                'TYPE'=>'TEXT',
+                                'ID'=>'crm_entry',
+                                'NAME'=>'crm_entry',
+                                'CLASS'=>'apply',
+                                'ONCHANGE'=>[
+                                    ['ACTION'=>'RESET_CONTROLS'],
+                                    [
+                                        'ACTION'=>'CALLBACK',
+                                        'DATA'=>[
+                                            ['JS'=>"window.awz_helper.openDialogCrm()"]
                                         ]
                                     ]
-                                ],
-                            ]
-                        ],
-                        [
-                            'TYPE'=>'CHECKBOX',
-                            'ID'=>'apply_button_for_all',
-                            'TEXT'=>' все ид',
-                            'TITLE'=>' все ид',
-                            'LABEL'=>' все ид',
-                            'CLASS'=>'main-grid-panel-control',
-                            'ONCHANGE'=>[
-                                ['ACTION'=>'RESET_CONTROLS']
-                            ]
-                        ],
-                        [
-                            'TYPE'=>'TEXT',
-                            'ID'=>'crm_entry',
-                            'NAME'=>'crm_entry',
-                            'CLASS'=>'apply',
-                            'ONCHANGE'=>[
-                                ['ACTION'=>'RESET_CONTROLS'],
-                                [
-                                    'ACTION'=>'CALLBACK',
-                                    'DATA'=>[
-                                        ['JS'=>"window.awz_helper.openDialogCrm()"]
+                                ]
+                            ];
+                            $generatedItem['ONCHANGE'][1]['DATA'][] = [
+                                'TYPE'=>'BUTTON',
+                                'ID'=>'open_crm_dialog',
+                                'CLASS'=>'cansel',
+                                'TEXT'=>'...',
+                                'ONCHANGE'=>[
+                                    [
+                                        'ACTION'=>'CALLBACK',
+                                        'DATA'=>[
+                                            ['JS'=>"window.awz_helper.openDialogCrm('crm_entry_control','".implode(',', $itmParams['crm'])."')"]
+                                        ]
                                     ]
                                 ]
-                            ]
-                        ],
-                        [
-                            'TYPE'=>'BUTTON',
-                            'ID'=>'open_crm_dialog',
-                            'CLASS'=>'cansel',
-                            'TEXT'=>'...',
-                            'ONCHANGE'=>[
-                                [
-                                    'ACTION'=>'CALLBACK',
-                                    'DATA'=>[
-                                        ['JS'=>"window.awz_helper.openDialogCrm('crm_entry_control')"]
-                                    ]
-                                ]
-                            ]
-                        ],
-                        [
-                            'TYPE'=>'CUSTOM',
-                            'ID'=>'apply_button_for_all',
-                            'TEXT'=>'для всех',
-                            'TITLE'=>'для всех',
-                            'LABEL'=>'для всех',
-                            'CLASS'=>'apply',
-                            'VALUE'=>'<div class="test">test</div>',
-                            'ONCHANGE'=>[
-                                ['ACTION'=>'RESET_CONTROLS']
-                            ]
-                        ],
-                        [
+                            ];
+                        }
+
+
+                        $generatedItem['ONCHANGE'][1]['DATA'][] = [
                             'TYPE'=>'BUTTON',
                             'ID'=>'apply_button',
                             'CLASS'=>'apply',
@@ -1001,12 +929,12 @@ if(!$checkAuth){
                                 [
                                     'ACTION'=>'CALLBACK',
                                     'DATA'=>[
-                                        ['JS'=>"window.awz_helper.applyButton('add_entity')"]
+                                        ['JS'=>"window.awz_helper.applyButton('add_item','".$arParams['CLEVER_SMART']['entityTypeId']."','".$arParams['CLEVER_SMART']['id']."')"]
                                     ]
                                 ]
                             ]
-                        ],
-                        [
+                        ];
+                        $generatedItem['ONCHANGE'][1]['DATA'][] = [
                             'TYPE'=>'BUTTON',
                             'ID'=>'cansel_button',
                             'CLASS'=>'main-grid-buttons cancel',
@@ -1019,37 +947,165 @@ if(!$checkAuth){
                                     ]
                                 ]
                             ]
+                        ];
+
+                        $createItemAction['ITEMS'][] = $generatedItem;
+                    }
+
+                }
+                //echo'<pre>';print_r($createItemAction['ITEMS']);echo'</pre>';
+                //die();
+                if(count($createItemAction['ITEMS'])>1)
+                    $arParams['ACTION_PANEL']['GROUPS'][0]['ITEMS'][] = $createItemAction;
+            }
+
+            /*
+            $createItemAction['ITEMS'][] = [
+                'NAME'=>'Создать элемент',
+                'VALUE'=>'add_entity',
+                'ONCHANGE'=>[
+                    ['ACTION'=>'RESET_CONTROLS'],
+                    [
+                        'ACTION'=>'CREATE',
+                        'DATA'=>[
+                            [
+                                'TYPE'=>'DROPDOWN',
+                                'ID'=>'entityId',
+                                'NAME'=>'entityId',
+                                'TEXT'=>'Смарт процесс',
+                                'ITEMS'=>[
+                                    [
+                                        'NAME'=>'test',
+                                        'VALUE'=>'test',
+                                        'ONCHANGE'=>[
+                                            ['ACTION'=>'RESET_CONTROLS']
+                                        ]
+                                    ],
+                                    [
+                                        'NAME'=>'test2',
+                                        'VALUE'=>'test2',
+                                        'ONCHANGE'=>[
+                                            ['ACTION'=>'RESET_CONTROLS'],
+                                            [
+                                                'ACTION'=>'CALLBACK',
+                                                'DATA'=>[
+                                                    //['JS'=>"alert('test2')"]
+                                                ]
+                                            ]
+                                        ]
+                                    ],
+                                ]
+                            ],
+                            [
+                                'TYPE'=>'CHECKBOX',
+                                'ID'=>'apply_button_for_all',
+                                'TEXT'=>' все ид',
+                                'TITLE'=>' все ид',
+                                'LABEL'=>' все ид',
+                                'CLASS'=>'main-grid-panel-control',
+                                'ONCHANGE'=>[
+                                    ['ACTION'=>'RESET_CONTROLS']
+                                ]
+                            ],
+                            [
+                                'TYPE'=>'TEXT',
+                                'ID'=>'crm_entry',
+                                'NAME'=>'crm_entry',
+                                'CLASS'=>'apply',
+                                'ONCHANGE'=>[
+                                    ['ACTION'=>'RESET_CONTROLS'],
+                                    [
+                                        'ACTION'=>'CALLBACK',
+                                        'DATA'=>[
+                                            ['JS'=>"window.awz_helper.openDialogCrm()"]
+                                        ]
+                                    ]
+                                ]
+                            ],
+                            [
+                                'TYPE'=>'BUTTON',
+                                'ID'=>'open_crm_dialog',
+                                'CLASS'=>'cansel',
+                                'TEXT'=>'...',
+                                'ONCHANGE'=>[
+                                    [
+                                        'ACTION'=>'CALLBACK',
+                                        'DATA'=>[
+                                            ['JS'=>"window.awz_helper.openDialogCrm('crm_entry_control')"]
+                                        ]
+                                    ]
+                                ]
+                            ],
+                            [
+                                'TYPE'=>'CUSTOM',
+                                'ID'=>'apply_button_for_all',
+                                'TEXT'=>'для всех',
+                                'TITLE'=>'для всех',
+                                'LABEL'=>'для всех',
+                                'CLASS'=>'apply',
+                                'VALUE'=>'<div class="test">test</div>',
+                                'ONCHANGE'=>[
+                                    ['ACTION'=>'RESET_CONTROLS']
+                                ]
+                            ],
+                            [
+                                'TYPE'=>'BUTTON',
+                                'ID'=>'apply_button',
+                                'CLASS'=>'apply',
+                                'TEXT'=>'Применить',
+                                'ONCHANGE'=>[
+                                    [
+                                        'ACTION'=>'CALLBACK',
+                                        'DATA'=>[
+                                            ['JS'=>"window.awz_helper.applyButton('add_entity')"]
+                                        ]
+                                    ]
+                                ]
+                            ],
+                            [
+                                'TYPE'=>'BUTTON',
+                                'ID'=>'cansel_button',
+                                'CLASS'=>'main-grid-buttons cancel',
+                                'TEXT'=>'Отменить',
+                                'ONCHANGE'=>[
+                                    [
+                                        'ACTION'=>'CALLBACK',
+                                        'DATA'=>[
+                                            ['JS'=>"window.awz_helper.canselGroupActions()"]
+                                        ]
+                                    ]
+                                ]
+                            ]
                         ]
                     ]
                 ]
-            ]
-        ];
-        */
+            ];
+            */
 
 
 
-        //echo'<pre>';print_r($arParams['ACTION_PANEL']);echo'</pre>';
-        //die();
-        \Bitrix\Main\UI\Extension::load("ui.progressbar");
-        \Bitrix\Main\UI\Extension::load('ui.entity-selector');
-        $adminCustom->setParam('ACTION_PANEL', $arParams['ACTION_PANEL']);
-        $adminCustom->setParam('FIND',$adminCustom->formatFilterFields($arParams['FIND']));
-        $adminCustom->defaultInterface();
+            //echo'<pre>';print_r($arParams['ACTION_PANEL']);echo'</pre>';
+            //die();
+            \Bitrix\Main\UI\Extension::load("ui.progressbar");
+            \Bitrix\Main\UI\Extension::load('ui.entity-selector');
+            $adminCustom->setParam('ACTION_PANEL', $arParams['ACTION_PANEL']);
+            $adminCustom->setParam('FIND',$adminCustom->formatFilterFields($arParams['FIND']));
+            $adminCustom->defaultInterface();
+        }
+        if(!$arParams['SMART_ID'] && !$customPrint){
+            ?>
+            <div class="container"><div class="row"><div class="ui-block-wrapper">
+                        <?
+                        echo Helper::errorsHtmlFromText(
+                            array(
+                                'сущность не найдена'),
+                            'Ошибка получения сущности');?>
+                    </div></div></div>
+            <?
+        }
     }
-    if(!$arParams['SMART_ID'] && !$customPrint){
-        ?>
-        <div class="container"><div class="row"><div class="ui-block-wrapper">
-                    <?
-                    echo Helper::errorsHtmlFromText(
-                        array(
-                            'сущность не найдена'),
-                        'Ошибка получения сущности');?>
-                </div></div></div>
-        <?
-    }
-}
-?>
-</body>
-</html>
+    ?>
+    </body>
+    </html>
 <?php
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/epilog_after.php");

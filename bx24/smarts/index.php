@@ -180,7 +180,8 @@ else
     UIExt::load("ui.hint");
     UIExt::load("ui.icons.b24");
     UIExt::load("ui.icons.service");
-    Asset::getInstance()->addJs("/bx24/smarts/script.js");
+    Asset::getInstance()->addJs("/bx24/smarts/md5.min.js");
+    Asset::getInstance()->addJs("/bx24/smarts/scriptn.js");
     $portalData = $app->getCurrentPortalData();
     $portalOldKey = '';
     if(!$portalData){
@@ -246,11 +247,12 @@ else
                 <div class="container">
                     <form>
 
+
                         <div class="row" style="margin-bottom:10px;">
                             <h4>Добавить встройку</h4>
                         </div>
                         <div class="row" id="placement-sett-manager" style="margin-bottom:10px;">
-                            <div class="col-xs-2 no-padding">
+                            <div class="col-xs-3 no-padding-l">
                                 <div class="ui-ctl ui-ctl-after-icon ui-ctl-dropdown">
                                     <div class="ui-ctl-after ui-ctl-icon-angle"></div>
                                     <div class="ui-ctl-tag">что встраиваем</div>
@@ -258,7 +260,7 @@ else
                                     </select>
                                 </div>
                             </div>
-                            <div class="col-xs-2 no-padding">
+                            <div class="col-xs-3">
                                 <div class="ui-ctl ui-ctl-after-icon ui-ctl-dropdown">
                                     <div class="ui-ctl-after ui-ctl-icon-angle"></div>
                                     <div class="ui-ctl-tag">куда встраиваем</div>
@@ -266,7 +268,7 @@ else
                                     </select>
                                 </div>
                             </div>
-                            <div class="col-xs-3 no-padding">
+                            <div class="col-xs-3">
                                 <div class="ui-ctl ui-ctl-after-icon ui-ctl-dropdown">
                                     <div class="ui-ctl-after ui-ctl-icon-angle"></div>
                                     <div class="ui-ctl-tag">место встройки</div>
@@ -274,19 +276,54 @@ else
                                     </select>
                                 </div>
                             </div>
-                            <div class="col-xs-3 no-padding">
+                            <div style="display:block;clear:both;width:100%;height:10px;"></div>
+                            <div class="col-xs-3 no-padding-l">
                                 <div class="ui-ctl ui-ctl-textbox">
                                     <input type="text" id="placement-sett-manager-name" class="ui-ctl-element" placeholder="Название встройки">
                                 </div>
                             </div>
-                            <div class="col-xs-2 no-padding">
+                            <div class="col-xs-3">
+                                <div class="ui-ctl ui-ctl-textbox">
+                                    <input type="text" id="placement-sett-manager-group" class="ui-ctl-element" placeholder="Группа">
+                                </div>
+                            </div>
+                            <div class="col-xs-3">
+                                <div class="ui-ctl ui-ctl-textbox">
+                                    <input type="text" id="placement-sett-manager-user" class="ui-ctl-element" placeholder="Пользователь">
+                                </div>
+                            </div>
+                            <div class="col-xs-3 no-padding-r">
                                 <a href="#" id="placement-sett-manager-add" class="ui-btn ui-btn-success ui-btn-icon-success">Активировать</a>
                             </div>
                         </div>
-                        <div class="row" style="margin-bottom:10px;">
-                            <h4>Активные встройки</h4>
-                        </div>
+
                         <div class="rows-smarts">
+
+                        </div>
+
+                        <div class="row" style="margin-bottom:10px;">
+                            <h4>Добавить внешнюю сущность</h4>
+                        </div>
+                        <div class="row" id="external-entity" style="margin-bottom:10px;">
+                            <div class="col-xs-3 no-padding-l">
+                                <div class="ui-ctl ui-ctl-after-icon ui-ctl-dropdown">
+                                    <div class="ui-ctl-after ui-ctl-icon-angle"></div>
+                                    <div class="ui-ctl-tag">тип сущности</div>
+                                    <select class="ui-ctl-element" id="external-entity-manager-from">
+                                        <option value="task">Задачи</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-xs-3">
+                                <div class="ui-ctl ui-ctl-textbox">
+                                    <input type="text" id="external-entity-manager-huk" class="ui-ctl-element" placeholder="Веб хук">
+                                </div>
+                            </div>
+                            <div class="col-xs-3 no-padding-r">
+                                <a href="#" id="external-entity-manager-add" class="ui-btn ui-btn-success ui-btn-icon-success">Добавить</a>
+                            </div>
+                        </div>
+                        <div class="rows-ext-smarts">
 
                         </div>
                         <div class="row" style="margin-bottom:10px;">

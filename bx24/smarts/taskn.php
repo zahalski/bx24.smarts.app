@@ -50,7 +50,8 @@ class TaskList extends IList implements IParams {
         if(!empty($params['SMART_FIELDS'])){
             \Awz\Admin\TaskTable::$fields = $params['SMART_FIELDS'];
         }
-        $params['TABLEID'] = 'awz_smart_'.$params['SMART_ID'].'_'.$params['SMART_ID2'];
+        $params['TABLEID'] = $params['GRID_ID'];
+        //$params['TABLEID'] = 'awz_smart_'.$params['SMART_ID'].'_'.$params['SMART_ID2'];
 
         parent::__construct($params, $publicMode);
     }
@@ -362,13 +363,15 @@ class TaskList extends IList implements IParams {
                 $(document).ready(function(){
                     BX24.ready(function() {
                         BX24.init(function () {
-                            $('body').prepend('<div class="ui-alert ui-alert-danger"><span class="ui-alert-message"><strong>Данная встройка устарела и скоро будет удалена!</strong> Перейдите в настройки приложения и пересоздайте встройку.</span></div>');
                             <?
                             $groups = $this->getFromCache('groups');
                             $gridOptions = new GridOptions($this->getParam('TABLEID'));
                             $sort = $gridOptions->getSorting(['sort'=>['ID'=>'desc']]);
                             $_EXT_PARAMS = $this->getParam('EXT_PARAMS');
                             ?>
+                            <?if($groupId = $this->getParam('GROUP_ID')){?>
+                            window.awz_helper.addFilter = {'GROUP_ID':'<?=$groupId?>'};
+                            <?}?>
                             <?if(isset($_EXT_PARAMS[1])){?>window.awz_helper.extUrl = '<?=$_EXT_PARAMS[1]?>';<?}?>
                             window.awz_helper.currentUserId = '<?=$this->getParam('CURRENT_USER')?>';
                             window.awz_helper.lastOrder = <?=\CUtil::PhpToJSObject($sort['sort'])?>;
@@ -380,7 +383,8 @@ class TaskList extends IList implements IParams {
                                 '<?=$this->getParam('ADD_REQUEST_KEY')?>',
                                 '<?=$this->getParam('SMART_ID')?>',
                                 '<?=$this->getParam('TABLEID')?>',
-                                <?=$this->getAdminList()->getNavSize()?>
+                                <?=$this->getAdminList()->getNavSize()?>,
+                                <?=\CUtil::PhpToJSObject($this->getParam('GRID_OPTIONS'))?>
                             );
                         });
                     });
@@ -486,7 +490,7 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
             CJsCore::init('jquery');
             CJSCore::Init(array('popup', 'date'));
             Asset::getInstance()->addCss("/bitrix/css/main/font-awesome.css");
-            Asset::getInstance()->addJs("/bx24/smarts/script.js");
+            Asset::getInstance()->addJs("/bx24/smarts/scriptn.js");
         }
         Asset::getInstance()->addCss("/bx24/smarts/style.css");
         ?>
@@ -515,252 +519,247 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
                 </div></div></div>
         <?
     }else{
-        $arParams['SMART_ID'] = $placement['smart'];
-        //$arParams['GROUP_ID'] = $checkAuthGroupId;
-        if(!$arParams['SMART_ID']) $arParams['SMART_ID'] = preg_replace('/awz_smart_([0-9A-Z]+).*/',"$1",$_REQUEST['grid_id']);
-        if($_REQUEST['grid_id'] && (strpos($_REQUEST['grid_id'], 'awz_smart_TASK_USER')!==false)){
-            $arParams['SMART_ID'] = 'TASK_USER';
+        $arParams['SMART_ID'] = '';
+        $arParams['GRID_ID'] = 'awz_s__';
+        $arParams['GRID_OPTIONS'] = [];
+        $gridId = htmlspecialcharsEx((string) $app->getRequest()->get('grid_id') ?? "");
+        if(!$gridId) $gridId = htmlspecialcharsEx((string) $app->getRequest()->get('grid') ?? "");
+        if(isset($placement['grid_id'])){
+            $gridId = htmlspecialcharsEx((string) $placement['grid_id'] ?? "");
         }
-        if($_REQUEST['grid_id'] && (strpos($_REQUEST['grid_id'], 'awz_smart_TASK_USER_CRM')!==false)){
-            $arParams['SMART_ID'] = 'TASK_USER_CRM';
-        }
-        if($_REQUEST['smartId'] == 'TASK_USER'){
-            $arParams['SMART_ID'] = 'TASK_USER';
-        }
-        $arParams['EXT_PARAMS'] = explode('---',$_REQUEST['ext']);
-        if($_REQUEST['smartId'] == 'EXT_TASK_USER' && !empty($arParams['EXT_PARAMS'])){
-            $arParams['SMART_ID'] = str_replace('entity_','EXT_',$arParams['EXT_PARAMS'][2]).'_TASK_USER';
-        }
-        if($_REQUEST['smartId'] == 'TASK_USER_CRM'){
-            $arParams['SMART_ID'] = 'TASK_USER_CRM';
-        }
-        if($_REQUEST['smartId'] && (strpos($_REQUEST['smartId'], 'TASK_GROUP_') !== false)){
-            $arParams['SMART_ID'] = 'TASK_GROUP_'.preg_replace('/([^0-9])/','',$_REQUEST['smartId']);
-            $checkAuthGroupId = preg_replace('/([^0-9])/','',$_REQUEST['smartId']);
-        }
-        if(!$checkAuthGroupId && $_REQUEST['grid_id'] && strpos($_REQUEST['grid_id'],'awz_smart_TASK_GROUP_')!==false){
-            $checkAuthGroupId = preg_replace('/([^0-9])/','',$_REQUEST['grid_id']);
-        }
-        if($checkAuthGroupId){
-            $arParams['SMART_ID'] = 'TASK_GROUP_'.$checkAuthGroupId;
-        }
-        //TASK_GROUP_
-        $checkResultApi = new Bitrix\Main\Result();
-        if($arParams['SMART_ID']){
-            if(strpos($arParams['SMART_ID'], 'TASK_GROUP_')!==false){
-                $arParams['GROUP_ID'] =preg_replace('/([^0-9])/','',$arParams['SMART_ID']);
-            }
+        $arParams['GRID_ID'] = $gridId;
+        $loadParamsEntity = \Awz\Admin\Helper::getGridParams($gridId);
+        $gridOptions = [];
+        if($loadParamsEntity->isSuccess()){
+            $loadParamsEntityData = $loadParamsEntity->getData();
+            $gridOptions = $loadParamsEntityData['options'];
 
+            $arParams['GRID_OPTIONS'] = $gridOptions;
+            $arParams['GRID_OPTIONS']['method_list'] = 'tasks.task.list';
+            $arParams['GRID_OPTIONS']['method_delete'] = 'tasks.task.delete';
+            $arParams['GRID_OPTIONS']['method_update'] = 'tasks.task.update';
+            $arParams['GRID_OPTIONS']['result_key'] = 'tasks';
+            $arParams['SMART_ID'] = $gridOptions['PARAM_1'] ?? "";
+            if(strpos($arParams['SMART_ID'], 'TASK_GROUP_')!==false){
+                $arParams['GROUP_ID'] = str_replace('TASK_GROUP_','',$arParams['SMART_ID']);
+                //$arParams['GRID_OPTIONS']['entityId'] = $arParams['GROUP_ID'];
+            }
+            if($arParams['SMART_ID'] === 'TASK_GROUPS' && $checkAuthGroupId){
+                $arParams['GROUP_ID'] = $checkAuthGroupId;
+            }
+            //вшешние задачи
+            if($extWebHook = $app->getRequest()->get('ext')){
+                $arParams['EXT_PARAMS'] = [
+                    'task',
+                    'https://'.$extWebHook
+                ];
+            }
+        }
+
+
+        if($arParams['SMART_ID'] && $loadParamsEntity->isSuccess()){
             $arParams['ADD_REQUEST_KEY'] = $checkAuthKey.'|'.$checkAuthDomain.'|'.$checkAuthMember.'|'.$app->getConfig('APP_ID');
-            /*if($arParams['GROUP_ID']){
-                $arParams['ADD_REQUEST_KEY'] .= '|'.$arParams['GROUP_ID'];
-            }*/
             $arParams['CURRENT_USER'] = $checkAuthMember;
             $hash = hash_hmac('sha256', $arParams['ADD_REQUEST_KEY'], $app->getConfig('APP_SECRET_CODE'));
             $arParams['ADD_REQUEST_KEY'] .= '|'.$hash;
             $app->getRequest()->set('key', $arParams['ADD_REQUEST_KEY']);
-
-            if($app->getRequest()->get('plc')){
-                $arParams['SMART_ID2'] = mb_strtolower($app->getRequest()->get('plc'));
-            }
 
             if($tracker){
                 $tracker->setPortal($checkAuthDomain)
                     ->setAppId($app->getConfig('APP_ID'));
             }
 
-            $cacheId = $app->getRequest()->get('DOMAIN').'fields_bagsmart_'.$arParams['SMART_ID'];
+            $cacheId = $app->getRequest()->get('DOMAIN').'fields_bagsmart_'.md5(serialize($arParams['GRID_OPTIONS']));
 
             $auth = TokensTable::getList(array(
                 'select'=>array('*'),
                 'filter'=>array('=PORTAL'=>$app->getRequest()->get('DOMAIN'), '=APP_ID'=>$app->getConfig('APP_ID'))
             ))->fetch();
-            $resultAuth = $app->setAuth($auth['TOKEN']);
-
-            $checkResult = $app->getRequest()->get('bx_result');
-            if($checkResult['cache_action'] == 'remove'){
-                $app->cleanCache($cacheId);
-                for($i=0;$i<10;$i++){
-                    $app->cleanCache($cacheId.'_'.$i);
-                }
-            }
-            if($checkResult['bxTime'] && $tracker){
-                $tracker->addBxTime($checkResult['bxTime']);
-            }
-
-            //tasks.task.update
-            /*$app->postMethod('tasks.task.update', [
-                'taskId'=>616,
-                'fields'=>[
-                       'UF_CRM_TASK'=>['C_64', 'CO_38', 'D_188']
-                ]
-            ]);*/
-
-            $app->setCacheParams($cacheId);
-
-            if(!empty($arParams['EXT_PARAMS'])){
-                $bxRowsResFields = $app->postMethod($arParams['EXT_PARAMS'][1].'tasks.task.getFields');
+            if(!isset($auth['TOKEN'])){
+                $loadParamsEntity->addError(new \Bitrix\Main\Error("Токен приложения не найден"));
             }else{
-                $bxRowsResFields = $app->postMethod('tasks.task.getFields');
+                $app->setAuth($auth['TOKEN']);
             }
 
-            if($bxRowsResFields->isSuccess()) {
-
-                $bxFields = $bxRowsResFields->getData();
-                $allFields = $bxFields['result']['result']['fields'];
-                if(isset($allFields['CREATED_BY'])){
-                    $allFields['CREATED_BY']['type'] = 'user';
-                }
-                if(isset($allFields['RESPONSIBLE_ID'])){
-                    $allFields['RESPONSIBLE_ID']['type'] = 'user';
-                }
-                if(isset($allFields['CHANGED_BY'])){
-                    $allFields['CHANGED_BY']['type'] = 'user';
-                }
-                if(isset($allFields['CLOSED_BY'])){
-                    $allFields['CLOSED_BY']['type'] = 'user';
-                }
-                if(isset($allFields['STATUS_CHANGED_BY'])){
-                    $allFields['STATUS_CHANGED_BY']['type'] = 'user';
-                }
-                if(isset($allFields['GROUP_ID'])){
-                    $allFields['GROUP_ID']['type'] = 'group';
-                }
-
-                $sortableField = [
-                    'ID',
-                    'TITLE',
-                    'DATE_START',
-                    'CREATED_DATE',
-                    'CHANGED_DATE',
-                    'CLOSED_DATE',
-                    'DEADLINE',
-                    'REAL_STATUS',
-                    'STATUS_COMPLETE',
-                    'PRIORITY',
-                    'MARK',
-                    'GROUP_ID',
-                    'TIME_ESTIMATE',
-                    'ALLOW_CHANGE_DEADLINE',
-                    'ALLOW_TIME_TRACKING',
-                    'MATCH_WORK_TIME',
-                    'FAVORITE',
-                    'SORTING',
-                    'MESSAGE_ID'
-                ];
-                $disabledFields = [
-                    'PARENT_ID',
-                    'DESCRIPTION',
-                    'ACCOMPLICES',
-                    'AUDITORS',
-                    'GUID',
-                    'XML_ID',
-                    'COMMENTS_COUNT',
-                    'SERVICE_COMMENTS_COUNT',
-                    'NEW_COMMENTS_COUNT',
-                    'MATCH_WORK_TIME',
-                    'FORUM_TOPIC_ID',
-                    'FORUM_ID',
-                    'SITE_ID',
-                    'EXCHANGE_MODIFIED',
-                    'EXCHANGE_ID',
-                    'CHECKLIST',
-                    'UF_TASK_WEBDAV_FILES',
-                    'SORTING'
-                ];
-                $readOnlyFields = [
-                    'NOT_VIEWED',
-                    'FORKED_BY_TEMPLATE_ID',
-                    'TIME_SPENT_IN_LOGS',
-                    'SUBORDINATE',
-                    'FAVORITE',
-                    'OUTLOOK_VERSION',
-                    'VIEWED_DATE',
-                    'DURATION_FACT',
-                    'DURATION_TYPE',
-                    'IS_MUTED',
-                    'IS_PINNED',
-                    'IS_PINNED_IN_GROUP',
-                ];
-                if($arParams['GROUP_ID']){
-                    $disabledFields[] = 'GROUP_ID';
-                }
-
-                $app->setCacheParams($cacheId.'_0');
-                if($arParams['GROUP_ID']){
-                    $bxRowsResStages = $app->postMethod('task.stages.get', ['entityId'=>$arParams['GROUP_ID']]);
-                }else{
-                    $bxRowsResStages = $app->postMethod('task.stages.get', ['entityId'=>0]);
-                }
-
-                if($bxRowsResStages->isSuccess()){
-                    $bxStages = $bxRowsResStages->getData();
-                    if(!empty($bxStages['result']['result'])){
-                        $allFields['STAGE_ID']['values'] = [];
-                        $allFields['STAGE_ID']['type'] = 'enum';
-                        foreach($bxStages['result']['result'] as $stage){
-                            $allFields['STAGE_ID']['values'][$stage['ID']] = $stage['TITLE'];
-                        }
+            if($loadParamsEntity->isSuccess()){
+                $checkResult = $app->getRequest()->get('bx_result');
+                if($checkResult['cache_action'] == 'remove'){
+                    $app->cleanCache($cacheId);
+                    for($i=0;$i<10;$i++){
+                        $app->cleanCache($cacheId.'_'.$i);
                     }
+                }
+                if($checkResult['bxTime'] && $tracker){
+                    $tracker->addBxTime($checkResult['bxTime']);
+                }
+                $app->setCacheParams($cacheId);
+
+                if(!empty($arParams['EXT_PARAMS'])){
+                    $bxRowsResFields = $app->postMethod($arParams['EXT_PARAMS'][1].'tasks.task.getFields');
                 }else{
-                    $disabledFields[] = 'STAGE_ID';
-                    $app->cleanCache($cacheId.'_0');
+                    $bxRowsResFields = $app->postMethod('tasks.task.getFields');
                 }
 
-                $app->setCacheParams($cacheId.'_1');
-                $bxRowsResActions = $app->postMethod('crm.type.list', ['filter'=>['title'=>'Умный смарт']]);
-                if($bxRowsResActions->isSuccess()){
-                    $bxActions = $bxRowsResActions->getData();
-                    if(isset($bxActions['result']['result']['types'][0]['id'])){
-                        $app->setCacheParams($cacheId.'_2');
-                        $bxRowsResActionsFields = $app->postMethod('crm.item.fields', ['entityTypeId'=>$bxActions['result']['result']['types'][0]['entityTypeId']]);
-                        if($bxRowsResActionsFields->isSuccess()){
-                            $bxActionsFields = $bxRowsResActionsFields->getData();
-                            if(!empty($bxActionsFields['result']['result']['fields'])){
-                                $arParams['CLEVER_FIELDS'] = $bxActionsFields['result']['result']['fields'];
-                                $arParams['CLEVER_SMART'] = $bxActions['result']['result']['types'][0];
-                            }
-                        }else{
-                            $app->cleanCache($cacheId.'_2');
-                        }
-                    }
-                }else{
-                    $app->cleanCache($cacheId.'_1');
-                }
+                if($bxRowsResFields->isSuccess()) {
 
-                $newFormatFields = [];
-                $selectFormatFields = [];
-                foreach($allFields as $key=>$val){
-                    if(in_array($key, $disabledFields)) continue;
-                    if(in_array($key, $readOnlyFields)){
-                        $val['isReadOnly'] = true;
+                    $bxFields = $bxRowsResFields->getData();
+                    $allFields = $bxFields['result']['result']['fields'];
+                    if(isset($allFields['CREATED_BY'])){
+                        $allFields['CREATED_BY']['type'] = 'user';
                     }
-                    if(in_array($key, $sortableField)){
-                        $val['sort'] = $key;
+                    if(isset($allFields['RESPONSIBLE_ID'])){
+                        $allFields['RESPONSIBLE_ID']['type'] = 'user';
+                    }
+                    if(isset($allFields['CHANGED_BY'])){
+                        $allFields['CHANGED_BY']['type'] = 'user';
+                    }
+                    if(isset($allFields['CLOSED_BY'])){
+                        $allFields['CLOSED_BY']['type'] = 'user';
+                    }
+                    if(isset($allFields['STATUS_CHANGED_BY'])){
+                        $allFields['STATUS_CHANGED_BY']['type'] = 'user';
+                    }
+                    if(isset($allFields['GROUP_ID'])){
+                        $allFields['GROUP_ID']['type'] = 'group';
+                    }
+
+                    $sortableField = [
+                        'ID',
+                        'TITLE',
+                        'DATE_START',
+                        'CREATED_DATE',
+                        'CHANGED_DATE',
+                        'CLOSED_DATE',
+                        'DEADLINE',
+                        'REAL_STATUS',
+                        'STATUS_COMPLETE',
+                        'PRIORITY',
+                        'MARK',
+                        'GROUP_ID',
+                        'TIME_ESTIMATE',
+                        'ALLOW_CHANGE_DEADLINE',
+                        'ALLOW_TIME_TRACKING',
+                        'MATCH_WORK_TIME',
+                        'FAVORITE',
+                        'SORTING',
+                        'MESSAGE_ID'
+                    ];
+                    $disabledFields = [
+                        'PARENT_ID',
+                        'DESCRIPTION',
+                        'ACCOMPLICES',
+                        'AUDITORS',
+                        'GUID',
+                        'XML_ID',
+                        'COMMENTS_COUNT',
+                        'SERVICE_COMMENTS_COUNT',
+                        'NEW_COMMENTS_COUNT',
+                        'MATCH_WORK_TIME',
+                        'FORUM_TOPIC_ID',
+                        'FORUM_ID',
+                        'SITE_ID',
+                        'EXCHANGE_MODIFIED',
+                        'EXCHANGE_ID',
+                        'CHECKLIST',
+                        'UF_TASK_WEBDAV_FILES',
+                        'SORTING'
+                    ];
+                    $readOnlyFields = [
+                        'NOT_VIEWED',
+                        'FORKED_BY_TEMPLATE_ID',
+                        'TIME_SPENT_IN_LOGS',
+                        'SUBORDINATE',
+                        'FAVORITE',
+                        'OUTLOOK_VERSION',
+                        'VIEWED_DATE',
+                        'DURATION_FACT',
+                        'DURATION_TYPE',
+                        'IS_MUTED',
+                        'IS_PINNED',
+                        'IS_PINNED_IN_GROUP',
+                    ];
+                    if($arParams['GROUP_ID']){
+                        $disabledFields[] = 'GROUP_ID';
+                    }
+
+                    $app->setCacheParams($cacheId.'_0');
+                    if($arParams['GROUP_ID']){
+                        $bxRowsResStages = $app->postMethod('task.stages.get', ['entityId'=>$arParams['GROUP_ID']]);
                     }else{
-                        $val['sort'] = false;
+                        $bxRowsResStages = $app->postMethod('task.stages.get', ['entityId'=>0]);
                     }
-                    if($key=='STATUS'){
-                        $val['sort'] = 'REAL_STATUS';
+
+                    if($bxRowsResStages->isSuccess()){
+                        $bxStages = $bxRowsResStages->getData();
+                        if(!empty($bxStages['result']['result'])){
+                            $allFields['STAGE_ID']['values'] = [];
+                            $allFields['STAGE_ID']['type'] = 'enum';
+                            foreach($bxStages['result']['result'] as $stage){
+                                $allFields['STAGE_ID']['values'][$stage['ID']] = $stage['TITLE'];
+                            }
+                        }
+                    }else{
+                        $disabledFields[] = 'STAGE_ID';
+                        $app->cleanCache($cacheId.'_0');
                     }
-                    $val['upperCase'] = $key;
-                    if($key == 'UF_CRM_TASK')
-                        $val['isMultiple'] = true;
-                    $key = lcfirst(\Bitrix\Main\Text\StringHelper::snake2camel($key));
-                    $newFormatFields[$key] = $val;
-                    $selectFormatFields[] = $val['upperCase'];
+
+                    $app->setCacheParams($cacheId.'_1');
+                    $bxRowsResActions = $app->postMethod('crm.type.list', ['filter'=>['title'=>'Умный смарт']]);
+                    if($bxRowsResActions->isSuccess()){
+                        $bxActions = $bxRowsResActions->getData();
+                        if(isset($bxActions['result']['result']['types'][0]['id'])){
+                            $app->setCacheParams($cacheId.'_2');
+                            $bxRowsResActionsFields = $app->postMethod('crm.item.fields', ['entityTypeId'=>$bxActions['result']['result']['types'][0]['entityTypeId']]);
+                            if($bxRowsResActionsFields->isSuccess()){
+                                $bxActionsFields = $bxRowsResActionsFields->getData();
+                                if(!empty($bxActionsFields['result']['result']['fields'])){
+                                    $arParams['CLEVER_FIELDS'] = $bxActionsFields['result']['result']['fields'];
+                                    $arParams['CLEVER_SMART'] = $bxActions['result']['result']['types'][0];
+                                }
+                            }else{
+                                $app->cleanCache($cacheId.'_2');
+                            }
+                        }
+                    }else{
+                        $app->cleanCache($cacheId.'_1');
+                    }
+
+                    $newFormatFields = [];
+                    $selectFormatFields = [];
+                    foreach($allFields as $key=>$val){
+                        if(in_array($key, $disabledFields)) continue;
+                        if(in_array($key, $readOnlyFields)){
+                            $val['isReadOnly'] = true;
+                        }
+                        if(in_array($key, $sortableField)){
+                            $val['sort'] = $key;
+                        }else{
+                            $val['sort'] = false;
+                        }
+                        if($key=='STATUS'){
+                            $val['sort'] = 'REAL_STATUS';
+                        }
+                        $val['upperCase'] = $key;
+                        if($key == 'UF_CRM_TASK')
+                            $val['isMultiple'] = true;
+                        $key = lcfirst(\Bitrix\Main\Text\StringHelper::snake2camel($key));
+                        $newFormatFields[$key] = $val;
+                        $selectFormatFields[] = $val['upperCase'];
+                    }
+
+                    unset($allFields);
+                    $arParams['SMART_FIELDS'] = $newFormatFields;
+                    $arParams['SMART_FIELDS_SELECT'] = $selectFormatFields;
+
+                }else{
+                    $loadParamsEntity->addErrors($bxRowsResFields->getErrors());
+                    $app->cleanCache($cacheId);
                 }
 
-                unset($allFields);
-                $arParams['SMART_FIELDS'] = $newFormatFields;
-                $arParams['SMART_FIELDS_SELECT'] = $selectFormatFields;
-
-            }else{
-                $checkResultApi->addErrors($bxRowsResFields->getErrors());
-                $app->cleanCache($cacheId);
             }
+
         }
-        if($arParams['SMART_ID'] && !$customPrint && $checkResultApi->isSuccess()){
+        if($arParams['SMART_ID'] && !$customPrint && $loadParamsEntity->isSuccess()){
             PageList::$smartId = $arParams['SMART_ID'];
             $adminCustom = new PageList($arParams, true);
 
@@ -812,7 +811,7 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
                 $createItemAction = [
                     'TYPE'=>'DROPDOWN',
                     'ID' => 'base_action_select',
-                    'NAME' => 'action_button_awz_smart',
+                    'NAME' => 'action_button_awz_s',
                     'ITEMS'=>[]
                 ];
                 $createItemAction['ITEMS'][] = [
@@ -1133,27 +1132,17 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
             //die();
             \Bitrix\Main\UI\Extension::load("ui.progressbar");
             \Bitrix\Main\UI\Extension::load('ui.entity-selector');
-            \Bitrix\Main\UI\Extension::load('ui.alerts');
             $adminCustom->setParam('ACTION_PANEL', $arParams['ACTION_PANEL']);
             $adminCustom->setParam('FIND',$adminCustom->formatFilterFields($arParams['FIND']));
             $adminCustom->defaultInterface();
         }
         if(!$arParams['SMART_ID'] && !$customPrint){
+            $loadParamsEntity->addError(new \Bitrix\Main\Error("Сущность не найдена"));
             ?>
             <div class="container"><div class="row"><div class="ui-block-wrapper">
                         <?
                         echo Helper::errorsHtmlFromText(
-                            array(
-                                'сущность не найдена'),
-                            'Ошибка получения сущности');?>
-                    </div></div></div>
-            <?
-        }else if(!$checkResultApi->isSuccess()){
-            ?>
-            <div class="container"><div class="row"><div class="ui-block-wrapper">
-                        <?
-                        echo Helper::errorsHtmlFromText(
-                            $checkResultApi->getErrorMessages(),
+                            $loadParamsEntity->getErrorMessages(),
                             'Ошибка получения сущности');?>
                     </div></div></div>
             <?

@@ -12,14 +12,13 @@ use Awz\Admin\Grid\Option as GridOptions;
 use Awz\Admin\IList;
 use Awz\Admin\IParams;
 use Awz\BxApi\TokensTable;
+use Bitrix\Main\Data\Cache;
 use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Page\Asset;
-use Awz\BxApi\App;
-use Awz\BxApi\Helper;
+use Awz\bxApi\App;
+use Awz\bxApi\Helper;
 use Bitrix\Main\Web\Json;
-use Bitrix\Main\UI\Filter\Options as FilterOptions;
-//use Bitrix\Main\UI\Extension;
 
 if(!Loader::includeModule('awz.bxapi')){
     return;
@@ -35,9 +34,9 @@ if(Loader::includeModule('awz.bxapistats')){
 }
 
 $eventManager = \Bitrix\Main\EventManager::getInstance();
-$eventManager->addEventHandlerCompatible('main', 'OnEndBufferContent', array('SmartList', 'OnEndBufferContent'), false, 999);
+$eventManager->addEventHandlerCompatible('main', 'OnEndBufferContent', array('DocsList', 'OnEndBufferContent'), false, 999);
 
-class SmartList extends IList implements IParams {
+class DocsList extends IList implements IParams {
 
     public static $smartId;
 
@@ -48,11 +47,42 @@ class SmartList extends IList implements IParams {
     public function __construct($params, $publicMode=false){
 
         if(!empty($params['SMART_FIELDS'])){
-            \Awz\Admin\SmartTable::$fields = $params['SMART_FIELDS'];
+            \Awz\Admin\DocsTable::$fields = $params['SMART_FIELDS'];
         }
-        $params['TABLEID'] = 'awz_smart_'.$params['SMART_ID'].'_'.$params['SMART_ID2'];
+        $params['TABLEID'] = $params['GRID_ID'];
+        //$params['TABLEID'] = 'awz_smart__1_'.$params['SMART_ID'].'__2_'.$params['SMART_ID2'];
 
         parent::__construct($params, $publicMode);
+    }
+
+    public static function getFromCacheSt($key, $keyapi){
+        $addKey = explode('|',$keyapi);
+        $cacheDir = '/awz/bxapi/'.$addKey[3];
+
+        $obCache = Cache::createInstance();
+        if($obCache->initCache(86400000,md5(implode([$addKey,$key])),$cacheDir)){
+            $res = $obCache->getVars();
+            if(!empty($res)) return $res;
+        }
+        return array();
+    }
+    public function getFromCache($key){
+        return self::getFromCacheSt($key, $this->getParam('ADD_REQUEST_KEY'));
+    }
+
+    public function setCache($key, $data){
+
+        $addKey = explode('|',$this->getParam('ADD_REQUEST_KEY'));
+        $cacheDir = '/awz/bxapi/'.$addKey[3];
+
+        $obCache = Cache::createInstance();
+        $obCache->clean(md5(implode([$addKey,$key])), $cacheDir);
+        if($obCache->initCache(86400000,md5(implode([$addKey,$key])),$cacheDir)){
+        }else if($obCache->startDataCache()){
+            $obCache->endDataCache($data);
+        }
+        return $data;
+
     }
 
     public function getUser(int $id = 0)
@@ -71,8 +101,42 @@ class SmartList extends IList implements IParams {
         return $users[$id] ?? array();
     }
 
+    public function getGroup(int $id = 0)
+    {
+        static $groups = array();
+
+        if(empty($groups)){
+            $request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
+            if($bx_result = $request->getPost('bx_result')){
+                if(isset($bx_result['groups'][$id])) {
+                    $groups = $this->setCache('groups',$bx_result['groups']);
+                }
+            }
+        }
+        if(empty($groups)){
+            $groups = $this->getFromCache('groups');
+        }
+
+        return $groups[$id] ?? array();
+    }
+
     public function trigerGetRowListAdmin($row){
         \Awz\Admin\Helper::defTrigerList($row, $this);
+
+        $entity = $this->getParam('ENTITY');
+        $fields = $entity::$fields;
+
+        if($row->arRes['entityTypeId'] && $row->arRes['entityId']){
+            static $entityKeyList = [];
+            if(!isset($entityKeyList['entityTypeId'])){
+                $entityKeyList['entityTypeId'] = [];
+                $constEnt = $fields['entityTypeId']['entity_codes'];
+                foreach($constEnt as $item){
+                    $entityKeyList['entityTypeId'][$item['ID']] = ['code'=>mb_strtolower($item['CODE']), 'name'=>$item['VALUE']];
+                }
+            }
+            $row->AddViewField('entityId', '<a class="open-smart" data-ent="'.$entityKeyList['entityTypeId'][$row->arRes['entityTypeId']]['code'].'" data-id="'.$row->arRes['entityId'].'" href="#">['.$row->arRes['entityId'].'] ' . ($entityKeyList['entityTypeId'][$row->arRes['entityTypeId']]['name'] ?? '') . '</a>');
+        }
     }
 
     public function trigerInitFilter(){
@@ -93,16 +157,16 @@ class SmartList extends IList implements IParams {
     {
         $arParams = [
             "PRIMARY"=>"id",
-            "ENTITY" => "\\Awz\\Admin\\SmartTable",
+            "ENTITY" => "\\Awz\\Admin\\DocsTable",
             "BUTTON_CONTEXTS"=>[
-                [
+                /*[
                     'add'=> [
                         'TEXT' => 'Добавить',
                         'ICON' => '',
                         'LINK' => '',
                         'ONCLICK' => 'window.awz_helper.menuNewEl();return false;',
                     ]
-                ],
+                ],*/
                 [
                     'reload'=> [
                         'TEXT' => 'Обновить',
@@ -121,24 +185,26 @@ class SmartList extends IList implements IParams {
             /*"ADD_GROUP_ACTIONS"=> [
                 "edit",
                 "delete"
+                "summ"=>[
+                     'key'=>"summ","title"=>"Посчитать сумму"
+                ]
             ],*/
-            "ACTION_PANEL"=>[],
             "ADD_LIST_ACTIONS"=> [
                 "delete",
-                "edit_row"=> [
+                /*"edit_row"=> [
                     "ICON"=>"edit",
                     "DEFAULT"=>true,
                     "TEXT"=>Loc::getMessage("MAIN_ADMIN_MENU_EDIT"),
                     "TITLE"=>Loc::getMessage("MAIN_ADMIN_MENU_EDIT"),
                     "ACTION"=>'#PRIMARY#'
-                ],
-                "copy_row"=> [
+                ],*/
+                /*"copy_row"=> [
                     "ICON"=>"edit",
                     "DEFAULT"=>true,
                     "TEXT"=>Loc::getMessage("MAIN_ADMIN_MENU_COPY"),
                     "TITLE"=>Loc::getMessage("MAIN_ADMIN_MENU_COPY"),
                     "ACTION"=>'#PRIMARY#'
-                ]
+                ]*/
             ],
             "FIND"=> []
         ];
@@ -182,8 +248,8 @@ class SmartList extends IList implements IParams {
         }
         //echo'<pre>';print_r($ost);echo'</pre>';
         //die();
-        if(isset($res['items'])){
-            foreach ($res['items'] as $row){
+        if(isset($res['documents'])){
+            foreach ($res['documents'] as $row){
                 if(empty($row)) continue;
                 //$row['id'] = 'n: '.$n.', ost: '.$ost.', pageSize: '.$pageSize;
                 //echo'<pre>';print_r($row);echo'</pre>';
@@ -208,6 +274,8 @@ class SmartList extends IList implements IParams {
 
     }
 
+
+
     public function defaultPublicInterface(){
 
         global $APPLICATION;
@@ -230,9 +298,10 @@ class SmartList extends IList implements IParams {
         if($this->getParam('ADD_REQUEST_KEY')){
             $defPrm['ADD_REQUEST_KEY'] = $this->getParam('ADD_REQUEST_KEY');
         }
-        if($this->getParam('ACTION_PANEL', [])){
+        if($this->getParam('ACTION_PANEL')){
             $defPrm['ACTION_PANEL'] = $this->getParam('ACTION_PANEL');
         }
+
         if($this->getParam('FIND')){
             $this->getAdminList()->DisplayFilter($this->getParam('FIND', array()));
         }
@@ -240,14 +309,28 @@ class SmartList extends IList implements IParams {
         $this->getAdminList()->DisplayList($defPrm);
 
         if($this->getParam('SMART_ID')){
-            $gridOptions = new GridOptions($this->getParam('TABLEID'));
-            $sort = $gridOptions->getSorting(['sort'=>['id'=>'desc']]);
             ?>
             <script type="text/javascript">
                 $(document).ready(function(){
                     BX24.ready(function() {
                         BX24.init(function () {
-                            $('body').prepend('<div class="ui-alert ui-alert-danger"><span class="ui-alert-message"><strong>Данная встройка устарела и скоро будет удалена!</strong> Перейдите в настройки приложения и пересоздайте встройку.</span></div>');
+                            <?
+                            $gridOptions = new GridOptions($this->getParam('TABLEID'));
+                            $sort = $gridOptions->getSorting(['sort'=>[$this->getParam('PRIMARY') =>'desc']]);
+                            ?>
+                            <?if($this->getParam('SMART_ID2')){
+                                $codes = Helper::entityCodes();
+                                foreach($codes as $ent){
+                                    if($ent['CODE']==$this->getParam('SMART_ID2')){
+                                        ?>
+                            window.awz_helper.addFilter = {'entityTypeId':'<?=$ent['ID']?>'};
+                                        <?
+                                        break;
+                                    }
+                                }
+                                ?>
+                            <?}?>
+                            window.awz_helper.currentUserId = '<?=$this->getParam('CURRENT_USER')?>';
                             window.awz_helper.lastOrder = <?=\CUtil::PhpToJSObject($sort['sort'])?>;
                             window.awz_helper.fields = <?=\CUtil::PhpToJSObject($this->getParam('SMART_FIELDS'))?>;
                             window.awz_helper.filter_dates = <?=\CUtil::PhpToJSObject(\Awz\Admin\Helper::getDates())?>;
@@ -255,19 +338,21 @@ class SmartList extends IList implements IParams {
                                 '<?=$this->getParam('ADD_REQUEST_KEY')?>',
                                 '<?=$this->getParam('SMART_ID')?>',
                                 '<?=$this->getParam('TABLEID')?>',
-                                <?=$this->getAdminList()->getNavSize()?>
+                                <?=$this->getAdminList()->getNavSize()?>,
+                                <?=\CUtil::PhpToJSObject($this->getParam('GRID_OPTIONS'))?>
                             );
                         });
                     });
                 });
             </script>
             <?php
+            die();
         }
 
     }
 }
 
-use SmartList as PageList;
+use DocsList as PageList;
 
 $arParams = PageList::getParams();
 
@@ -306,7 +391,6 @@ if($s_id){
 }
 
 if($s_id){
-
     $s_id = $tmp[0];
     $checkAuth = TokensTable::checkServiceKey($app->getConfig('APP_ID'), $app->getRequest()->get('DOMAIN'), $s_id);
     if($checkAuth){
@@ -361,7 +445,7 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
         CJsCore::init('jquery');
         CJSCore::Init(array('popup', 'date'));
         Asset::getInstance()->addCss("/bitrix/css/main/font-awesome.css");
-        Asset::getInstance()->addJs("/bx24/smarts/script.js");
+        Asset::getInstance()->addJs("/bx24/smarts/scriptn.js");
     }
     Asset::getInstance()->addCss("/bx24/smarts/style.css");
     ?>
@@ -390,130 +474,269 @@ if(!$checkAuth){
     </div></div></div>
     <?
 }else{
-    $arParams['SMART_ID'] = $placement['smart'];
-    if(!$arParams['SMART_ID']) $arParams['SMART_ID'] = preg_replace('/([^0-9])/','',$_REQUEST['smartId']);
-    if(!$arParams['SMART_ID']) $arParams['SMART_ID'] = preg_replace('/awz_smart_([0-9]+).*/',"$1",$_REQUEST['grid_id']);
-    if(!$arParams['SMART_ID']) $arParams['SMART_ID'] = preg_replace('/awz_smart_SMART_GROUP_([0-9]+)_([0-9]+).*/',"$2",$_REQUEST['grid_id']);
-    /*if($_REQUEST['grid_id'] && strpos($_REQUEST['grid_id'],'awz_smart_TASK_GROUP_')!==false){
-        $checkAuthGroupId = preg_replace('/([^0-9])/','',$_REQUEST['grid_id']);
-    }*/
-    if($_REQUEST['grid_id'] && strpos($_REQUEST['grid_id'],'awz_smart_SMART_GROUP_')!==false){
-        $checkAuthGroupId = preg_replace('/awz_smart_SMART_GROUP_([0-9]+)_([0-9]+).*/',"$1",$_REQUEST['grid_id']);
+    $arParams['SMART_ID'] = '';
+    $arParams['GRID_ID'] = 'awz_s__';
+    $arParams['GRID_OPTIONS'] = [];
+    $gridId = htmlspecialcharsEx((string) $app->getRequest()->get('grid_id') ?? "");
+    if(!$gridId) $gridId = htmlspecialcharsEx((string) $app->getRequest()->get('grid') ?? "");
+    if(isset($placement['grid_id'])){
+        $gridId = htmlspecialcharsEx((string) $placement['grid_id'] ?? "");
     }
-    if($checkAuthGroupId){
-        $arParams['SMART_ID'] = 'SMART_GROUP_'.$checkAuthGroupId.'_'.$arParams['SMART_ID'];
-    }
-    if($arParams['SMART_ID']){
+    $arParams['GRID_ID'] = $gridId;
+    $loadParamsEntity = \Awz\Admin\Helper::getGridParams($gridId);
+    $gridOptions = [];
+    if($loadParamsEntity->isSuccess()){
+        $loadParamsEntityData = $loadParamsEntity->getData();
+        $gridOptions = $loadParamsEntityData['options'];
 
+        $arParams['GRID_OPTIONS'] = $gridOptions;
+        $arParams['GRID_OPTIONS']['method_list'] = 'crm.documentgenerator.document.list';
+        $arParams['GRID_OPTIONS']['method_delete'] = 'crm.documentgenerator.document.delete';
+        $arParams['GRID_OPTIONS']['method_update'] = 'crm.documentgenerator.document.update';
+        $arParams['GRID_OPTIONS']['result_key'] = 'documents';
+        $arParams['SMART_ID'] = $gridOptions['PARAM_1'] ?? "";
+        //Для всех документов типа сущности
+        //$arParams['SMART_ID2'] = $gridOptions['PARAM_2'] ?? "";
+    }
+
+    //TASK_GROUP_
+    if($arParams['SMART_ID'] && $loadParamsEntity->isSuccess()){
         $arParams['ADD_REQUEST_KEY'] = $checkAuthKey.'|'.$checkAuthDomain.'|'.$checkAuthMember.'|'.$app->getConfig('APP_ID');
+        $arParams['CURRENT_USER'] = $checkAuthMember;
         $hash = hash_hmac('sha256', $arParams['ADD_REQUEST_KEY'], $app->getConfig('APP_SECRET_CODE'));
         $arParams['ADD_REQUEST_KEY'] .= '|'.$hash;
         $app->getRequest()->set('key', $arParams['ADD_REQUEST_KEY']);
-
-        if($app->getRequest()->get('plc')){
-            $arParams['SMART_ID2'] = mb_strtolower($app->getRequest()->get('plc'));
-        }
 
         if($tracker){
             $tracker->setPortal($checkAuthDomain)
                 ->setAppId($app->getConfig('APP_ID'));
         }
 
-        $cacheId = $app->getRequest()->get('DOMAIN').'fields_bagsmart_'.$arParams['SMART_ID'];
+        $cacheId = $app->getRequest()->get('DOMAIN').'_fields_bagsmart_'.md5(serialize($arParams['GRID_OPTIONS']));
 
         $auth = TokensTable::getList(array(
             'select'=>array('*'),
             'filter'=>array('=PORTAL'=>$app->getRequest()->get('DOMAIN'), '=APP_ID'=>$app->getConfig('APP_ID'))
         ))->fetch();
-        $resultAuth = $app->setAuth($auth['TOKEN']);
-
-        $checkResult = $app->getRequest()->get('bx_result');
-        if($checkResult['cache_action'] == 'remove'){
-            $app->cleanCache($cacheId);
-            for($i=0;$i<10;$i++){
-                $app->cleanCache($cacheId.'_'.$i);
-            }
-        }
-        if($checkResult['bxTime'] && $tracker){
-            $tracker->addBxTime($checkResult['bxTime']);
-        }
-
-        $app->setCacheParams($cacheId);
-
-        if(strpos($arParams['SMART_ID'], 'SMART_GROUP_')!==false){
-            $bxRowsResFields = $app->postMethod('crm.item.fields.json', array(
-                'entityTypeId'=>preg_replace('/SMART_GROUP_[0-9]+_([0-9]+)/',"$1", $arParams['SMART_ID']),
-            ));
+        if(!isset($auth['TOKEN'])){
+            $loadParamsEntity->addError(new \Bitrix\Main\Error("Токен приложения не найден"));
         }else{
-            $bxRowsResFields = $app->postMethod('crm.item.fields.json', array(
-                'entityTypeId'=>$arParams['SMART_ID'],
-            ));
+            $app->setAuth($auth['TOKEN']);
         }
 
-        if($bxRowsResFields->isSuccess()) {
-            $bxFields = $bxRowsResFields->getData();
-            $allFields = $bxFields['result']['result']['fields'];
+        if($loadParamsEntity->isSuccess()){
 
-            foreach($allFields as &$field){
-                if($field['type'] == 'enumeration'){
-                    $values = [''=>'Не указано'];
-                    if(!empty($field['items'])){
-                        foreach($field['items'] as $v){
-                            if(!is_array($v)) continue;
-                            if(!isset($v['ID'])) continue;
-                            if(!isset($v['VALUE'])) continue;
-                            $values[$v['ID']] = $v['VALUE'];
-                        }
-                    }
-                    $field['values'] = $values;
+            $checkResult = $app->getRequest()->get('bx_result');
+            if($checkResult['cache_action'] == 'remove'){
+                $app->cleanCache($cacheId);
+                for($i=0;$i<10;$i++){
+                    $app->cleanCache($cacheId.'_'.$i);
                 }
             }
-            unset($field);
+            if($checkResult['bxTime'] && $tracker){
+                $tracker->addBxTime($checkResult['bxTime']);
+            }
 
+            $app->setCacheParams($cacheId);
+            $bxRowsResFields = $app->postMethod('crm.type.list',['filter'=>['isDocumentsEnabled'=>'Y']]);
 
-            $arParams['SMART_FIELDS'] = $allFields;
+            $allFields = [
+                'id'=>[
+                    'type'=>'integer',
+                    'isReadOnly'=>1,
+                    'title'=>'Ид',
+                    'noLink'=>1,
+                    'sort'=>'id'
+                ],
+                'title'=>[
+                    'type'=>'string',
+                    'isReadOnly'=>1,
+                    'title'=>'Название',
+                    'noLink'=>1,
+                    'sort'=>'title'
+                ],
+                'number'=>[
+                    'type'=>'string',
+                    'isReadOnly'=>1,
+                    'title'=>'Номер',
+                    'sort'=>'number'
+                ],
+                'templateId'=>[
+                    'type'=>'enum',
+                    'isReadOnly'=>1,
+                    'title'=>'Ид шаблона',
+                    'sort'=>'templateId'
+                ],
+                'fileId'=>[
+                    'type'=>'integer',
+                    'isReadOnly'=>1,
+                    'title'=>'Ид файла',
+                ],
+                'imageId'=>[
+                    'type'=>'integer',
+                    'isReadOnly'=>1,
+                    'title'=>'Ид изображения',
+                ],
+                'pdfId'=>[
+                    'type'=>'integer',
+                    'isReadOnly'=>1,
+                    'title'=>'Ид pdf',
+                ],
+                'createTime'=>[
+                    'type'=>'datetime',
+                    'isReadOnly'=>1,
+                    'title'=>'Дата создания',
+                    'sort'=>'createTime'
+                ],
+                'updateTime'=>[
+                    'type'=>'datetime',
+                    'isReadOnly'=>1,
+                    'title'=>'Дата обновления',
+                    'sort'=>'updateTime'
+                ],
+                'createdBy'=>[
+                    'type'=>'user',
+                    'isReadOnly'=>1,
+                    'title'=>'Кем создан',
+                    'sort'=>'createdBy'
+                ],
+                'updatedBy'=>[
+                    'type'=>'user',
+                    'isReadOnly'=>1,
+                    'title'=>'Кем обновлен',
+                    'sort'=>'updatedBy'
+                ],
+                'downloadUrl'=>[
+                    'type'=>'url',
+                    'isReadOnly'=>1,
+                    'title'=>'Ссылка на doc',
+                    'fixValue'=>'.doc [скачать]'
+                ],
+                'pdfUrl'=>[
+                    'type'=>'url',
+                    'isReadOnly'=>1,
+                    'title'=>'Ссылка на pdf',
+                    'fixValue'=>'.pdf [скачать]'
+                ],
+                'imageUrl'=>[
+                    'type'=>'url',
+                    'isReadOnly'=>1,
+                    'title'=>'Ссылка на img',
+                    'fixValue'=>'.jpg [скачать]'
+                ],
+                'stampsEnabled'=>[
+                    'type'=>'bool',
+                    'isReadOnly'=>1,
+                    'title'=>'Штамп активен',
+                    'sort'=>'stampsEnabled'
+                ],
+                'entityId'=>[
+                    'type'=>'integer',
+                    'isReadOnly'=>1,
+                    'title'=>'Ид элемента',
+                ],
+                'entityTypeId'=>[
+                    'type'=>'enum',
+                    'values'=>[],
+                    'isReadOnly'=>1,
+                    'title'=>'Тип CRM сущности',
+                ],
+                'downloadUrlMachine'=>[
+                    'type'=>'url',
+                    'isReadOnly'=>1,
+                    'title'=>'Ссылка на скачивание DOC',
+                    'fixValue'=>'.DOC [скачать]'
+                ],
+                'pdfUrlMachine'=>[
+                    'type'=>'url',
+                    'isReadOnly'=>1,
+                    'title'=>'Ссылка на скачивание PDF',
+                    'fixValue'=>'.PDF [скачать]'
+                ],
+                'imageUrlMachine'=>[
+                    'type'=>'url',
+                    'isReadOnly'=>1,
+                    'title'=>'Ссылка на скачивание IMG',
+                    'fixValue'=>'.JPG [скачать]'
+                ]
+            ];
 
-            //echo'<pre>';print_r($arParams['SMART_FIELDS']);echo'</pre>';
-            //die();
+            $entCodes = Helper::entityCodes();
 
-            $app->setCacheParams($cacheId.'_1');
-            $bxRowsResActions = $app->postMethod('crm.type.list', ['filter'=>['title'=>'Умный смарт']]);
-            if($bxRowsResActions->isSuccess()){
-                $bxActions = $bxRowsResActions->getData();
-                if(isset($bxActions['result']['result']['types'][0]['id'])){
-                    $app->setCacheParams($cacheId.'_2');
-                    $bxRowsResActionsFields = $app->postMethod('crm.item.fields', ['entityTypeId'=>$bxActions['result']['result']['types'][0]['entityTypeId']]);
-                    if($bxRowsResActionsFields->isSuccess()){
-                        $bxActionsFields = $bxRowsResActionsFields->getData();
-                        if(!empty($bxActionsFields['result']['result']['fields'])){
-                            $arParams['CLEVER_FIELDS'] = $bxActionsFields['result']['result']['fields'];
-                            $arParams['CLEVER_SMART'] = $bxActions['result']['result']['types'][0];
-                        }
-                    }else{
-                        $app->cleanCache($cacheId.'_2');
-                    }
+            if($bxRowsResFields->isSuccess()){
+                $bxRowsResFieldsData = $bxRowsResFields->getData();
+                foreach($bxRowsResFieldsData['result']['result']['types'] as $smartData){
+                    $entCodes[] = [
+                        'ID'=>$smartData['entityTypeId'],
+                        'VALUE'=>$smartData['title'],
+                        'CODE'=>$smartData['entityTypeId'],
+                        'MIN_CODE'=>'D'
+                    ];
                 }
+                $allFields['entityTypeId']['entity_codes'] = $entCodes;
+                foreach($entCodes as $k=>$v){
+                    $allFields['entityTypeId']['values'][$v['ID']] = $v['VALUE'];
+                }
+
+                $app->setCacheParams($cacheId.'_1');
+                $bxRowsResActions = $app->postMethod('crm.type.list', ['filter'=>['title'=>'Умный смарт']]);
+                if($bxRowsResActions->isSuccess()){
+                    $bxActions = $bxRowsResActions->getData();
+                    if(isset($bxActions['result']['result']['types'][0]['id'])){
+                        $app->setCacheParams($cacheId.'_2');
+                        $bxRowsResActionsFields = $app->postMethod('crm.item.fields', ['entityTypeId'=>$bxActions['result']['result']['types'][0]['entityTypeId']]);
+                        if($bxRowsResActionsFields->isSuccess()){
+                            $bxActionsFields = $bxRowsResActionsFields->getData();
+                            if(!empty($bxActionsFields['result']['result']['fields'])){
+                                $arParams['CLEVER_FIELDS'] = $bxActionsFields['result']['result']['fields'];
+                                $arParams['CLEVER_SMART'] = $bxActions['result']['result']['types'][0];
+                            }
+                        }else{
+                            $app->cleanCache($cacheId.'_2');
+                        }
+                    }
+                }else{
+                    $app->cleanCache($cacheId.'_1');
+                }
+
+                $arParams['SMART_FIELDS'] = $allFields;
+
             }else{
-                $app->cleanCache($cacheId.'_1');
+                $app->cleanCache($cacheId);
+                $loadParamsEntity->addErrors($bxRowsResFields->getErrors());
             }
-        }else{
-            $app->cleanCache($cacheId);
+
         }
+        //echo'<pre>';print_r($bxRowsResFields);echo'</pre>';
     }
-    if($arParams['SMART_ID'] && !$customPrint){
+    if($arParams['SMART_ID'] && !$customPrint && $loadParamsEntity->isSuccess()){
         PageList::$smartId = $arParams['SMART_ID'];
         $adminCustom = new PageList($arParams, true);
 
-        $fields = \Awz\Admin\SmartTable::getMap();
+        $fields = \Awz\Admin\DocsTable::getMap();
         foreach($fields as $obField){
+            if($arParams['SMART_ID2'] && (mb_strlen(intval($arParams['SMART_ID2'])) != mb_strlen($arParams['SMART_ID2'])) && $obField->getColumnName() == 'entityTypeId'){
+                continue;
+            }
+            /*if($obField instanceof \Bitrix\Main\ORM\Fields\IntegerField){
+                if($arParams['SMART_FIELDS'][$obField->getColumnName()]['type']=='group'){
+                    $groups = PageList::getFromCacheSt('groups', $arParams['ADD_REQUEST_KEY']);
+                    $arParams['SMART_FIELDS'][$obField->getColumnName()]['items'] = $groups;
+                }
+            }*/
             \Awz\Admin\Helper::addFilter($arParams, $obField);
+        }
+        foreach($arParams['FIND'] as &$field){
+            if($field['id'] == 'STATUS'){
+                $field['params']['multiple'] = 'Y';
+            }
         }
 
         $arParams['ACTION_PANEL'] = [
             "GROUPS"=>[
                 [
                     "ITEMS"=>[
-                        \Awz\Admin\Helper::getGroupAction('edit'),
+                        //\Awz\Admin\Helper::getGroupAction('edit'),
                         \Awz\Admin\Helper::getGroupAction('delete')
                     ]
                 ]
@@ -525,7 +748,7 @@ if(!$checkAuth){
             $createItemAction = [
                 'TYPE'=>'DROPDOWN',
                 'ID' => 'base_action_select',
-                'NAME' => 'action_button_awz_smart',
+                'NAME' => 'action_button_awz_s',
                 'ITEMS'=>[]
             ];
             $createItemAction['ITEMS'][] = [
@@ -552,11 +775,12 @@ if(!$checkAuth){
                      * 5 ид грида
                      * */
 
-
                     $tmp = explode('|',$itm['VALUE']);
                     $tmp[2] = explode(',',$tmp[2]);
                     $tmp[3] = explode(',',$tmp[3]);
                     $tmp[4] = explode(',',$tmp[4]);
+                    //echo'<pre>';print_r($tmp);echo'</pre>';
+                    //die();
                     $itmParams = [
                         'name'=>$tmp[0],
                         'showAll'=>$tmp[1] == 'Y',
@@ -571,7 +795,6 @@ if(!$checkAuth){
                     if(empty($itmParams['users'])){
                         $itmParams['users'][] = $checkAuthMember;
                     }
-
                     $checkGridName = false;
                     $gridPrepare = preg_replace('/([^0-9a-z_*[]{},()|])/','',strtolower($itmParams['grid']));
                     $gridPrepare = str_replace('*','.*',$gridPrepare);
@@ -584,6 +807,7 @@ if(!$checkAuth){
                     }
                     if(!$checkGridName) continue;
                     if(!in_array($checkAuthMember, $itmParams['users'])) continue;
+
 
                     $generatedItem['NAME'] = $itmParams['name'];
                     $generatedItem['VALUE'] = 'control_'.$itm['ID'];
@@ -714,18 +938,17 @@ if(!$checkAuth){
 
         \Bitrix\Main\UI\Extension::load("ui.progressbar");
         \Bitrix\Main\UI\Extension::load('ui.entity-selector');
-        \Bitrix\Main\UI\Extension::load('ui.alerts');
         $adminCustom->setParam('ACTION_PANEL', $arParams['ACTION_PANEL']);
         $adminCustom->setParam('FIND',$adminCustom->formatFilterFields($arParams['FIND']));
         $adminCustom->defaultInterface();
     }
     if(!$arParams['SMART_ID'] && !$customPrint){
+        $loadParamsEntity->addError(new \Bitrix\Main\Error("Сущность не найдена"));
         ?>
         <div class="container"><div class="row"><div class="ui-block-wrapper">
                     <?
                     echo Helper::errorsHtmlFromText(
-                        array(
-                            'сущность не найдена'),
+                        $loadParamsEntity->getErrorMessages(),
                         'Ошибка получения сущности');?>
                 </div></div></div>
         <?

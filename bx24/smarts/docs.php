@@ -313,6 +313,7 @@ class DocsList extends IList implements IParams {
                 $(document).ready(function(){
                     BX24.ready(function() {
                         BX24.init(function () {
+                            $('body').prepend('<div class="ui-alert ui-alert-danger"><span class="ui-alert-message"><strong>Данная встройка устарела и скоро будет удалена!</strong> Перейдите в настройки приложения и пересоздайте встройку.</span></div>');
                             <?
                             $gridOptions = new GridOptions($this->getParam('TABLEID'));
                             $sort = $gridOptions->getSorting(['sort'=>['id'=>'desc']]);
@@ -999,6 +1000,7 @@ if(!$checkAuth){
         //die();
         \Bitrix\Main\UI\Extension::load("ui.progressbar");
         \Bitrix\Main\UI\Extension::load('ui.entity-selector');
+        \Bitrix\Main\UI\Extension::load('ui.alerts');
         $adminCustom->setParam('ACTION_PANEL', $arParams['ACTION_PANEL']);
         $adminCustom->setParam('FIND',$adminCustom->formatFilterFields($arParams['FIND']));
         $adminCustom->defaultInterface();

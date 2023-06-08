@@ -251,3 +251,9 @@
 
 .rows-smarts .row, .rows-ext-smarts .row {border-bottom: 1px solid rgba(82, 92, 105, 0.1);padding-bottom:10px;}
 .rows-smarts .row:first-child, .rows-ext-smarts .row:first-child {border-top: 1px solid rgba(82, 92, 105, 0.1);padding-top:10px;}
+#stat-app-moved {display:block;clear:both;}
+.awz-ext-window-bg .fields-wrap {max-height:200px;overflow-y:auto;margin:5px;padding:5px;border:1px solid #ededed;
+font-size:13px;line-height:16px;
+}
+.form-link-current .row {display:block;padding:5px 0;border-bottom:1px dotted #c6cdd3;clear:both;margin:5px 0;}
+#uiToolbarContainer {width:100%;}

@@ -40,6 +40,7 @@ $eventManager->addEventHandlerCompatible('main', 'OnEndBufferContent', array('Sm
 class SmartList extends IList implements IParams {
 
     public static $smartId;
+    public static $usersCache = [];
 
     public static function OnEndBufferContent(&$content){
         $content = str_replace('parent.BX.ajax.','window.awz_ajax_proxy.', $content);
@@ -53,12 +54,31 @@ class SmartList extends IList implements IParams {
         $params['TABLEID'] = $params['GRID_ID'];
         //$params['TABLEID'] = 'awz_smart_'.$params['SMART_ID'].'_'.$params['SMART_ID2'];
 
+        $params = \Awz\Admin\Helper::addCustomPanelButton($params);
+
         parent::__construct($params, $publicMode);
+    }
+
+    public function addUsersFromAdminResult(array $items = []){
+        foreach($items as $uid=>$item){
+            self::$usersCache[$uid] = [
+                    'id'=>$uid,
+                    'name'=>$item['NAME'].' '.$item['LAST_NAME'],
+                    'link'=>'/company/personal/user/'.$uid.'/',
+                    'icon'=>$item['PERSONAL_PHOTO'] ?? '/bitrix/js/ui/icons/b24/images/ui-user.svg?v2',
+            ];
+        }
+    }
+
+    public function getUserData(int $id = 0){
+        if(isset(self::$usersCache[$id])) {
+            return self::$usersCache[$id];
+        }
+        return [];
     }
 
     public function getUser(int $id = 0)
     {
-
         static $users = array();
 
         if(!isset($users[$id])){
@@ -72,8 +92,122 @@ class SmartList extends IList implements IParams {
         return $users[$id] ?? array();
     }
 
+    public function getEntityCodeFromId(int $id, array $avalible = [1,2,3,4]): array
+    {
+        if(!in_array($id, $avalible)) return [];
+        static $codesEntity = [];
+        if(empty($codesEntity))
+            $codesEntity = Helper::entityCodes();
+        foreach($codesEntity as $ent){
+            if($ent['ID'] == $id){
+                return $ent;
+            }
+        }
+        return [];
+    }
+
+    public function getEntityIdFromCode(string $code)
+    {
+        static $codesEntity = [];
+        if(empty($codesEntity))
+            $codesEntity = Helper::entityCodes();
+        foreach($codesEntity as $ent){
+            if($ent['CODE'] == $code){
+                return (int) $ent['ID'];
+            }
+        }
+    }
+
     public function trigerGetRowListAdmin($row){
         \Awz\Admin\Helper::defTrigerList($row, $this);
+        $entity = $this->getParam('ENTITY');
+        $fields = $entity::$fields;
+        $primaryCode = $this->getParam('PRIMARY', 'ID');
+
+
+        foreach($fields as $fieldCode=>$fieldData){
+            if($fieldData['type'] == 'crm_entity'){
+                if(!$fieldData['isReadOnly']) {
+                    $row->AddInputField($fieldCode, array("size" => $fieldData['settings']['SIZE']));
+                }else{
+                    $row->AddViewField($fieldCode, $row->arRes[$fieldCode]);
+                }
+                if(!$fieldData['isMultiple']){
+                    $value = $row->arRes[$fieldCode];
+                    if(isset($fieldData['settings']['parentEntityTypeId']) && $fieldData['settings']['parentEntityTypeId']){
+                        $ent = $this->getEntityCodeFromId($fieldData['settings']['parentEntityTypeId']);
+                        if(!empty($ent)){
+                            if($value){
+                                $row->AddViewField($fieldCode, \Awz\Admin\Helper::createCrmLink($value, mb_strtolower($ent['CODE'])));
+                            }else{
+                                $row->AddViewField($fieldCode, $value);
+                            }
+                            $editId = $fieldCode.'_'.$row->arRes[$primaryCode];
+                            $fieldHtml = '<div class="wrp" id="'.$editId.'"><input style="width:80%;" value="'.$value.'" name="'.$fieldCode.'" class="main-grid-editor main-grid-editor-text" id="'.$fieldCode.'_control"/><button class="ui-btn ui-btn-xs ui-btn-light-border" onclick="window.awz_helper.openDialogCrmOne(\''.$editId.' input\',\''.mb_strtolower($ent['CODE']).'\', true);return false;">...</button></div>';
+                            $row->AddEditField($fieldCode, $fieldHtml);
+                        }
+                    }
+                }
+            }
+            if($fieldData['type'] == 'crm'){
+                if(!$fieldData['isReadOnly']) {
+                    $row->AddInputField($fieldCode, array("size" => $fieldData['settings']['SIZE']));
+                }else{
+                    $row->AddViewField($fieldCode, $row->arRes[$fieldCode]);
+                }
+                if($fieldData['isMultiple']){
+                    $value = '';
+                    if(empty($row->arRes[$fieldCode]) || $row->arRes[$fieldCode] == 'false'){
+                        $row->AddViewField($fieldCode, '');
+                        $row->arRes[$fieldCode] = '';
+                    }elseif(!empty($row->arRes[$fieldCode])){
+                        $viewedAr = [];
+                        foreach($row->arRes[$fieldCode] as $val){
+                            $viewedAr[] = \Awz\Admin\Helper::createCrmLink($val);
+                        }
+                        $row->AddViewField($fieldCode, implode(", ",$viewedAr));
+                        $value = implode(',',$row->arRes[$fieldCode]);
+                    }
+                    if(!empty($this->getParam('EXT_PARAMS', []))){
+
+                    }else{
+                        $editId = $fieldCode.'_'.$row->arRes[$primaryCode];
+                        $fieldHtml = '<div class="wrp" id="'.$editId.'"><input style="width:80%;" value="'.$value.'" name="'.$fieldCode.'" class="main-grid-editor main-grid-editor-text" id="'.$fieldCode.'_control"/><button class="ui-btn ui-btn-xs ui-btn-light-border" onclick="window.awz_helper.openDialogCrm(\''.$editId.' input\',\'deal,lead,contact,company\');return false;">...</button></div>';
+                        $row->AddEditField($fieldCode, $fieldHtml);
+                    }
+                }else{
+                    $entityCode = '';
+                    foreach($fieldData['settings'] as $code=>$val){
+                        if(mb_strpos($code, 'DYNAMIC_') !== false && $val=='Y'){
+                            $entityCode = str_replace('DYNAMIC_','',$code);
+                        }else{
+                            $entityCode = $this->getEntityIdFromCode($code);
+                        }
+                        if($entityCode){
+                            break;
+                        }
+                    }
+                    if($entityCode){
+                        $value = $row->arRes[$fieldCode];
+                        $ent = $this->getEntityCodeFromId((int)$entityCode);
+                        if(!empty($ent)){
+                            if($value){
+                                $row->AddViewField($fieldCode, \Awz\Admin\Helper::createCrmLink($value, mb_strtolower($ent['CODE'])));
+                            }else{
+                                $row->AddViewField($fieldCode, $value);
+                            }
+                            $editId = $fieldCode.'_'.$row->arRes[$primaryCode];
+                            $fieldHtml = '<div class="wrp" id="'.$editId.'"><input style="width:80%;" value="'.$value.'" name="'.$fieldCode.'" class="main-grid-editor main-grid-editor-text" id="'.$fieldCode.'_control"/><button class="ui-btn ui-btn-xs ui-btn-light-border" onclick="window.awz_helper.openDialogCrmOne(\''.$editId.' input\',\''.mb_strtolower($ent['CODE']).'\', true);return false;">...</button></div>';
+                            $row->AddEditField($fieldCode, $fieldHtml);
+                        }else{
+                            //смарт элементы
+                            $row->AddViewField($fieldCode, \Awz\Admin\Helper::createCrmLink($value, $entityCode));
+                        }
+                    }
+                }
+                //$row->AddEditField($fieldCode, '');
+            }
+        }
     }
 
     public function trigerInitFilter(){
@@ -166,6 +300,7 @@ class SmartList extends IList implements IParams {
             $request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
             if($bx_result = $request->getPost('bx_result')){
                 $results = $bx_result;
+                $this->addUsersFromAdminResult($results['users'] ?? []);
             }
         }
         return $results;
@@ -411,6 +546,7 @@ if(!$checkAuth){
         $arParams['GRID_OPTIONS']['method_list'] = 'crm.item.list';
         $arParams['GRID_OPTIONS']['method_delete'] = 'crm.item.delete';
         $arParams['GRID_OPTIONS']['method_update'] = 'crm.item.update';
+        $arParams['GRID_OPTIONS']['method_add'] = 'crm.item.add';
         $arParams['GRID_OPTIONS']['result_key'] = 'items';
         $arParams['SMART_ID'] = $gridOptions['PARAM_1'] ?? "";
         if($arParams['SMART_ID']) $arParams['SMART_ID'] = str_replace('DYNAMIC_','',$arParams['SMART_ID']);
@@ -460,7 +596,52 @@ if(!$checkAuth){
                 $bxFields = $bxRowsResFields->getData();
                 $allFields = $bxFields['result']['result']['fields'];
 
+                $app->setCacheParams($cacheId.'_3');
+                $categoryRes = $app->postMethod('crm.category.list.json', array(
+                    "entityTypeId"=>$arParams['SMART_ID'],
+                ));
+                $stagesIds = [];
+                if($categoryRes->isSuccess()) {
+                    $scategoryData = $categoryRes->getData();
+                    foreach($scategoryData['result']['result']['categories'] as $status){
+                        $stagesIds[] = ['DYNAMIC_'.$status['entityTypeId'].'_STAGE_'.$status['id'], $status['name']];
+                    }
+                }
+                //echo'<pre>';print_r($scategoryData);echo'</pre>';
+
                 foreach($allFields as &$field){
+                    if($field['type'] == 'crm_status'){
+                        $values = [''=>'Не указано'];
+                        $cnt = 0;
+                        foreach($stagesIds as $row){
+                            $cnt++;
+                            if($cnt>5) break;
+                            $app->setCacheParams($cacheId.'_'.(3+$cnt));
+                            $statusRes = $app->postMethod('crm.status.list.json', array(
+                                'order'=>["SORT"=>"ASC"],
+                                'filter'=>["ENTITY_ID"=>$row[0]],
+                            ));
+                            if($statusRes->isSuccess()) {
+                                $statusData = $statusRes->getData();
+                                foreach($statusData['result']['result'] as $status){
+                                    $values[$status['STATUS_ID']] = $row[1].': '.$status['NAME'];
+                                }
+                            }
+                        }
+                        $field['values'] = $values;
+                    }
+                    if($field['type'] == 'crm_category'){
+
+                        $values = [''=>'Не указано'];
+                        if($categoryRes->isSuccess()) {
+                            $scategoryData = $categoryRes->getData();
+                            foreach($scategoryData['result']['result']['categories'] as $status){
+                                $values[$status['id']] = $status['name'];
+                            }
+                        }
+                        $field['values'] = $values;
+                        //echo'<pre>';print_r($scategoryData);echo'</pre>';
+                    }
                     if($field['type'] == 'enumeration'){
                         $values = [''=>'Не указано'];
                         if(!empty($field['items'])){
@@ -513,8 +694,25 @@ if(!$checkAuth){
         $adminCustom = new PageList($arParams, true);
 
         $fields = \Awz\Admin\SmartTable::getMap();
+        $addFilters = [];
         foreach($fields as $obField){
             \Awz\Admin\Helper::addFilter($arParams, $obField);
+            if(!($obField instanceof \Bitrix\Main\ORM\Fields\StringField)){
+                $addFilters[] = [
+                    'id'=>$obField->getColumnName().'_str',
+                    'realId'=>$obField->getColumnName(),
+                    'name'=>$obField->getTitle().' [строка]',
+                    'type'=>'string'
+                ];
+            }
+        }
+        foreach($arParams['FIND'] as &$field){
+            if($field['id'] == 'stageId'){
+                $field['params']['multiple'] = 'Y';
+            }
+        }
+        foreach($addFilters as $f){
+            $arParams['FIND'][] = $f;
         }
 
         $arParams['ACTION_PANEL'] = [
@@ -528,197 +726,10 @@ if(!$checkAuth){
             ]
         ];
 
-        if(!empty($arParams['CLEVER_FIELDS'])){
-
-            $createItemAction = [
-                'TYPE'=>'DROPDOWN',
-                'ID' => 'base_action_select',
-                'NAME' => 'action_button_awz_s',
-                'ITEMS'=>[]
-            ];
-            $createItemAction['ITEMS'][] = [
-                'NAME'=>'- действия -',
-                'VALUE'=>'default',
-                'ONCHANGE'=>[
-                    ['ACTION'=>'RESET_CONTROLS']
-                ]
-            ];
-            $fieldid = 'ufCrm'.$arParams['CLEVER_SMART']['id'].'Controls';
-            $fieldid2 = 'ufCrm'.$arParams['CLEVER_SMART']['id'].'Params';
-
-            if(!empty($arParams['CLEVER_FIELDS'][$fieldid]['items'])){
-                $generatedItem = [];
-                foreach($arParams['CLEVER_FIELDS'][$fieldid]['items'] as $itm){
-
-                    //Генерация отчета|Y|1|deal,contact,company|216,218|AWZ_SMART_TASK_USER_CRM_LEAD_LIST_TOOLBAR
-                    /*
-                     * 0 название действия
-                     * 1 разрешить для всех элементов по фильтру
-                     * 2 ид пользователя
-                     * 3 crm сущности для выбора (lead,contact,company,deal,quote)
-                     * 4 ид доступных параметров
-                     * 5 ид грида
-                     * */
-
-
-                    $tmp = explode('|',$itm['VALUE']);
-                    $tmp[2] = explode(',',$tmp[2]);
-                    $tmp[3] = explode(',',$tmp[3]);
-                    $tmp[4] = explode(',',$tmp[4]);
-                    $itmParams = [
-                        'name'=>$tmp[0],
-                        'showAll'=>$tmp[1] == 'Y',
-                        'users'=>$tmp[2],
-                        'crm'=>$tmp[3],
-                        'params'=>$tmp[4],
-                        'grid'=>$tmp[5]
-                    ];
-                    if(!$itmParams['grid']){
-                        $itmParams['grid'] = $adminCustom->getParam('TABLEID');
-                    }
-                    if(empty($itmParams['users'])){
-                        $itmParams['users'][] = $checkAuthMember;
-                    }
-
-                    $checkGridName = false;
-                    $gridPrepare = preg_replace('/([^0-9a-z_*[]{},()|])/','',strtolower($itmParams['grid']));
-                    $gridPrepare = str_replace('*','.*',$gridPrepare);
-                    $regex = '/^('.$gridPrepare.')$/is';
-                    if(strtolower($itmParams['grid']) == strtolower($adminCustom->getParam('TABLEID'))){
-                        $checkGridName = true;
-                    }elseif(preg_match($regex,strtolower($adminCustom->getParam('TABLEID')))){
-                        $itmParams['grid'] = $adminCustom->getParam('TABLEID');
-                        $checkGridName = true;
-                    }
-                    if(!$checkGridName) continue;
-                    if(!in_array($checkAuthMember, $itmParams['users'])) continue;
-
-                    $generatedItem['NAME'] = $itmParams['name'];
-                    $generatedItem['VALUE'] = 'control_'.$itm['ID'];
-                    $generatedItem['ONCHANGE'] = [
-                        ['ACTION'=>'RESET_CONTROLS'],
-                        [
-                            'ACTION'=>'CREATE',
-                            'DATA'=>[]
-                        ]
-                    ];
-                    $dopActions = [];
-                    if(!empty($arParams['CLEVER_FIELDS'][$fieldid2]['items'])){
-                        foreach($arParams['CLEVER_FIELDS'][$fieldid2]['items'] as $dItm){
-                            if(!in_array($dItm['ID'], $itmParams['params'])) continue;
-                            $dopActions[] = [
-                                'NAME'=>$dItm['VALUE'],
-                                'VALUE'=>'param_'.$dItm['ID'],
-                            ];
-                        }
-                    }
-
-                    if(!empty($dopActions)){
-
-                        $values = [
-                            [
-                                'NAME'=>'- параметр -',
-                                'VALUE'=>'default',
-                                'ONCHANGE'=>[
-                                    ['ACTION'=>'RESET_CONTROLS']
-                                ]
-                            ]
-                        ];
-                        foreach($dopActions as $tmp){
-                            $values[] = $tmp;
-                        }
-
-                        $generatedItem['ONCHANGE'][1]['DATA'][] = [
-                            'TYPE'=>'DROPDOWN',
-                            'ID'=>'paramId',
-                            'NAME'=>'paramId',
-                            'TEXT'=>'Доп. параметр',
-                            'ITEMS'=>$values
-                        ];
-                    }
-
-                    if($itmParams['showAll']){
-                        $generatedItem['ONCHANGE'][1]['DATA'][] = [
-                            'TYPE'=>'CHECKBOX',
-                            'ID'=>'apply_button_for_all',
-                            'TEXT'=>' все ид',
-                            'TITLE'=>' все ид',
-                            'LABEL'=>' все ид',
-                            'CLASS'=>'main-grid-panel-control',
-                            'ONCHANGE'=>[
-                                ['ACTION'=>'RESET_CONTROLS']
-                            ]
-                        ];
-                    }
-                    if(!empty($itmParams['crm'])){
-                        $generatedItem['ONCHANGE'][1]['DATA'][] = [
-                            'TYPE'=>'TEXT',
-                            'ID'=>'crm_entry',
-                            'NAME'=>'crm_entry',
-                            'CLASS'=>'apply',
-                            'ONCHANGE'=>[
-                                ['ACTION'=>'RESET_CONTROLS'],
-                                [
-                                    'ACTION'=>'CALLBACK',
-                                    'DATA'=>[
-                                        ['JS'=>"window.awz_helper.openDialogCrm()"]
-                                    ]
-                                ]
-                            ]
-                        ];
-                        $generatedItem['ONCHANGE'][1]['DATA'][] = [
-                            'TYPE'=>'BUTTON',
-                            'ID'=>'open_crm_dialog',
-                            'CLASS'=>'cansel',
-                            'TEXT'=>'...',
-                            'ONCHANGE'=>[
-                                [
-                                    'ACTION'=>'CALLBACK',
-                                    'DATA'=>[
-                                        ['JS'=>"window.awz_helper.openDialogCrm('crm_entry_control','".implode(',', $itmParams['crm'])."')"]
-                                    ]
-                                ]
-                            ]
-                        ];
-                    }
-
-
-                    $generatedItem['ONCHANGE'][1]['DATA'][] = [
-                        'TYPE'=>'BUTTON',
-                        'ID'=>'apply_button',
-                        'CLASS'=>'apply',
-                        'TEXT'=>'Применить',
-                        'ONCHANGE'=>[
-                            [
-                                'ACTION'=>'CALLBACK',
-                                'DATA'=>[
-                                    ['JS'=>"window.awz_helper.applyButton('add_item','".$arParams['CLEVER_SMART']['entityTypeId']."','".$arParams['CLEVER_SMART']['id']."')"]
-                                ]
-                            ]
-                        ]
-                    ];
-                    $generatedItem['ONCHANGE'][1]['DATA'][] = [
-                        'TYPE'=>'BUTTON',
-                        'ID'=>'cansel_button',
-                        'CLASS'=>'main-grid-buttons cancel',
-                        'TEXT'=>'Отменить',
-                        'ONCHANGE'=>[
-                            [
-                                'ACTION'=>'CALLBACK',
-                                'DATA'=>[
-                                    ['JS'=>"window.awz_helper.canselGroupActions()"]
-                                ]
-                            ]
-                        ]
-                    ];
-
-                    $createItemAction['ITEMS'][] = $generatedItem;
-                }
-
-            }
-            if(count($createItemAction['ITEMS'])>1)
-                $arParams['ACTION_PANEL']['GROUPS'][0]['ITEMS'][] = $createItemAction;
-        }
+        \Awz\Admin\Helper::setCleverSmartParams($arParams, $checkAuthMember, $adminCustom);
+        \Awz\Admin\Helper::setFieldsActionParams($arParams, $fields, $adminCustom);
+        \Awz\Admin\Helper::setDeleteActionParams($arParams, $adminCustom);
+        \Awz\Admin\Helper::setAddActionParams($arParams, $adminCustom);
 
         \Bitrix\Main\UI\Extension::load("ui.progressbar");
         \Bitrix\Main\UI\Extension::load('ui.entity-selector');

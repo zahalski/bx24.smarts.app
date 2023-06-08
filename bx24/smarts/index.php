@@ -244,6 +244,16 @@ else
                 <div class="ui-alert ui-alert-success">Доступ к сервису активен.
                     После обновления приложения или блокировке API следует &nbsp;<a target="_blank" href="<?=$app->getAuthUrl($app->getCurrentPortalOption('auth'))?>">Обновить токен</a>
                 </div>
+        </div></div></div></div>
+            <div class="container"><div class="row"><div class="ui-block-wrapper">
+                        <div class="ui-block-title">
+                            <div class="ui-block-title-text">Настройки встроек</div>
+                            <div class="ui-block-title-actions">
+                                <a href="#" class="ui-block-title-actions-show-hide">Свернуть</a>
+                            </div>
+                        </div>
+                        <div class="ui-block-content active">
+
                 <div class="container">
                     <form>
 

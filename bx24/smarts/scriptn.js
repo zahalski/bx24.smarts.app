@@ -462,8 +462,9 @@ window.AwzBx24Proxy = {
             }
         }
     },
-    callBatch: function(batch, callback, bHaltOnError){
-        if(!callback) callback = function(){};
+    callBatch: function(batch, callback, bHaltOnError, sendCallback){
+        if(typeof callback !== 'function') callback = function(){};
+        if(!sendCallback) sendCallback = function(){};
 
         if(window.awz_helper.hasOwnProperty('extUrl')){
             //window.awz_helper.addBxTime(result);
@@ -492,13 +493,19 @@ window.AwzBx24Proxy = {
                 dataType : "json",
                 type: "POST",
                 CORS: false,
+                crossDomain: true,
+                timeout: 180000,
+                async: false,
                 success: function (data, textStatus){
+                    //console.log(data);
                     window.awz_helper.addBxTime(data);
-                    window.awz_helper.getSmartData();
-                    console.log(data);
+                    callback(data['result']);
+                    //window.awz_helper.getSmartData();
+                    //console.log(data);
                 },
                 error: function (err){
-                    console.log(err);
+                    callback(err);
+                    //console.log(err);
                 }
             });
         }else{
@@ -614,6 +621,33 @@ $(document).ready(function (){
             var h = $('body').height();
             if(h < 600) h = 600;
             BX24.resizeWindow(this.resize_width_bug, h+50);
+        },
+        clearTimeouts: function(){
+            if(window.awz_helper.hasOwnProperty('timeouts_group_edit') && window.awz_helper.timeouts_group_edit){
+                var k;
+                for(k in window.awz_helper.timeouts_group_edit){
+                    clearTimeout(window.awz_helper.timeouts_group_edit[k]);
+                }
+                window.awz_helper.timeouts_group_edit = null;
+            }
+            if(window.awz_helper.hasOwnProperty('intervals_preloader') && window.awz_helper.intervals_preloader){
+                clearInterval(window.awz_helper.intervals_preloader);
+                window.awz_helper.intervals_preloader = null;
+            }
+            if(window.awz_helper.hasOwnProperty('timeouts_preloader') && window.awz_helper.timeouts_preloader){
+                window.awz_helper.timeouts_preloader.destroy();
+                window.awz_helper.timeouts_preloader = null;
+            }
+            this.clearTimeoutsVariables();
+        },
+        clearTimeoutsVariables: function(){
+            window.awz_helper.timeouts_group_edit = [];
+            window.awz_helper.intervals_turn = [];
+            window.awz_helper.intervals_lock = new Date();
+            window.awz_helper.intervals_lock2 = new Date();
+            window.awz_helper.current_group_action_batch = null;
+            window.awz_helper.current_loader_cnt = null;
+            window.awz_helper.intervals_start_date = new Date();
         },
         addBxTime: function(res){
             //console.log(res);
@@ -794,6 +828,7 @@ $(document).ready(function (){
                         }else{
                             $('#placement-sett-manager-to').find('option').each(function(){
                                 if($(this).attr('value') && $(this).attr('value')==='APP_LINK') $(this).remove();
+                                if($(this).attr('value') && $(this).attr('value')==='WORKS') $(this).remove();
                             });
                         }
                         $('#placement-sett-manager-to').find('option').each(function(){
@@ -894,6 +929,8 @@ $(document).ready(function (){
                                 url_code = 'docs';
                             }else if(smart === 'DOCS_CRM'){
                                 url_code = 'docs';
+                            }else if(smart === 'WORKS'){
+                                url_code = 'works';
                             }else if(smart === 'TASK_USER'){
                                 url_code = 'task';
                             }else if(smart === 'TASK_USER_CRM'){
@@ -1062,6 +1099,9 @@ $(document).ready(function (){
                 'TASK_GROUP':{
                     'title': 'Группа'
                 },
+                'WORKS':{
+                    'title': 'Дела'
+                },
             };
 
             var k;
@@ -1090,7 +1130,7 @@ $(document).ready(function (){
                 'method':'user.option.get'
             });
 
-            BX24.callBatch(
+            window.AwzBx24Proxy.callBatch(
                 batch,
                 function(res)
                 {
@@ -1161,6 +1201,10 @@ $(document).ready(function (){
                     placementManager.appendFrom({
                         'value':'DOCS',
                         'title':linksSmart['DOCS'].title
+                    });
+                    placementManager.appendFrom({
+                        'value':'WORKS',
+                        'title':linksSmart['WORKS'].title
                     });
                     placementManager.appendFrom({
                         'value':'DOCS_CRM',
@@ -1265,6 +1309,11 @@ $(document).ready(function (){
                                                 if(gridParams.hasOwnProperty('2') && gridParams['2']){
                                                     code_to = gridParams['2'];
                                                 }
+                                            }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'WORKS'){
+                                                code = gridParams['1'];
+                                                if(gridParams.hasOwnProperty('2') && gridParams['2']){
+                                                    code_to = gridParams['2'];
+                                                }
                                             }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'TASK_USER_CRM'){
                                                 code = gridParams['1'];
                                                 if(gridParams.hasOwnProperty('2') && gridParams['2']){
@@ -1334,6 +1383,8 @@ $(document).ready(function (){
                                                 code = 'EXT_TASK_USER';
                                             }else if(placement['handler'].indexOf('smartId=DOCS')>-1){
                                                 code = 'DOCS';
+                                            }else if(placement['handler'].indexOf('smartId=WORKS')>-1){
+                                                code = 'WORKS';
                                             }else if(placement['handler'].indexOf('smartId=TASK_GROUP_')>-1){
                                                 code = 'group_'+placement['handler'].replace(/.*smartId=[A-Z]+_[A-Z]+_([0-9]+)(.*)/g, "$1");
                                             }else{
@@ -1446,6 +1497,7 @@ $(document).ready(function (){
         pagesize_next: 0,
         page_size: 10,
         postData: function(data){
+            console.log('postData',data);
             data['smartId'] = this.smartId;
             data['gridId'] = this.gridId;
             data['total'] = this.pagesize_total;
@@ -1457,16 +1509,35 @@ $(document).ready(function (){
                 data['cache_action'] = this.cache_action;
                 this.cache_action = '';
             }
+            var plc = BX24.placement.info();
+            var PLACEMENT_OPTIONS = {'plc':''};
+            try{
+                if(plc.options && typeof plc.options == 'object'){
+                    var k;
+                    for(k in plc.options){
+                        PLACEMENT_OPTIONS[k] = plc.options[k];
+                    }
+                }
+                PLACEMENT_OPTIONS['plc'] = plc.placement;
+            }catch (e) {
+                console.log(e);
+            }
+            //console.log(JSON.stringify(PLACEMENT_OPTIONS));
+
             BX.Main.gridManager.getById(this.gridId).instance.
-            reloadTable('POST', {'bx_result':data, key: this.key},function(){
+            reloadTable('POST', {'bx_result':data, key: window.awz_helper.key, PLACEMENT_OPTIONS: JSON.stringify(PLACEMENT_OPTIONS)},function(){
                 window.awz_helper.preventSortableClick = false;
                 window.awz_helper.resize();
+                var loader_tmp = BX.Main.gridManager.getById(window.awz_helper.gridId).instance.getLoader();
+                setTimeout(function(){
+                    loader_tmp.hide();
+                },1000);
             });
         },
         getSmartDataFiltered: function(filter, only_filter){
             var format_filter = {};
             var k;
-            console.log(filter);
+            console.log('start_filter',filter);
             for(k in filter){
                 if(k === 'FIND') {
                     if(format_filter[k])
@@ -1475,6 +1546,10 @@ $(document).ready(function (){
                 }
                 if(!filter[k]) continue;
 
+                if(k.slice(-4) === '_str') {
+                    format_filter[k.slice(0,-4)] = filter[k];
+                    continue;
+                }
                 if(k.slice(-5) === '_from') continue;
                 if(k.slice(-3) === '_to') continue;
                 if(k.slice(-5) === '_days') continue;
@@ -1584,6 +1659,7 @@ $(document).ready(function (){
             return this.getSmartData(null, format_filter);
         },
         getSmartData: function(order, filter){
+            this.clearTimeoutsVariables();
             var params = {
             };
             params['order'] = {};
@@ -1689,6 +1765,8 @@ $(document).ready(function (){
                 check_order_upper = true;
             }else if(this.gridOptions.PARAM_1 === 'DOCS'){
                 method = this.gridOptions.method_list;
+            }else if(this.gridOptions.PARAM_1 === 'WORKS'){
+                method = this.gridOptions.method_list;
             }else if(this.gridOptions.PARAM_1 === 'DOCS_CRM'){
                 method = this.gridOptions.method_list;
                 if(['DEAL','LEAD','CONTACT','COMPANY'].indexOf(this.gridOptions.PARAM_2)>-1 && plc_info.placement){
@@ -1753,12 +1831,27 @@ $(document).ready(function (){
                 });
             }
 
+            params['filter'] = window.awz_helper.replaceFilter(params['filter']);
+
             window.awz_helper.callApi(method, params, function(res){
+                console.log('call_api', res);
                 window.AwzBx24Proxy.checkRespError(res);
                 if(typeof res == 'object'){
                     if(res.hasOwnProperty('total')){
                         window.awz_helper.pagesize_total = res.total;
                     }
+                    var items_key = 'items';
+                    if(window.awz_helper.hasOwnProperty('gridOptions')){
+                        items_key = window.awz_helper.gridOptions['result_key'];
+                    }
+                    if(items_key === '-'){
+                        var tmp = Object.assign({}, res.result);
+                        delete res.result;
+                        res = Object.assign({}, res);
+                        res['result'] = {'items': tmp};
+                        items_key = 'items';
+                    }
+                    console.log('items_key', [items_key, res]);
                     if(res.hasOwnProperty('result')){
 
                         if(!window.awz_helper.users)
@@ -1772,20 +1865,17 @@ $(document).ready(function (){
                                 user_fields.push(k);
                             }
                         }
+                        //console.log(user_fields);
                         try{
 
                             var items = [];
-                            var items_key = 'items';
-                            if(window.awz_helper.hasOwnProperty('gridOptions')){
-                                items_key = window.awz_helper.gridOptions['result_key'];
-                            }
                             items = res.result[items_key];
 
                             for(k in items){
                                 var item = items[k];
                                 var k2;
                                 for(k2 in user_fields){
-                                    if(item[user_fields[k2]]){
+                                    if(item.hasOwnProperty(user_fields[k2]) && item[user_fields[k2]]){
                                         if(!window.awz_helper.users.hasOwnProperty(item[user_fields[k2]])){
                                             if(users_get.indexOf(item[user_fields[k2]])===-1)
                                                 users_get.push(item[user_fields[k2]]);
@@ -1794,6 +1884,7 @@ $(document).ready(function (){
                                                 'ID': window.awz_helper.users[item[user_fields[k2]]].ID,
                                                 'NAME': window.awz_helper.users[item[user_fields[k2]]].NAME,
                                                 'LAST_NAME': window.awz_helper.users[item[user_fields[k2]]].LAST_NAME,
+                                                'PERSONAL_PHOTO': window.awz_helper.users[item[user_fields[k2]]].PERSONAL_PHOTO,
                                             }
                                         }
                                     }
@@ -1816,10 +1907,12 @@ $(document).ready(function (){
                                     for(k in res2['answer']['result']) {
                                         var id_usr = res2['answer']['result'][k]['ID'];
                                         window.awz_helper.users[id_usr] = res2['answer']['result'][k];
+                                        //console.log(window.awz_helper.users[id_usr]);
                                         users_data[id_usr] = {
                                             'ID': window.awz_helper.users[id_usr].ID,
                                             'NAME': window.awz_helper.users[id_usr].NAME,
                                             'LAST_NAME': window.awz_helper.users[id_usr].LAST_NAME,
+                                            'PERSONAL_PHOTO': window.awz_helper.users[id_usr].PERSONAL_PHOTO,
                                         }
                                     }
                                     res.result['users'] = users_data;
@@ -1841,7 +1934,67 @@ $(document).ready(function (){
         },
         preventSortableClick: false,
         grid_ob: null,
+        placement_el_cache: null,
         init: function(key, smartId, gridId, startSize, gridOptions){
+            try{
+                if(!this.placement_el_cache){
+                    var plc_info = BX24.placement.info();
+                    //console.log(plc_info);
+                    var method = '';
+                    if(plc_info.placement === 'CRM_DEAL_DETAIL_TAB'){
+                        method = 'crm.deal.get';
+                    }
+                    if(plc_info.placement === 'CRM_LEAD_DETAIL_TAB'){
+                        method = 'crm.lead.get';
+                    }
+                    if(plc_info.placement === 'CRM_COMPANY_DETAIL_TAB'){
+                        method = 'crm.company.get';
+                    }
+                    if(plc_info.placement === 'CRM_CONTACT_DETAIL_TAB'){
+                        method = 'crm.contact.get';
+                    }
+                    if(method){
+                        window.awz_helper.callApi(
+                            method,
+                            {id: plc_info.options.ID},
+                            function(res){
+                                window.awz_helper.placement_el_cache = res.result;
+                                return window.awz_helper.init_after(key, smartId, gridId, startSize, gridOptions);
+                            });
+                        return;
+                    }
+                    method = '';
+                    if(plc_info.placement === 'TASK_GROUP_LIST_TOOLBAR'){
+                        window.awz_helper.callApi(
+                            'sonet_group.get',
+                            {'FILTER': {ID: plc_info.options.GROUP_ID}},
+                            function(res){
+                                window.awz_helper.placement_el_cache = res.result[0];
+                                return window.awz_helper.init_after(key, smartId, gridId, startSize, gridOptions);
+                            });
+                        return;
+                    }
+                    if(plc_info.placement.indexOf('CRM_DYNAMIC_')>-1 && plc_info.placement.indexOf('_DETAIL_TAB')>-1){
+                        var entId = plc_info.placement.replace('CRM_DYNAMIC_','').replace('_DETAIL_TAB','');
+                        window.awz_helper.callApi(
+                            'crm.item.get',
+                            {entityTypeId: entId, id: plc_info.options.ID},
+                            function(res){
+                                window.awz_helper.placement_el_cache = res.result.item;
+                                return window.awz_helper.init_after(key, smartId, gridId, startSize, gridOptions);
+                            });
+                        return;
+                    }
+                }
+            }catch (e) {
+
+            }
+
+            return this.init_after(key, smartId, gridId, startSize, gridOptions);
+        },
+        init_after: function(key, smartId, gridId, startSize, gridOptions){
+
+            window.awz_helper.showFieldsLink();
 
             if(key) this.key = key;
             if(this.gridId) return; //inited
@@ -2022,6 +2175,16 @@ $(document).ready(function (){
             435646 - 2
             * */
         },
+        showFieldsLink: function(){
+            var ht = '<div class="adm-toolbar-panel-container"><div class="adm-toolbar-panel-flexible-space"></div><div class="adm-toolbar-panel-align-right">';
+            if(window.awz_helper.placement_el_cache){
+                ht += '<a href="#" class="ui-btn ui-btn-sm ui-btn-icon-info awz-open-fields"></a>';
+            }
+            ht += '<a href="#" class="ui-btn ui-btn-sm ui-btn-icon-add awz-open-addlink"></a>';
+            ht += '</div></div>';
+            $('#uiToolbarContainer').append(ht);
+            $('#uiToolbarContainer').append('<div class="adm-toolbar-panel-container"><div class="adm-toolbar-panel-flexible-space"></div><a onclick="window.AwzBx24Proxy.openPath(\'/marketplace/detail/awz.smartbag/\');return false;" href="#" style="line-height:12px;" class="ui-btn ui-btn-sm ui-btn-icon-plan ui-btn-danger">Оставь бесплатный отзыв <br>для бесплатного приложения</a></div>');
+        },
         showStat: function(){
             if($('#stat-app').html()){
                 if($('#stat-app-moved').length){
@@ -2031,10 +2194,11 @@ $(document).ready(function (){
                 }
             }
         },
-        deleteRows: function(data){
+        deleteRows: function(data, group_action, callbackDelete){
             if (typeof data['ID'] === 'string'){
                 data['ID'] = [data['ID']];
             }
+            if(!callbackDelete) callbackDelete = function(){};
             var batch = [];
             var k;
             for(k in data['ID']){
@@ -2059,7 +2223,7 @@ $(document).ready(function (){
                             'taskId':data['ID'][k]
                         }
                     });
-                }else if(['DOCS','DOCS_CRM'].indexOf(this.gridOptions.PARAM_1)>-1){
+                }else if(['DOCS','DOCS_CRM','WORKS'].indexOf(this.gridOptions.PARAM_1)>-1){
                     batch.push({
                         'method':this.gridOptions.method_delete,
                         'params':{
@@ -2092,18 +2256,59 @@ $(document).ready(function (){
 
             }
             if(batch.length){
-                window.AwzBx24Proxy.callBatch(batch, function(result)
-                    {
-                        window.awz_helper.addBxTime(result);
-                        window.awz_helper.getSmartData();
-                    }
-                );
+                if(group_action){
+                    var last = null;
+                    if(batch.length>0)
+                        last = batch.pop();
+                    var tmp_ = function(last, batch, callbackDelete){
+                        if(batch.length){
+                            window.AwzBx24Proxy.callBatch(batch, function(result)
+                                {
+                                    callbackDelete.call(window.awz_helper, result, last ? 'first' : 'end');
+                                    if(last){
+                                        window.awz_helper.callApi(last['method'], last['params'], function(res){
+                                            callbackDelete.call(window.awz_helper, res, 'end');
+                                        });
+                                    }
+
+                                }
+                            );
+                        }else if(last){
+                            window.awz_helper.callApi(last['method'], last['params'], function(res){
+                                callbackDelete.call(window.awz_helper, res, 'end');
+                            });
+                        }
+                    };
+                    tmp_(last, batch, callbackDelete);
+                }else {
+                    window.AwzBx24Proxy.callBatch(batch, function (result) {
+                            window.awz_helper.addBxTime(result);
+                            window.awz_helper.getSmartData();
+                        }
+                    );
+                }
             }
         },
-        editRows: function(data){
+        editRows: function(data, group_action, callbackUp){
             var batch = [];
             var k;
-            //console.log(['edit', data]);
+            if(!callbackUp) callbackUp = function(){};
+
+            var check_delete = false;
+            var delete_ob = {'ID':[]};
+            for(k in data['FIELDS']){
+                for(k2 in data['FIELDS'][k]) {
+                    if(k2 === 'delete'){
+                        check_delete = true;
+                        delete_ob['ID'].push(k);
+                    }
+                }
+            }
+            if(check_delete){
+                //console.log(delete_ob);
+                return this.deleteRows(delete_ob, group_action, callbackUp);
+            }
+
             var formatFields = {};
             /*for(k in data['FIELDS']){
                 if(this.fields[k])
@@ -2168,6 +2373,14 @@ $(document).ready(function (){
                             'fields':itm
                         }
                     });
+                }else if(this.gridOptions.PARAM_1 === 'WORKS'){
+                    batch.push({
+                        'method':this.gridOptions.method_update,
+                        'params':{
+                            'id':k,
+                            'fields':data['FIELDS'][k]
+                        }
+                    });
                 }else if(['DOCS','DOCS_CRM'].indexOf(this.gridOptions.PARAM_1)>-1){
                     batch.push({
                         'method':this.gridOptions.method_update,
@@ -2213,16 +2426,44 @@ $(document).ready(function (){
                             'fields':data['FIELDS'][k]
                         }
                     });
+                    //console.log(['edit', data['FIELDS'][k]]);
                 }
 
             }
             if(batch.length){
-                window.AwzBx24Proxy.callBatch(batch, function(result)
-                    {
-                        window.awz_helper.addBxTime(result);
-                        window.awz_helper.getSmartData();
-                    }
-                );
+                if(group_action){
+                    var last = null;
+                    if(batch.length>0)
+                        last = batch.pop();
+                    var tmp_ = function(last, batch, callbackUp){
+                        if(batch.length){
+                            window.AwzBx24Proxy.callBatch(batch, function(result)
+                                {
+                                    callbackUp.call(window.awz_helper, result, last ? 'first' : 'end');
+                                    if(last){
+                                        window.awz_helper.callApi(last['method'], last['params'], function(res){
+                                            callbackUp.call(window.awz_helper, res, 'end');
+                                        });
+                                    }
+
+                                }
+                            );
+                        }else if(last){
+                            window.awz_helper.callApi(last['method'], last['params'], function(res){
+                                callbackUp.call(window.awz_helper, res, 'end');
+                            });
+                        }
+                    };
+                    tmp_(last, batch, callbackUp);
+                }else{
+                    window.AwzBx24Proxy.callBatch(batch, function(result)
+                        {
+                            window.awz_helper.addBxTime(result);
+                            window.awz_helper.getSmartData();
+                        }
+                    );
+                }
+
             }
 
         },
@@ -2271,6 +2512,9 @@ $(document).ready(function (){
                         dataType : "json",
                         type: "POST",
                         CORS: false,
+                        crossDomain: true,
+                        timeout: 180000,
+                        async: false,
                         success: function (data, textStatus){
                             window.awz_helper.addBxTime(data);
                             cbAjax(data);
@@ -2291,6 +2535,15 @@ $(document).ready(function (){
             }else{
                 BX24.refreshAuth(cb);
             }
+        },
+        menuCustom: function(url){
+            if(this.placement_el_cache){
+                var k2;
+                for(k2 in this.placement_el_cache){
+                    url = url.replace("#"+k2+"#", this.placement_el_cache[k2]);
+                }
+            }
+            window.AwzBx24Proxy.openPath(url);
         },
         menuNewEl: function(){
             var plc_info = BX24.placement.info();
@@ -2338,6 +2591,452 @@ $(document).ready(function (){
         },
         reloadList: function(){
             this.getSmartData();
+        },
+        replaceFilter: function(filter){
+            var new_filter = {};
+            var k;
+            for(k in filter){
+                var val = filter[k];
+                if(typeof val === 'object'){
+                    var k3;
+                    for(k3 in val){
+                        if(val[k3].indexOf("#")>-1 && this.placement_el_cache){
+                            var k2;
+                            for(k2 in this.placement_el_cache){
+                                val[k3] = val[k3].replace("#"+k2+"#", this.placement_el_cache[k2]);
+                            }
+                        }
+                    }
+                }else{
+                    if(val.indexOf("#")>-1 && this.placement_el_cache){
+                        var k2;
+                        for(k2 in this.placement_el_cache){
+                            val = val.replace("#"+k2+"#", this.placement_el_cache[k2]);
+                        }
+                    }
+                }
+                new_filter[k] = val;
+            }
+            console.log(['replaceFilter', filter, new_filter]);
+            return new_filter;
+        },
+        applyGroupButton: function(action){
+            var actionId = $('#base_action_select_control').attr('data-value');
+            var field_up_id = actionId.replace("control_ef_","");
+            var field_type = 'update';
+            if(field_up_id === 'delete')
+                field_type = 'delete';
+            if(field_up_id === 'copy')
+                field_type = 'copy';
+            var value = $('#value_entry_control').val();
+            if(!value)
+                value = $('#value_entry_control').attr('data-value');
+            if(!value) value = '';
+            var check_all = $('#apply_button_for_all_control').is(':checked');
+
+            var values = Object.keys(this.grid_ob.getParent().getRows().getEditSelectedValues(true));
+            var values_f = [];
+            var k;
+            for(k in values){
+                if(parseInt(values[k]) > 0){
+                    values_f.push(parseInt(values[k]));
+                }
+            }
+
+            var max_start_cnt = window.awz_helper.pagesize_total;
+            var ids_el = [];
+            if(field_type === 'copy'){
+                if(!value) value = 1;
+                ids_el = window.awz_helper.grid_ob.getParent().getRows().getSelectedIds();
+                max_start_cnt = ids_el.length * parseInt(value);
+            }
+
+            //console.log([values_f, actionId, field_up_id, value, check_all]);
+
+            if(check_all && !window.awz_helper.pagesize_total){
+                this.grid_ob.getParent().arParams['MESSAGES'] = [{
+                    'TYPE': 'ERROR',
+                    'TITLE': 'Ошибка',
+                    'TEXT': 'Общее количество элементов не указано'
+                }];
+                this.grid_ob.getParent().messages.show();
+            }else if(check_all || field_type === 'copy'){
+                window.awz_helper.last_turn_id = 0;
+                var started_fast = true;
+                var text_before = "Обработка элементов по фильтру <a class=\"close_ids_change\" href=\"#\">отменить</a>";
+                if(field_type === 'copy'){
+                    text_before = "Копирование элементов <a class=\"close_ids_change\" href=\"#\">отменить</a>";
+                }
+                var text_api1 = "";
+                var text_api2 = "";
+                var text_api3 = "";
+                window.awz_helper.timeouts_preloader = new BX.UI.ProgressBar({
+                    textBefore: text_before,
+                    size: BX.UI.ProgressBar.Size.LARGE,
+                    fill: true,
+                    maxValue: max_start_cnt,
+                    value: 0,
+                    column: true,
+                    color: BX.UI.ProgressBar.Color.SUCCESS,
+                    statusType: BX.UI.ProgressBar.Status.COUNTER
+                });
+                $('#'+window.awz_helper.gridId+'_bottom_panels .ui-progressbar').remove();
+                $('#'+this.gridId+'_bottom_panels').append(window.awz_helper.timeouts_preloader.getContainer());
+                window.awz_helper.resize();
+
+                var tmp_vars = this.prepareGroupListParams();
+                var batch_prepare = [];
+                var method = tmp_vars[0];
+                var params = tmp_vars[1];
+                var check_order_upper = tmp_vars[2];
+                var check_add_upper = tmp_vars[3];
+
+                if(field_type === 'copy'){
+                    params['filter'] = {};
+                    params['filter'][params['select'][0]] = ids_el;
+                    params['select'] = Object.keys(window.awz_helper.fields);
+                }
+                if(params['filter'].hasOwnProperty('>ID')) started_fast = false;
+                if(params['filter'].hasOwnProperty('<ID')) started_fast = false;
+                if(params['filter'].hasOwnProperty('=ID')) started_fast = false;
+                if(params['filter'].hasOwnProperty('ID')) started_fast = false;
+                if(params['filter'].hasOwnProperty('>id')) started_fast = false;
+                if(params['filter'].hasOwnProperty('<id')) started_fast = false;
+                if(params['filter'].hasOwnProperty('=id')) started_fast = false;
+                if(params['filter'].hasOwnProperty('id')) started_fast = false;
+
+                window.awz_helper.clearTimeoutsVariables();
+
+                var step = 50;
+                var max_operation = 300;
+                if(field_type === 'copy'){
+                    var params_copy = Object.assign({},params);
+                    var ob_tmp = {'cnt': parseInt(value)};
+                    window.awz_helper.intervals_turn.push([
+                        method, params_copy, ob_tmp
+                    ]);
+                }else{
+                    for(var k=0; k < (window.awz_helper.pagesize_total/step); k++){
+                        var params_copy = Object.assign({},params);
+                        params_copy['start'] = step*k;
+                        if(started_fast){
+                            params_copy['start'] = -1
+                            params_copy['order'] = {};
+                            params_copy['order'][params_copy['select'][0]] = 'asc';
+                            params_copy['f_key'] = '>'+params_copy['select'][0];
+                        }
+                        var ob_tmp = {
+                            'FIELDS':{}
+                        };
+                        ob_tmp['FIELDS'][field_up_id] = value;
+                        window.awz_helper.intervals_turn.push([
+                            method, params_copy,
+                            ob_tmp
+                        ]);
+                    }
+                    window.awz_helper.current_loader_cnt = [
+                        0,
+                        window.awz_helper.pagesize_total
+                    ];
+                    //console.log(window.awz_helper.intervals_turn);
+                }
+
+                window.awz_helper.intervals_preloader = setInterval(function(){
+                    var diff = (new Date() - window.awz_helper.intervals_start_date) / 1000;
+                    var hours = Math.floor(diff / 60 / 60);
+                    var minutes = Math.floor(diff / 60) - (hours * 60);
+                    var seconds = Math.floor(diff % 60);
+                    text_api3 = '<br>Время работы: '+[
+                        hours.toString().padStart(2, '0'),
+                        minutes.toString().padStart(2, '0'),
+                        seconds.toString().padStart(2, '0')
+                    ].join(':');
+                    var lock_time = false;
+                    if(window.awz_helper.intervals_lock > new Date()){
+                        var res = window.awz_helper.intervals_lock_last_res;
+                        var tm = new Date(res['time']['operating_reset_at']*1000);
+                        var dif_seconds = window.awz_helper.intervals_lock - new Date();
+                        text_api1 = '<br>время апи list: '+Math.round(res['time']['operating']*100)/100+' из '+max_operation+
+                            ', сброс лимитов: '+tm.toLocaleTimeString()+
+                            ' (через '+Math.round(dif_seconds/1000)+' сек.)';
+                        window.awz_helper.timeouts_preloader.setTextBefore(
+                            text_before+text_api1+text_api2+text_api3
+                        );
+                        window.awz_helper.timeouts_preloader.update();
+                        window.awz_helper.resize();
+                        lock_time = true;
+                    }
+                    if(window.awz_helper.intervals_lock2 > new Date()){
+                        var res = window.awz_helper.intervals_lock_last_res2;
+                        var tm = new Date(res['time']['operating_reset_at']*1000);
+                        var dif_seconds = window.awz_helper.intervals_lock2 - new Date();
+                        text_api2 = '<br>время апи '+field_type+': '+Math.round(res['time']['operating']*100)/100+' из '+max_operation+
+                            ', сброс лимитов: '+tm.toLocaleTimeString()+
+                            ' (через '+Math.round(dif_seconds/1000)+' сек.)';
+                        window.awz_helper.timeouts_preloader.setTextBefore(
+                            text_before+text_api1+text_api2+text_api3
+                        );
+                        window.awz_helper.timeouts_preloader.update();
+                        window.awz_helper.resize();
+                        lock_time = true;
+                    }
+                    if(lock_time) return;
+                    if(window.awz_helper.current_group_action_batch) {
+                        return;
+                    }
+                    //console.log('call group_action');
+                    var el = window.awz_helper.intervals_turn.pop();
+                    if(!el) {
+                        clearInterval(window.awz_helper.intervals_preloader);
+                        window.awz_helper.intervals_preloader = null;
+                        window.awz_helper.clearTimeoutsVariables();
+                        window.awz_helper.reloadList();
+                        return;
+                    }
+                    var method = el[0];
+                    var prm = el[1];
+                    var up_object = el[2];
+                    if(up_object.hasOwnProperty('add')){
+                        if(check_add_upper){
+                            var converted = {};
+                            for(k in window.awz_helper.temp_items[up_object['add']]){
+                                if(window.awz_helper.fields.hasOwnProperty(k) && window.awz_helper.fields[k].hasOwnProperty('upperCase')){
+                                    converted[window.awz_helper.fields[k].upperCase] = window.awz_helper.temp_items[up_object['add']][k];
+                                }
+                            }
+                            prm = {'fields':converted};
+                        }else{
+                            prm = {'fields':window.awz_helper.temp_items[up_object['add']]};
+                            if(params.hasOwnProperty('entityTypeId')){
+                                prm['entityTypeId'] = params['entityTypeId'];
+                            }
+                        }
+                        if(prm.fields.hasOwnProperty('id')){
+                            delete prm.fields['id'];
+                        }
+                        if(prm.fields.hasOwnProperty('ID')){
+                            delete prm.fields['ID'];
+                        }
+                    }
+                    if(prm.hasOwnProperty('f_key')){
+                        prm['filter'][prm['f_key']] = window.awz_helper.last_turn_id;
+                        delete prm['f_key'];
+                    }
+
+                    //console.log('up_object', up_object);
+                    window.awz_helper.current_group_action_batch = true;
+                    if(up_object.hasOwnProperty('add')){
+
+                        window.awz_helper.tmp_func = function(method, prm){
+                            window.awz_helper.callApi(method, prm, function(bres){
+                                window.AwzBx24Proxy.checkRespError(bres);
+                                window.awz_helper.intervals_lock_last_res2 = bres;
+                                if(bres.hasOwnProperty('time')){
+                                    var tm = new Date(bres['time']['operating_reset_at']*1000);
+                                    if(bres['time']['operating']>max_operation){
+                                        window.awz_helper.intervals_lock2 = tm;
+                                    }
+                                    text_api2 = '<br>время апи '+field_type+': '+Math.round(bres['time']['operating']*100)/100+' из '+max_operation+
+                                        ', сброс лимитов: '+tm.toLocaleTimeString();
+                                    window.awz_helper.timeouts_preloader.setTextBefore(
+                                        text_before+text_api1+text_api2+text_api3
+                                    );
+                                }
+                                if(window.awz_helper.current_loader_cnt){
+                                    window.awz_helper.current_loader_cnt[0] += 1;
+                                    window.awz_helper.timeouts_preloader.setMaxValue(window.awz_helper.current_loader_cnt[1]);
+                                    window.awz_helper.timeouts_preloader.update(window.awz_helper.current_loader_cnt[0]);
+                                }else{
+                                    window.awz_helper.timeouts_preloader.update();
+                                }
+                                window.awz_helper.resize();
+                                window.awz_helper.current_group_action_batch = false;
+                            });
+                        };
+
+                        if(up_object.hasOwnProperty('batch')){
+                            var bach_tmp = [];
+                            var k3;
+                            for(k3=0; k3<up_object['batch']; k3++){
+                                bach_tmp.push({
+                                    'method': method,
+                                    'params': prm
+                                });
+                            }
+                            var tmp = function(batch, cnt, method, prm){
+                                window.AwzBx24Proxy.callBatch(batch, function(){
+                                    window.awz_helper.current_loader_cnt[0] += cnt;
+                                    window.awz_helper.timeouts_preloader.setMaxValue(window.awz_helper.current_loader_cnt[1]);
+                                    window.awz_helper.timeouts_preloader.update(window.awz_helper.current_loader_cnt[0]);
+                                    window.awz_helper.tmp_func(method, prm);
+                                });
+                            };
+                            tmp(bach_tmp, up_object['batch'], method, prm);
+                        }else{
+                            window.awz_helper.tmp_func(method, prm);
+                        }
+
+                    }else{
+                        window.awz_helper.callApi(method, prm, function(res){
+                            window.awz_helper.intervals_lock_last_res = res;
+                            window.AwzBx24Proxy.checkRespError(res);
+                            if(res.hasOwnProperty('time')){
+                                var tm = new Date(res['time']['operating_reset_at']*1000);
+                                if(res['time']['operating']>max_operation){
+                                    window.awz_helper.intervals_lock = tm;
+                                }
+                                text_api1 = '<br>время апи list: '+Math.round(res['time']['operating']*100)/100+' из '+max_operation+
+                                    ', сброс лимитов: '+tm.toLocaleTimeString();
+                                window.awz_helper.timeouts_preloader.setTextBefore(
+                                    text_before+text_api1+text_api2+text_api3
+                                );
+                                window.awz_helper.timeouts_preloader.update();
+                                window.awz_helper.resize();
+                            }
+
+                            var items_key = 'items';
+                            if(window.awz_helper.hasOwnProperty('gridOptions')){
+                                items_key = window.awz_helper.gridOptions['result_key'];
+                            }
+                            if(items_key === '-'){
+                                var tmp = Object.assign({}, res.result);
+                                delete res.result;
+                                res = Object.assign({}, res);
+                                res['result'] = {'items': tmp};
+                                items_key = 'items';
+                            }
+                            if(res.hasOwnProperty('result')){
+                                var items = [];
+                                items = res.result[items_key];
+                                window.awz_helper.temp_items = items;
+
+                                if(up_object.hasOwnProperty('cnt')){
+                                    var k;
+                                    var kol;
+                                    var all_cnt_el = 0;
+                                    for(kol=1; kol <= up_object['cnt']; kol++) {
+                                        //возможный максимум группового запроса
+                                        var batch_len = up_object['cnt'] - kol;
+                                        if(batch_len<2) batch_len = 2;
+                                        if(batch_len>50) batch_len = 50;
+                                        var max = kol+batch_len;
+                                        for (k in items) {
+                                            if(max <= up_object['cnt']){
+                                                //будет выполнен групповой запрос +1 обычный
+                                                window.awz_helper.intervals_turn.push([
+                                                    window.awz_helper.gridOptions.method_add,
+                                                    {
+                                                        'fields': {}
+                                                    },
+                                                    {'add':k, 'batch': batch_len}
+                                                ]);
+                                                all_cnt_el += batch_len;
+                                            }else{
+                                                window.awz_helper.intervals_turn.push([
+                                                    window.awz_helper.gridOptions.method_add,
+                                                    {
+                                                        'fields': {}
+                                                    },
+                                                    {'add':k}
+                                                ]);
+                                            }
+                                            all_cnt_el += 1;
+                                        }
+                                        if(max <= up_object['cnt']){
+                                            kol += batch_len;
+                                        }
+                                    }
+                                    window.awz_helper.current_loader_cnt = [
+                                        0,
+                                        all_cnt_el
+                                    ];
+                                    //console.log('start counter', window.awz_helper.current_loader_cnt);
+                                    window.awz_helper.current_group_action_batch = false;
+                                }else{
+                                    var filelds_up = {};
+                                    var k;
+                                    var filelds_up_cnt = 0;
+                                    window.awz_helper.last_turn_id = 0;
+                                    for(k in items){
+                                        var id_el = 0;
+                                        filelds_up_cnt += 1;
+                                        if(items[k].hasOwnProperty('id')){
+                                            filelds_up[items[k]['id']] = Object.assign({},up_object['FIELDS']);
+                                            id_el = parseInt(items[k]['id']);
+                                        }else if(items[k].hasOwnProperty('ID')){
+                                            filelds_up[items[k]['ID']] = Object.assign({},up_object['FIELDS']);
+                                            id_el = parseInt(items[k]['ID']);
+                                        }
+                                        if(window.awz_helper.last_turn_id < id_el)
+                                            window.awz_helper.last_turn_id = id_el;
+                                    }
+                                    //если нет элементов по фильтру обрываем очередь
+                                    if(!filelds_up_cnt){
+                                        window.awz_helper.intervals_turn = [];
+                                        window.awz_helper.current_group_action_batch = false;
+                                        return;
+                                    }
+                                    if(started_fast){
+                                        if(filelds_up_cnt === 50 && window.awz_helper.intervals_turn.length === 1){
+                                            window.awz_helper.intervals_turn.push(window.awz_helper.intervals_turn[0]);
+                                        }
+                                    }
+                                    up_object['FIELDS'] = filelds_up;
+                                    window.awz_helper.filelds_up_cnt = filelds_up_cnt;
+                                    window.awz_helper.editRows(up_object, true,
+                                        function(bres, last)
+                                        {
+                                            window.awz_helper.intervals_lock_last_res2 = bres;
+                                            if(bres.hasOwnProperty('time')){
+                                                var tm = new Date(bres['time']['operating_reset_at']*1000);
+                                                if(bres['time']['operating']>max_operation){
+                                                    window.awz_helper.intervals_lock2 = tm;
+                                                }
+                                                text_api2 = '<br>время апи '+field_type+': '+Math.round(bres['time']['operating']*100)/100+' из '+max_operation+
+                                                    ', сброс лимитов: '+tm.toLocaleTimeString();
+                                                window.awz_helper.timeouts_preloader.setTextBefore(
+                                                    text_before+text_api1+text_api2+text_api3
+                                                );
+
+                                            }
+                                            if(last === 'end'){
+                                                if(window.awz_helper.current_loader_cnt){
+                                                    window.awz_helper.current_loader_cnt[0] += window.awz_helper.filelds_up_cnt;
+                                                    if(window.awz_helper.current_loader_cnt[0]>window.awz_helper.current_loader_cnt[1]){
+                                                        window.awz_helper.current_loader_cnt[1] = window.awz_helper.current_loader_cnt[0];
+                                                        window.awz_helper.timeouts_preloader.setMaxValue(window.awz_helper.current_loader_cnt[1]);
+                                                    }
+                                                    window.awz_helper.timeouts_preloader.update(window.awz_helper.current_loader_cnt[0]);
+                                                }else{
+                                                    window.awz_helper.timeouts_preloader.update();
+                                                }
+                                            }
+
+                                            window.awz_helper.timeouts_preloader.update();
+                                            window.awz_helper.resize();
+                                            window.awz_helper.current_group_action_batch = false;
+                                        }
+                                    );
+                                }
+                            }
+                        });
+                    }
+
+                },3000);
+
+            }else{
+                var ids = window.awz_helper.grid_ob.getParent().getRows().getSelectedIds();
+                var ob_tmp = {
+                    'FIELDS':{}
+                };
+                var k;
+                for(k in ids){
+                    ob_tmp['FIELDS'][ids[k]] = {};
+                    ob_tmp['FIELDS'][ids[k]][field_up_id] = value;
+                }
+                window.awz_helper.editRows(ob_tmp);
+            }
+
         },
         applyButton: function(action, entityId, smartId){
             var param = $('#paramId_control').attr('data-value');
@@ -2409,14 +3108,17 @@ $(document).ready(function (){
                                 myProgress.setTextAfter('<a href="#" class="open-smart" data-id="'+res['answer']['result']['item']['id']+'" data-ent="'+entityId+'">элемент</a>: '+itm['ufCrm'+smartId+'Result']);
                                 myProgress.update(5);
                                 clearTimeout(timerResult);
+                                window.awz_helper.canselGroupActions();
                                 return;
                             }
                             if(timerResult_cnt == 5){
                                 myProgress.setTextAfter('<a href="#" class="open-smart" data-id="'+res['answer']['result']['item']['id']+'" data-ent="'+entityId+'">элемент</a>: результат не получен за 25 секунд');
                                 myProgress.update(timerResult_cnt);
                                 clearTimeout(timerResult);
+                                window.awz_helper.canselGroupActions();
                                 return;
                             }
+                            window.awz_helper.resize();
                             setTimeout(steps, 5000);
 
                         });
@@ -2458,74 +3160,23 @@ $(document).ready(function (){
                 $('#'+this.gridId+'_bottom_panels').append(myProgress.getContainer());
                 window.awz_helper.resize();
 
+                var tmp_vars = this.prepareGroupListParams();
+                var method = tmp_vars[0];
+                var params = tmp_vars[1];
+                var check_order_upper = tmp_vars[2];
+                var check_add_upper = tmp_vars[3];
                 var batch_prepare = [];
-                var method = 'crm.item.list';
-                var params = {};
-                params['filter'] = this.lastFilter;
-                params['select'] = ['id'];
-                params['order'] = this.lastOrder;
 
-                var plc_info = BX24.placement.info();
-
-                if(this.gridOptions.PARAM_1 === 'TASK_USER_CRM'){
-                    method = this.gridOptions.method_list;
-                    params['select'] = ['ID'];
-                    if(plc_info.placement){
-                        var entity_code_id = plc_info.placement.replace(/CRM_(.*)_DETAIL_TAB/g, "$1");
-                        if(entity_code_id === 'DEAL'){
-                            params['filter']['UF_CRM_TASK'] = 'D_'+plc_info.options.ID;
-                        }
-                        if(entity_code_id === 'LEAD'){
-                            params['filter']['UF_CRM_TASK'] = 'L_'+plc_info.options.ID;
-                        }
-                        if(entity_code_id === 'CONTACT'){
-                            params['filter']['UF_CRM_TASK'] = 'C_'+plc_info.options.ID;
-                        }
-                        if(entity_code_id === 'COMPANY'){
-                            params['filter']['UF_CRM_TASK'] = 'CO_'+plc_info.options.ID;
-                        }
-                        if(entity_code_id.indexOf('DYNAMIC_')>-1){
-                            var tmp = entity_code_id.replace(/([^0-9])/g, "");
-                            params['filter']['UF_CRM_TASK'] = "T"+parseInt(tmp).toString(16)+'_'+plc_info.options.ID;
-                        }
-                    }
-                }else if(this.gridOptions.PARAM_1 === 'TASK_USER'){
-                    method = this.gridOptions.method_list;
-                    params['select'] = ['ID'];
-                }else if(this.gridOptions.PARAM_1 === 'DOCS'){
-                    method = this.gridOptions.method_list;
-                }else if(this.gridOptions.PARAM_1 === 'DOCS_CRM'){
-                    method = this.gridOptions.method_list;
-                    if(['DEAL','LEAD','CONTACT','COMPANY'].indexOf(this.gridOptions.PARAM_2)>-1 && plc_info.placement){
-                        params['filter']['entityId'] = plc_info.options.ID;
-                    }
-                }else if(this.gridOptions.PARAM_1.indexOf('TASK_GROUP_')>-1){
-                    method = this.gridOptions.method_list;
-                    params['select'] = ['ID', 'GROUP_ID'];
-                }else if(this.gridOptions.PARAM_1 === 'TASK_GROUPS'){
-                    method = this.gridOptions.method_list;
-                    params['select'] = ['ID', 'GROUP_ID'];
-                    params['filter']['GROUP_ID'] = plc_info.options.GROUP_ID;
-                }
-
-                //TODO не хватает сущностей для выборки всех
-                if(window.awz_helper.hasOwnProperty('addFilter') && typeof window.awz_helper.addFilter === 'object'){
-                    var fl_key;
-                    for(fl_key in window.awz_helper.addFilter){
-                        params['filter'][fl_key] = window.awz_helper.addFilter[fl_key];
-                    }
-                }
+                window.awz_helper.clearTimeoutsVariables();
 
                 var step = 50;
                 for(var k=0; k < (window.awz_helper.pagesize_total/step); k++){
                     var params_copy = Object.assign({},params);
                     params_copy['start'] = step*k;
-
                     batch_prepare.push({
                         'method':method,
                         'params':params_copy
                     });
-
                 }
 
                 window.awz_helper.prepared_ids_timeouts = [];
@@ -2536,7 +3187,7 @@ $(document).ready(function (){
                         var i = 0;
                         var selectIds = [];
                         window.awz_helper.prepared_ids = true;
-                        BX24.callBatch(batch_prepare, function(result)
+                        window.AwzBx24Proxy.callBatch(batch_prepare, function(result)
                         {
                             window.awz_helper.addBxTime(result);
                             var k;
@@ -2583,6 +3234,7 @@ $(document).ready(function (){
                     });
                 };
 
+                window.awz_helper.resize();
                 promBach(batch_prepare).then(function(ids){
                     fields['ufCrm'+smartId+'Elements'] = ids;
                     send_item(entityId, fields, smartId);
@@ -2603,6 +3255,94 @@ $(document).ready(function (){
                 send_item(entityId, fields, smartId);
             }
         },
+        prepareGroupListParams: function(){
+
+            //params['filter'] = window.awz_helper.replaceFilter(params['filter']);
+
+            var method = 'crm.item.list';
+            var params = {};
+            var check_order_upper = false;
+            var check_add_upper = false;
+            params['filter'] = this.lastFilter;
+            params['select'] = ['id'];
+            params['order'] = this.lastOrder;
+            var plc_info = BX24.placement.info();
+
+            if(this.gridOptions.PARAM_1 === 'TASK_USER_CRM'){
+                method = this.gridOptions.method_list;
+                params['select'] = ['ID'];
+                check_order_upper = true;
+                check_add_upper = true;
+                if(plc_info.placement){
+                    var entity_code_id = plc_info.placement.replace(/CRM_(.*)_DETAIL_TAB/g, "$1");
+                    if(entity_code_id === 'DEAL'){
+                        params['filter']['UF_CRM_TASK'] = 'D_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'LEAD'){
+                        params['filter']['UF_CRM_TASK'] = 'L_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'CONTACT'){
+                        params['filter']['UF_CRM_TASK'] = 'C_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'COMPANY'){
+                        params['filter']['UF_CRM_TASK'] = 'CO_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id.indexOf('DYNAMIC_')>-1){
+                        var tmp = entity_code_id.replace(/([^0-9])/g, "");
+                        params['filter']['UF_CRM_TASK'] = "T"+parseInt(tmp).toString(16)+'_'+plc_info.options.ID;
+                    }
+                }
+            }else if(this.gridOptions.PARAM_1 === 'TASK_USER'){
+                method = this.gridOptions.method_list;
+                params['select'] = ['ID'];
+                check_order_upper = true;
+                check_add_upper = true;
+            }else if(this.gridOptions.PARAM_1 === 'WORKS'){
+                method = this.gridOptions.method_list;
+                params['select'] = ['ID'];
+                check_order_upper = true;
+            }else if(this.gridOptions.PARAM_1 === 'EXT_TASK_USER'){
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                check_add_upper = true;
+            }else if(this.gridOptions.PARAM_1 === 'DOCS'){
+                method = this.gridOptions.method_list;
+            }else if(this.gridOptions.PARAM_1 === 'DOCS_CRM'){
+                method = this.gridOptions.method_list;
+                if(['DEAL','LEAD','CONTACT','COMPANY'].indexOf(this.gridOptions.PARAM_2)>-1 && plc_info.placement){
+                    params['filter']['entityId'] = plc_info.options.ID;
+                }
+            }else if(this.gridOptions.PARAM_1.indexOf('TASK_GROUP_')>-1){
+                method = this.gridOptions.method_list;
+                params['select'] = ['ID', 'GROUP_ID'];
+                check_order_upper = true;
+                check_add_upper = true;
+            }else if(this.gridOptions.PARAM_1 === 'TASK_GROUPS'){
+                method = this.gridOptions.method_list;
+                params['select'] = ['ID', 'GROUP_ID'];
+                params['filter']['GROUP_ID'] = plc_info.options.GROUP_ID;
+                check_order_upper = true;
+                check_add_upper = true;
+            }else if(this.gridOptions.PARAM_1.indexOf('DYNAMIC_')>-1){
+                method = this.gridOptions.method_list;
+                params['entityTypeId'] = this.smartId;
+            }else{
+                alert('неизвестная приложению сущность');
+                return;
+            }
+
+            //TODO не хватает сущностей для выборки всех
+            if(window.awz_helper.hasOwnProperty('addFilter') && typeof window.awz_helper.addFilter === 'object'){
+                var fl_key;
+                for(fl_key in window.awz_helper.addFilter){
+                    params['filter'][fl_key] = window.awz_helper.addFilter[fl_key];
+                }
+            }
+
+            params['filter'] = window.awz_helper.replaceFilter(params['filter']);
+
+            return [method, params, check_order_upper, check_add_upper];
+        },
         sleep: function sleep(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
         },
@@ -2613,7 +3353,37 @@ $(document).ready(function (){
             this.grid_ob.getParent().getActionsPanel().onChangeHandler(container);
             this.grid_ob.getParent().getActionsPanel().activateControl('default');*/
             this.reloadList();
+            this.clearTimeouts();
             //this.grid_ob.getParent().getActionsPanel().removeItemsRelativeCurrent(BX('base_action_select_control'));
+        },
+        openDialogCrmOne: function(controlId, entityIds, only_int){
+            var ent = entityIds.split(',');
+            var value = $('#'+controlId).val();
+            BX24.selectCRM({
+                entityType: ent,
+                multiple: false,
+                value: value
+            },function(res){
+                console.log(res);
+                var ids = [];
+                var k;
+                var j;
+                for(k in ent){
+                    if(res.hasOwnProperty(ent[k])){
+                        for(j in res[ent[k]]){
+                            var val = res[ent[k]][j].id;
+                            if (only_int){
+                                var val_tmp = val.split('_');
+                                if(val_tmp.length==2){
+                                    val = val_tmp[1];
+                                }
+                            }
+                            ids.push(val);
+                        }
+                    }
+                }
+                $('#'+controlId).val(ids.join(","));
+            });
         },
         openDialogCrm: function(controlId, entityIds){
             var ent = entityIds.split(',');
@@ -2661,14 +3431,127 @@ $(document).ready(function (){
 
             dialog.show();
 
+        },
+        popup: null,
+        getPopupFields: function getPopupFields(id, title) {
+            if (this.popup === null) {
+                var tmpDiv = BX.create("div");
+                tmpDiv.innerHTML = '<span>'+title+'</span>';
+                this.popup = new BX.PopupWindow(id, null, {
+                    titleBar: tmpDiv.firstChild.innerText,
+                    className: 'popup-window popup-window-with-titlebar popup-window-fixed-width',
+                    autoHide: true,
+                    overlay: 0.3,
+                    minWidth: 400,
+                    maxWidth: 800,
+                    maxHeight: 500,
+                    closeByEsc: true,
+                    buttons: [new BX.PopupWindowButton({
+                        text: 'закрыть',
+                        className: 'webform-small-button-blue webform-small-button',
+                        events: {
+                            click: function click() {
+                                this.popupWindow.close();
+                            }
+                        }
+                    })],
+                    events: {
+                        onPopupClose: function(){
+                            window.awz_helper.popup.destroy();
+                            window.awz_helper.popup = null;
+                        }
+                    }
+                });
+            }
+
+            return this.popup;
+        },
+        addCustomLink: function(){
+            var options = this.grid_ob.getParent().getUserOptions();
+            var actions = [{
+                action: 'custom',
+                data: [
+                    'add_link',
+                    $('#popup-window-content-settings-wrap-link').find('input[name="title"]').val(),
+                    $('#popup-window-content-settings-wrap-link').find('input[name="link"]').val()
+                ]
+            }];
+            options.batch(actions, function () {
+                window.awz_helper.grid_ob.getParent().reloadTable();
+            }.bind(window.awz_helper.grid_ob.getParent()));
+            if(this.popup !== null){
+                this.popup.close();
+                //this.popup.destroy();
+                this.popup = null;
+            }
+        },
+        rmCustomLink: function(key){
+            var options = window.awz_helper.grid_ob.getParent().getUserOptions();
+            var option = options.getOptions();
+            console.log(option);
+            var actions = [{
+                action: 'custom_rm',
+                data: option['custom'][key]
+            }];
+            options.batch(actions, function () {
+                window.awz_helper.grid_ob.getParent().reloadTable();
+            }.bind(window.awz_helper.grid_ob.getParent()));
+            if(this.popup !== null){
+                this.popup.close();
+                //this.popup.destroy();
+                this.popup = null;
+            }
         }
 
     }
 
+
     //$('#placement-sett #select-crm-entity-to')
+    $(document).on('click', '.awz-open-addlink', function(e){
+        e.preventDefault();
+
+        var options = window.awz_helper.grid_ob.getParent().getUserOptions().getOptions();
+
+        var ht = '<div class="form-link-current">';
+        if(options.hasOwnProperty('custom')){
+            var k;
+            for(k in options['custom']){
+                console.log(options['custom'][k]);
+                if(options['custom'][k][0] === 'add_link'){
+                    ht += '<div class="row">'+options['custom'][k][1]+'<br>'+options['custom'][k][2]+'<br><a onclick="window.awz_helper.rmCustomLink(\''+k+'\');return false;" href="#">удалить</a></div>';
+                }
+            }
+        }
+        ht += '</div>';
+        ht += '<div class="form-link"><div class="ui-ctl ui-ctl-textbox">\n' +
+            '    <input type="text" class="ui-ctl-element" name="title" placeholder="Текст на кнопке">\n' +
+            '</div></div>';
+        ht += '<div style="margin-top:5px;"><div class="ui-ctl ui-ctl-textbox">\n' +
+            '    <input type="text" class="ui-ctl-element" name="link" placeholder="Ссылка">\n' +
+            '</div></div>';
+        ht += '<div style="margin-top:5px;"><a href="#" onclick="window.awz_helper.addCustomLink();return false;" class="ui-btn ui-btn-sm ui-btn-success ui-btn-icon-success awz-save-link">добавить</a></div>';
+
+        var popup = window.awz_helper.getPopupFields('settings-wrap-link', 'Добавление кнопки');
+        popup.setContent(ht);
+        popup.show();
+
+    });
+    $(document).on('click', '.awz-open-fields', function(e){
+        e.preventDefault();
+        var ht = '';
+        var k;
+        for(k in window.awz_helper.placement_el_cache){
+            ht += '#'+k+'# - '+window.awz_helper.placement_el_cache[k]+'<br>';
+        }
+        var popup = window.awz_helper.getPopupFields('settings-wrap-field', 'Список полей для автозамены в фильтре и ссылках');
+        popup.setContent('<div class="fields-wrap">'+ht+'</div>');
+        popup.show();
+    });
     $(document).on('click', '.close_ids_change', function(e){
         e.preventDefault();
         window.awz_helper.prepared_ids = false;
+        window.awz_helper.canselGroupActions();
+        window.awz_helper.clearTimeoutsVariables();
     });
     $(document).on('change', '#placement-sett #select-crm-entity-to', function(e){
         //var c_val = $(this).val();

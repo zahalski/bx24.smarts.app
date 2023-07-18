@@ -31,8 +31,9 @@ if(Loader::includeModule('awz.bxapistats')){
 
 global $APPLICATION;
 $appId = 'app.63d6b637131902.97765356';
-if($_REQUEST['app']){
-    $appId = htmlspecialcharsEx(trim($_REQUEST['app']));
+$request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
+if($request->get('app')){
+    $appId = $request->get('app');
 }
 $app = new App(array(
    'APP_ID'=>$appId,
@@ -321,6 +322,9 @@ else
                                     <div class="ui-ctl-tag">тип сущности</div>
                                     <select class="ui-ctl-element" id="external-entity-manager-from">
                                         <option value="task">Задачи</option>
+                                        <option value="company">Компании</option>
+                                        <option value="contact">Контакты</option>
+                                        <option value="awzorm">AWZ: ORM Api</option>
                                     </select>
                                 </div>
                             </div>
@@ -337,7 +341,7 @@ else
 
                         </div>
                         <div class="row" style="margin-bottom:10px;">
-                            <input type="hidden" id="signed_add_form" name="signed" value="<?=$signedParameters?>">
+                            <input type="hidden" data-domain="<?=htmlspecialchars($app->getRequest()->get('DOMAIN'))?>" data-app="<?=$app->getConfig('APP_ID')?>" id="signed_add_form" name="signed" value="<?=$signedParameters?>">
                         </div>
                     </form>
                 </div>

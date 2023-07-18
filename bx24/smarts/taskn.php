@@ -11,14 +11,17 @@ require($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/interface/admin_lib.php'
 use Awz\Admin\Grid\Option as GridOptions;
 use Awz\Admin\IList;
 use Awz\Admin\IParams;
+use Awz\BxApi\Api\Filters\Request\SetFilter;
 use Awz\BxApi\TokensTable;
 use Bitrix\Main\Data\Cache;
 use Bitrix\Main\Loader;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Page\Asset;
-use Awz\bxApi\App;
-use Awz\bxApi\Helper;
+use Awz\BxApi\App;
+use Awz\BxApi\Helper;
 use Bitrix\Main\Web\Json;
+use Bitrix\Main\Application;
+use Awz\BxApi\Api\Filters\Request\ParseHook;
 
 if(!Loader::includeModule('awz.bxapi')){
     return;
@@ -26,6 +29,9 @@ if(!Loader::includeModule('awz.bxapi')){
 if(!Loader::includeModule('awz.admin')){
     return;
 }
+
+$request = Application::getInstance()->getContext()->getRequest();
+$request->addFilter(new ParseHook());
 
 $tracker = null;
 if(Loader::includeModule('awz.bxapistats')){
@@ -406,8 +412,8 @@ include($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/awz.admin/include/handler.php
 
 global $APPLICATION;
 $appId = 'app.63d6b637131902.97765356';
-if($_REQUEST['app']){
-    $appId = $_REQUEST['app'];
+if($request->get('app')){
+    $appId = $request->get('app');
 }
 $app = new App(array(
     'APP_ID'=>$appId,
@@ -564,7 +570,7 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
             $arParams['CURRENT_USER'] = $checkAuthMember;
             $hash = hash_hmac('sha256', $arParams['ADD_REQUEST_KEY'], $app->getConfig('APP_SECRET_CODE'));
             $arParams['ADD_REQUEST_KEY'] .= '|'.$hash;
-            $app->getRequest()->set('key', $arParams['ADD_REQUEST_KEY']);
+            $app->getRequest()->addFilter(new SetFilter('key', $arParams['ADD_REQUEST_KEY']));
 
             if($tracker){
                 $tracker->setPortal($checkAuthDomain)
@@ -681,7 +687,7 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
                         'IS_PINNED_IN_GROUP',
                     ];
                     if($arParams['GROUP_ID']){
-                        $disabledFields[] = 'GROUP_ID';
+                        //$disabledFields[] = 'GROUP_ID';
                     }
 
                     $app->setCacheParams($cacheId.'_0');
@@ -782,6 +788,9 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
                         "SELECT_PARAMS" => ["isMulti" => false]
                     );
                  * */
+                if($arParams['GROUP_ID'] && $obField->getColumnName()=='groupId') {
+                    continue;
+                }
                 if($obField instanceof \Bitrix\Main\ORM\Fields\IntegerField){
                     if($arParams['SMART_FIELDS'][$obField->getColumnName()]['type']=='group'){
                         $groups = PageList::getFromCacheSt('groups', $arParams['ADD_REQUEST_KEY']);

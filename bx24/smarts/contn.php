@@ -11,7 +11,6 @@ require($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/interface/admin_lib.php'
 use Awz\Admin\Grid\Option as GridOptions;
 use Awz\Admin\IList;
 use Awz\Admin\IParams;
-use Awz\BxApi\Api\Filters\Request\SetFilter;
 use Awz\BxApi\TokensTable;
 use Bitrix\Main\Data\Cache;
 use Bitrix\Main\Loader;
@@ -20,6 +19,7 @@ use Bitrix\Main\Page\Asset;
 use Awz\BxApi\App;
 use Awz\BxApi\Helper;
 use Bitrix\Main\Web\Json;
+use Awz\BxApi\Api\Filters\Request\SetFilter;
 use Bitrix\Main\Application;
 use Awz\BxApi\Api\Filters\Request\ParseHook;
 
@@ -40,12 +40,16 @@ if(Loader::includeModule('awz.bxapistats')){
 }
 
 $eventManager = \Bitrix\Main\EventManager::getInstance();
-$eventManager->addEventHandlerCompatible('main', 'OnEndBufferContent', array('WorksList', 'OnEndBufferContent'), false, 999);
+$eventManager->addEventHandlerCompatible('main', 'OnEndBufferContent', array('ContactList', 'OnEndBufferContent'), false, 999);
 
-class WorksList extends IList implements IParams {
+class ContactList extends IList implements IParams {
 
     public static $smartId;
-    public static $usersCache = [];
+
+    public static function getTitle(): string
+    {
+        return Loc::getMessage('AWZ_BXAPI_CURRENCY_CODES_LIST_TITLE');
+    }
 
     public static function OnEndBufferContent(&$content){
         $content = str_replace('parent.BX.ajax.','window.awz_ajax_proxy.', $content);
@@ -54,7 +58,7 @@ class WorksList extends IList implements IParams {
     public function __construct($params, $publicMode=false){
 
         if(!empty($params['SMART_FIELDS'])){
-            \Awz\Admin\WorksTable::$fields = $params['SMART_FIELDS'];
+            \Awz\Admin\ContactTable::$fields = $params['SMART_FIELDS'];
         }
         $params['TABLEID'] = $params['GRID_ID'];
         //$params['TABLEID'] = 'awz_smart__1_'.$params['SMART_ID'].'__2_'.$params['SMART_ID2'];
@@ -62,90 +66,9 @@ class WorksList extends IList implements IParams {
         parent::__construct($params, $publicMode);
     }
 
-    public static function getFromCacheSt($key, $keyapi){
-        $addKey = explode('|',$keyapi);
-        $cacheDir = '/awz/bxapi/'.$addKey[3];
-
-        $obCache = Cache::createInstance();
-        if($obCache->initCache(86400000,md5(implode([$addKey,$key])),$cacheDir)){
-            $res = $obCache->getVars();
-            if(!empty($res)) return $res;
-        }
-        return array();
-    }
-    public function getFromCache($key){
-        return self::getFromCacheSt($key, $this->getParam('ADD_REQUEST_KEY'));
-    }
-
-    public function setCache($key, $data){
-
-        $addKey = explode('|',$this->getParam('ADD_REQUEST_KEY'));
-        $cacheDir = '/awz/bxapi/'.$addKey[3];
-
-        $obCache = Cache::createInstance();
-        $obCache->clean(md5(implode([$addKey,$key])), $cacheDir);
-        if($obCache->initCache(86400000,md5(implode([$addKey,$key])),$cacheDir)){
-        }else if($obCache->startDataCache()){
-            $obCache->endDataCache($data);
-        }
-        return $data;
-
-    }
-
-    public function addUsersFromAdminResult(array $items = []){
-        foreach($items as $uid=>$item){
-            self::$usersCache[$uid] = [
-                'id'=>$uid,
-                'name'=>$item['NAME'].' '.$item['LAST_NAME'],
-                'link'=>'/company/personal/user/'.$uid.'/',
-                'icon'=>$item['PERSONAL_PHOTO'] ?? '/bitrix/js/ui/icons/b24/images/ui-user.svg?v2',
-            ];
-        }
-    }
-
-    public function getUserData(int $id = 0){
-        if(isset(self::$usersCache[$id])) {
-            return self::$usersCache[$id];
-        }
-        return [];
-    }
-
-    public function getUser(int $id = 0)
-    {
-        static $users = array();
-
-        if(!isset($users[$id])){
-            $request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
-            if($bx_result = $request->getPost('bx_result')){
-                if(isset($bx_result['users'][$id])){
-                    $users[$id] = $bx_result['users'][$id];
-                }
-            }
-        }
-        return $users[$id] ?? array();
-    }
-
-    public function getGroup(int $id = 0)
-    {
-        static $groups = array();
-
-        if(empty($groups)){
-            $request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
-            if($bx_result = $request->getPost('bx_result')){
-                if(isset($bx_result['groups'][$id])) {
-                    $groups = $this->setCache('groups',$bx_result['groups']);
-                }
-            }
-        }
-        if(empty($groups)){
-            $groups = $this->getFromCache('groups');
-        }
-
-        return $groups[$id] ?? array();
-    }
-
     public function trigerGetRowListAdmin($row){
         //print_r($row);
+        //die();
         \Awz\Admin\Helper::defTrigerList($row, $this);
 
         $entity = $this->getParam('ENTITY');
@@ -155,31 +78,55 @@ class WorksList extends IList implements IParams {
     public function trigerInitFilter(){
     }
 
-
     public function trigerGetRowListActions(array $actions): array
     {
         return $actions;
     }
 
-    public static function getTitle(): string
+    public function getUserData(int $id = 0){
+        //print_r(self::$usersCache);
+        //die();
+        if(isset(self::$usersCache[$id])) {
+            return self::$usersCache[$id];
+        }
+        return [];
+    }
+
+    public function getUser(int $id = 0)
     {
-        return Loc::getMessage('AWZ_BXAPI_CURRENCY_CODES_LIST_TITLE');
+
+        static $users = array();
+
+        if(!isset($users[$id])){
+            $request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
+            if($bx_result = $request->getPost('bx_result')){
+                if(isset($bx_result['users'][$id])){
+                    $users[$id] = $bx_result['users'][$id];
+                }else{
+                    $userData = $this->getUserData($id);
+                    if(isset($userData['name'])){
+                        $users[$id] = $userData['name'];
+                    }
+                }
+            }
+        }
+        return $users[$id] ?? array();
     }
 
     public static function getParams(): array
     {
         $arParams = [
             "PRIMARY"=>"ID",
-            "ENTITY" => "\\Awz\\Admin\\WorksTable",
+            "ENTITY" => "\\Awz\\Admin\\ContactTable",
             "BUTTON_CONTEXTS"=>[
-                /*[
+                [
                     'add'=> [
-                        'TEXT' => 'Добавить',
+                        'TEXT' => 'Добавить контакт',
                         'ICON' => '',
                         'LINK' => '',
                         'ONCLICK' => 'window.awz_helper.menuNewEl();return false;',
                     ]
-                ],*/
+                ],
                 [
                     'reload'=> [
                         'TEXT' => 'Обновить',
@@ -195,29 +142,8 @@ class WorksList extends IList implements IParams {
                     ]
                 ]
             ],
-            /*"ADD_GROUP_ACTIONS"=> [
-                "edit",
-                "delete"
-                "summ"=>[
-                     'key'=>"summ","title"=>"Посчитать сумму"
-                ]
-            ],*/
             "ADD_LIST_ACTIONS"=> [
                 "delete",
-                /*"edit_row"=> [
-                    "ICON"=>"edit",
-                    "DEFAULT"=>true,
-                    "TEXT"=>Loc::getMessage("MAIN_ADMIN_MENU_EDIT"),
-                    "TITLE"=>Loc::getMessage("MAIN_ADMIN_MENU_EDIT"),
-                    "ACTION"=>'#PRIMARY#'
-                ],*/
-                /*"copy_row"=> [
-                    "ICON"=>"edit",
-                    "DEFAULT"=>true,
-                    "TEXT"=>Loc::getMessage("MAIN_ADMIN_MENU_COPY"),
-                    "TITLE"=>Loc::getMessage("MAIN_ADMIN_MENU_COPY"),
-                    "ACTION"=>'#PRIMARY#'
-                ]*/
             ],
             "FIND"=> []
         ];
@@ -239,22 +165,26 @@ class WorksList extends IList implements IParams {
     }
 
     public function getAdminResult(){
+        //$request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
+        //echo'<pre>';print_r($_REQUEST);echo'</pre>';
+        //echo'<pre>';print_r($_POST);echo'</pre>';
         static $results;
         if(!$results){
             $request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
             if($bx_result = $request->getPost('bx_result')){
                 $results = $bx_result;
-                $this->addUsersFromAdminResult($results['users'] ?? []);
+                //$this->addUsersFromAdminResult($results['users'] ?? []);
             }
         }
         return $results;
     }
 
-
     public function getAdminRow(){
         $n = 0;
         $pageSize = $this->getAdminList()->getNavSize();
         $res = $this->getAdminResult();
+        //print_r($res);
+        //die();
         $ost = 0;
         if(isset($res['next'])){
             $ost = fmod($res['next'],50);
@@ -262,6 +192,7 @@ class WorksList extends IList implements IParams {
         }
         if(isset($res['items'])){
             foreach ($res['items'] as $row){
+                //echo'<pre>';print_r($row);echo'</pre>';
                 if(empty($row)) continue;
                 //$row['id'] = 'n: '.$n.', ost: '.$ost.', pageSize: '.$pageSize;
                 //echo'<pre>';print_r($row);echo'</pre>';
@@ -285,8 +216,6 @@ class WorksList extends IList implements IParams {
         $this->getAdminList()->setNavigation($nav, Loc::getMessage($this->getParam("LANG_CODE")."NAV_TEXT"), false);
 
     }
-
-
 
     public function defaultPublicInterface(){
 
@@ -329,6 +258,7 @@ class WorksList extends IList implements IParams {
                             <?
                             $gridOptions = new GridOptions($this->getParam('TABLEID'));
                             $sort = $gridOptions->getSorting(['sort'=>[$this->getParam('PRIMARY') =>'desc']]);
+                            $_EXT_PARAMS = $this->getParam('EXT_PARAMS');
                             ?>
                             <?if($this->getParam('SMART_ID2')){
                             $codes = Helper::entityCodes();
@@ -342,9 +272,11 @@ class WorksList extends IList implements IParams {
                             }
                             ?>
                             <?}?>
+                            <?if(isset($_EXT_PARAMS[1])){?>window.awz_helper.extUrl = '<?=$_EXT_PARAMS[1]?>';<?}?>
                             window.awz_helper.currentUserId = '<?=$this->getParam('CURRENT_USER')?>';
                             window.awz_helper.lastOrder = <?=\CUtil::PhpToJSObject($sort['sort'])?>;
                             window.awz_helper.fields = <?=\CUtil::PhpToJSObject($this->getParam('SMART_FIELDS'))?>;
+                            window.awz_helper.fields_select = <?=\CUtil::PhpToJSObject($this->getParam('SMART_FIELDS_SELECT'))?>;
                             window.awz_helper.filter_dates = <?=\CUtil::PhpToJSObject(\Awz\Admin\Helper::getDates())?>;
                             window.awz_helper.init(
                                 '<?=$this->getParam('ADD_REQUEST_KEY')?>',
@@ -364,7 +296,7 @@ class WorksList extends IList implements IParams {
     }
 }
 
-use WorksList as PageList;
+use ContactList as PageList;
 
 $arParams = PageList::getParams();
 
@@ -502,15 +434,22 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
             $gridOptions = $loadParamsEntityData['options'];
 
             $arParams['GRID_OPTIONS'] = $gridOptions;
-            $arParams['GRID_OPTIONS']['method_list'] = 'crm.activity.list';
-            $arParams['GRID_OPTIONS']['method_delete'] = 'crm.activity.delete';
-            $arParams['GRID_OPTIONS']['method_update'] = 'crm.activity.update';
-            $arParams['GRID_OPTIONS']['method_add'] = 'crm.activity.add';
+            $arParams['GRID_OPTIONS']['method_list'] = 'crm.contact.list';
+            $arParams['GRID_OPTIONS']['method_delete'] = 'crm.contact.delete';
+            $arParams['GRID_OPTIONS']['method_update'] = 'crm.contact.update';
+            $arParams['GRID_OPTIONS']['method_add'] = 'crm.contact.add';
             $arParams['GRID_OPTIONS']['result_key'] = '-';
             $arParams['SMART_ID'] = $gridOptions['PARAM_1'] ?? "";
             //Для всех документов типа сущности
             //$arParams['SMART_ID2'] = $gridOptions['PARAM_2'] ?? "";
-            //$arParams['GRID_OPTIONS']['key'] = '1';
+            //$arParams['GRID_OPTIONS']['cache_key'] = time();
+            //вшешние задачи
+            if($extWebHook = $app->getRequest()->get('ext')){
+                $arParams['EXT_PARAMS'] = [
+                    'task',
+                    'https://'.$extWebHook
+                ];
+            }
         }
 
         //TASK_GROUP_
@@ -552,164 +491,66 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
                 }
 
                 $app->setCacheParams($cacheId);
-                $bxRowsResFields = $app->postMethod('crm.activity.fields');
-                //die();
 
+                if(!empty($arParams['EXT_PARAMS'])){
+                    $bxRowsResFields = $app->postMethod($arParams['EXT_PARAMS'][1].'crm.contact.fields');
+                }else{
+                    $bxRowsResFields = $app->postMethod('crm.contact.fields');
+                }
+
+                //echo'<pre>';print_r($bxRowsResFields);echo'</pre>';
+                //die();
                 //$entCodes = Helper::entityCodes();
 
+                $cacheKey = 3;
                 if($bxRowsResFields->isSuccess()){
 
                     $bxFields = $bxRowsResFields->getData();
                     $allFields = $bxFields['result']['result'];
 
-                    $app->setCacheParams($cacheId.'_3');
-                    $statusEnumRes = $app->postMethod('crm.enum.activitystatus');
-                    if($statusEnumRes->isSuccess()){
-                        $statusEnumResData = $statusEnumRes->getData();
-
-                        $allFields['STATUS']['values'] = [];
-                        $allFields['STATUS']['type'] = 'enum';
-                        foreach($statusEnumResData['result']['result'] as $stage){
-                            if($stage['ID'])
-                                $allFields['STATUS']['values'][$stage['ID']] = $stage['NAME'];
+                    foreach($allFields as &$field){
+                        if($field['type'] === 'crm_status' && isset($field['statusType']) && $field['statusType']){
+                            $cacheKey++;
+                            $app->setCacheParams($cacheId.'_'.$cacheKey);
+                            $statusEnumRes = $app->postMethod('crm.status.entity.items',['entityId'=>$field['statusType']]);
+                            $field['values'] = [];
+                            if($statusEnumRes->isSuccess()){
+                                $statusEnumResData = $statusEnumRes->getData();
+                                foreach($statusEnumResData['result']['result'] as $stage){
+                                    if($stage['STATUS_ID'])
+                                        $field['values'][$stage['STATUS_ID']] = $stage['NAME'];
+                                }
+                            }
                         }
                     }
+                    unset($field);
 
-                    $app->setCacheParams($cacheId.'_4');
-                    $statusEnumRes = $app->postMethod('crm.enum.ownertype');
-                    if($statusEnumRes->isSuccess()){
-                        $statusEnumResData = $statusEnumRes->getData();
-
-                        $allFields['OWNER_TYPE_ID']['values'] = [];
-                        $allFields['OWNER_TYPE_ID']['type'] = 'enum';
-                        foreach($statusEnumResData['result']['result'] as $stage){
-                            if($stage['ID'])
-                                $allFields['OWNER_TYPE_ID']['values'][$stage['ID']] = $stage['NAME'];
-                        }
-                    }
-
-                    $app->setCacheParams($cacheId.'_5');
-                    $statusEnumRes = $app->postMethod('crm.enum.activitytype');
-                    if($statusEnumRes->isSuccess()){
-                        $statusEnumResData = $statusEnumRes->getData();
-
-                        $allFields['TYPE_ID']['values'] = [];
-                        $allFields['TYPE_ID']['type'] = 'enum';
-                        foreach($statusEnumResData['result']['result'] as $stage){
-                            if($stage['ID'])
-                                $allFields['TYPE_ID']['values'][$stage['ID']] = $stage['NAME'];
-                        }
-                    }
-
-                    $app->setCacheParams($cacheId.'_6');
-                    $statusEnumRes = $app->postMethod('crm.enum.activitypriority');
-                    if($statusEnumRes->isSuccess()){
-                        $statusEnumResData = $statusEnumRes->getData();
-
-                        $allFields['PRIORITY']['values'] = [];
-                        $allFields['PRIORITY']['type'] = 'enum';
-                        foreach($statusEnumResData['result']['result'] as $stage){
-                            if($stage['ID'])
-                                $allFields['PRIORITY']['values'][$stage['ID']] = $stage['NAME'];
-                        }
-                    }
-
-                    $app->setCacheParams($cacheId.'_7');
-                    $statusEnumRes = $app->postMethod('crm.enum.activitydirection');
-                    if($statusEnumRes->isSuccess()){
-                        $statusEnumResData = $statusEnumRes->getData();
-
-                        $allFields['DIRECTION']['values'] = [];
-                        $allFields['DIRECTION']['type'] = 'enum';
-                        foreach($statusEnumResData['result']['result'] as $stage){
-                            if($stage['ID'])
-                                $allFields['DIRECTION']['values'][$stage['ID']] = $stage['NAME'];
-                        }
-                    }
-
-                    $app->setCacheParams($cacheId.'_8');
-                    $statusEnumRes = $app->postMethod('crm.enum.activitypriority');
-                    if($statusEnumRes->isSuccess()){
-                        $statusEnumResData = $statusEnumRes->getData();
-
-                        $allFields['PRIORITY']['values'] = [];
-                        $allFields['PRIORITY']['type'] = 'enum';
-                        foreach($statusEnumResData['result']['result'] as $stage){
-                            if($stage['ID'])
-                                $allFields['PRIORITY']['values'][$stage['ID']] = $stage['NAME'];
-                        }
-                    }
                     //echo'<pre>';print_r($allFields);echo'</pre>';
+                    //die();
 
-                    $activeFields = [
-                            'ID',
-                            'OWNER_ID',
-                            'OWNER_TYPE_ID',
-                            'TYPE_ID',
-                            'PROVIDER_ID',
-                            'PROVIDER_TYPE_ID',
-                            'PROVIDER_GROUP_ID',
-                            'ASSOCIATED_ENTITY_ID',
-                            'SUBJECT',
-                            'START_TIME',
-                            'END_TIME',
-                            'DEADLINE',
-                            'COMPLETED',
-                            'STATUS',
-                            'RESPONSIBLE_ID',
-                            'PRIORITY',
-                            //'NOTIFY_TYPE',
-                            //'NOTIFY_VALUE',
-                            //'DESCRIPTION',
-                            //'DESCRIPTION_TYPE',
-                            'DIRECTION',
-                            //'LOCATION',
-                            'CREATED',
-                            'AUTHOR_ID',
-                            'LAST_UPDATED',
-                            'EDITOR_ID',
-                            //'SETTINGS',
-                            'ORIGIN_ID',
-                            'ORIGINATOR_ID',
-                            //'RESULT_STATUS',
-                            //'RESULT_STREAM',
-                            //'RESULT_SOURCE_ID',
-                            //'PROVIDER_PARAMS',
-                            //'PROVIDER_DATA',
-                            //'RESULT_MARK',
-                            //'RESULT_VALUE',
-                            //'RESULT_SUM',
-                            //'RESULT_CURRENCY_ID',
-                            //'AUTOCOMPLETE_RULE',
-                            //'BINDINGS',
-                            //'COMMUNICATIONS',
-                            'FILES',
-                            'WEBDAV_ELEMENTS',
-                            'IS_INCOMING_CHANNEL'
+                    $deActiveFields = [
+                        /*'ADDRESS','ADDRESS_2','ADDRESS_CITY','ADDRESS_POSTAL_CODE','ADDRESS_REGION',
+                        'ADDRESS_PROVINCE','ADDRESS_COUNTRY','ADDRESS_COUNTRY_CODE','ADDRESS_LOC_ADDR_ID',
+                        'ADDRESS_LEGAL','REG_ADDRESS','REG_ADDRESS_2','REG_ADDRESS_CITY','REG_ADDRESS_POSTAL_CODE',
+                        'REG_ADDRESS_REGION','REG_ADDRESS_PROVINCE','REG_ADDRESS_COUNTRY','REG_ADDRESS_COUNTRY_CODE',
+                        'REG_ADDRESS_LOC_ADDR_ID','BANKING_DETAILS'*/
                     ];
+                    $activeFields = [];
                     $finFields = [];
                     foreach($allFields as $key=>&$field){
-                        if($field['type'] == 'char') $field['type'] = 'string';
-                        if($key == 'BINDINGS'){
-                            $field['type'] = 'string';
-                        }
-                        if($key == 'COMMUNICATIONS'){
-                            $field['type'] = 'string';
-                        }
-                        if($key == 'COMPLETED'){
+                        if($field['type'] == 'char') {
                             $field['type'] = 'enum';
                             $field['values'] = ['Y'=>'да','N'=>'нет'];
-                        }
-                        if($key == 'IS_INCOMING_CHANNEL'){
-                            $field['type'] = 'enum';
-                            $field['values'] = ['Y'=>'да','N'=>'нет'];
-                        }
-                        if($key == 'ID'){
-                            $field['noLink'] = true;
                         }
                         $field['sort'] = $key;
-                        if(in_array($key, $activeFields))
+                        if(isset($field['listLabel'])){
+                            $field['title'] = $field['listLabel'];
+                        }
+                        if(!in_array($key, $deActiveFields)){
                             $finFields[$key] = $field;
+                            $selectFormatFields[] = $key;
+                        }
+
                     }
                     $allFields = $finFields;
                     unset($field);
@@ -736,7 +577,8 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
                         $app->cleanCache($cacheId.'_1');
                     }
 
-                    $arParams['SMART_FIELDS'] = $allFields;
+                    $arParams['SMART_FIELDS'] = $finFields;
+                    $arParams['SMART_FIELDS_SELECT'] = $selectFormatFields;
 
                 }else{
                     $app->cleanCache($cacheId);
@@ -750,7 +592,8 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
             PageList::$smartId = $arParams['SMART_ID'];
             $adminCustom = new PageList($arParams, true);
 
-            $fields = \Awz\Admin\WorksTable::getMap();
+            $fields = \Awz\Admin\ContactTable::getMap();
+            //echo'<pre>';print_r($allFields);echo'</pre>';
             //$fields = $arParams['SMART_FIELDS'];
             $addFilters = [];
             foreach($fields as $obField){
@@ -775,7 +618,7 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
             }
 
             foreach($arParams['FIND'] as &$field){
-                if($field['id'] == 'STATUS'){
+                /*if($field['id'] == 'STATUS'){
                     $field['params']['multiple'] = 'Y';
                 }
                 if($field['id'] == 'OWNER_TYPE_ID'){
@@ -786,7 +629,7 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
                 }
                 if($field['id'] == 'PRIORITY'){
                     $field['params']['multiple'] = 'Y';
-                }
+                }*/
             }
             foreach($addFilters as $f){
                 $arParams['FIND'][] = $f;

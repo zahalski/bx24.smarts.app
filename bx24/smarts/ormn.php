@@ -185,6 +185,15 @@ class OrmList extends IList implements IParams {
         }
         if(isset($res['items'])){
             foreach ($res['items'] as $row){
+                $addRows = [];
+                foreach($row as $k=>$v){
+                    if(mb_strpos($k,'___')!==false){
+                        $addRows[str_replace('___','.',$k)] = $v;
+                    }
+                }
+                foreach($addRows as $k=>$v){
+                    $row[$k] = $v;
+                }
                 //echo'<pre>';print_r($row);echo'</pre>';
                 if(empty($row)) continue;
                 //$row['id'] = 'n: '.$n.', ost: '.$ost.', pageSize: '.$pageSize;
@@ -439,7 +448,7 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
             $arParams['SMART_ID'] = $gridOptions['PARAM_1'] ?? "";
             //Для всех документов типа сущности
             //$arParams['SMART_ID2'] = $gridOptions['PARAM_2'] ?? "";
-            $arParams['GRID_OPTIONS']['cache_key'] = time();
+            //$arParams['GRID_OPTIONS']['cache_key'] = time();
             //вшешние задачи
             if($extWebHook = $app->getRequest()->get('ext')){
                 $arParams['EXT_PARAMS'] = [

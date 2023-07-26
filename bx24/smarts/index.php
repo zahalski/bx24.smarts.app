@@ -324,6 +324,7 @@ else
                                         <option value="task">Задачи</option>
                                         <option value="company">Компании</option>
                                         <option value="contact">Контакты</option>
+                                        <option value="deal">Сделки</option>
                                         <option value="awzorm">AWZ: ORM Api</option>
                                     </select>
                                 </div>

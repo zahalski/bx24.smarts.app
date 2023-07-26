@@ -864,6 +864,7 @@ $(document).ready(function (){
                             if($(this).attr('value') && $(this).attr('value')==='EXT_TASK_USER') $(this).remove();
                             if($(this).attr('value') && $(this).attr('value')==='EXT_COMPANY') $(this).remove();
                             if($(this).attr('value') && $(this).attr('value')==='EXT_CONTACT') $(this).remove();
+                            if($(this).attr('value') && $(this).attr('value')==='EXT_DEAL') $(this).remove();
                             if($(this).attr('value') && $(this).attr('value')==='DOCS_CRM') $(this).remove();
                             if($(this).attr('value') && $(this).attr('value')==='TASK_GROUPS') $(this).remove();
                         });
@@ -966,6 +967,8 @@ $(document).ready(function (){
                                 url_code = 'cmp';
                             }else if(smart === 'CONTACT'){
                                 url_code = 'cont';
+                            }else if(smart === 'DEAL'){
+                                url_code = 'deal';
                             }else if(smart === 'TASK_USER'){
                                 url_code = 'task';
                             }else if(smart === 'TASK_USER_CRM'){
@@ -980,6 +983,8 @@ $(document).ready(function (){
                                 url_code = 'cmp';
                             }else if(smart.indexOf('EXT_CONTACT_')>-1){
                                 url_code = 'cont';
+                            }else if(smart.indexOf('EXT_DEAL_')>-1){
+                                url_code = 'deal';
                             }else if(smart.indexOf('EXT_AWZORM_')>-1){
                                 url_code = 'orm';
                             }
@@ -996,6 +1001,8 @@ $(document).ready(function (){
                                 grid_key += '1_EXT_COMPANY__2_'+smart_to;
                             }else if(smart.indexOf('EXT_CONTACT_')>-1){
                                 grid_key += '1_EXT_CONTACT__2_'+smart_to;
+                            }else if(smart.indexOf('EXT_DEAL_')>-1){
+                                grid_key += '1_EXT_DEAL__2_'+smart_to;
                             }else if(smart.indexOf('EXT_AWZORM_')>-1){
                                 grid_key += '1_'+smart.replace(/_e_.*/g,"")+'__2_'+smart_to;
                             }else{
@@ -1019,6 +1026,7 @@ $(document).ready(function (){
                             if(smart.indexOf('EXT_TASK_USER_')>-1 ||
                                 smart.indexOf('EXT_COMPANY_')>-1 ||
                                 smart.indexOf('EXT_CONTACT_')>-1 ||
+                                smart.indexOf('EXT_DEAL_')>-1 ||
                                 smart.indexOf('EXT_AWZORM_')>-1
                             ){
                                 $('#placement-sett-manager-from').find('option').each(function(){
@@ -1194,17 +1202,20 @@ $(document).ready(function (){
                 'CONTACT':{
                     'title': 'Контакты'
                 },
+                'DEAL':{
+                    'title': 'Сделки'
+                },
                 'COMPANY':{
                     'title': 'Компании'
-                },
-                'CONTACT':{
-                    'title': 'Контакты'
                 },
                 'EXT_COMPANY':{
                     'title': 'Компании (внешние)'
                 },
                 'EXT_CONTACT':{
                     'title': 'Контакты (внешние)'
+                },
+                'EXT_DEAL':{
+                    'title': 'Сделки (внешние)'
                 },
                 'TASK_USER':{
                     'title': 'Задачи'
@@ -1343,6 +1354,10 @@ $(document).ready(function (){
                         'title':linksSmart['CONTACT'].title
                     });
                     placementManager.appendFrom({
+                        'value':'DEAL',
+                        'title':linksSmart['DEAL'].title
+                    });
+                    placementManager.appendFrom({
                         'value':'DOCS_CRM',
                         'title':linksSmart['DOCS_CRM'].title
                     });
@@ -1396,6 +1411,14 @@ $(document).ready(function (){
                                     'data-code':items_ext[k_ext]+'---'+k_ext
                                 });
                                 title = linksSmart['EXT_CONTACT'].title + portal;
+                                append = true;
+                            }else if(extItem[0] === 'deal'){
+                                placementManager.appendFrom({
+                                    'value':'EXT_DEAL_'+k_ext,
+                                    'title':linksSmart['EXT_DEAL'].title + portal,
+                                    'data-code':items_ext[k_ext]+'---'+k_ext
+                                });
+                                title = linksSmart['EXT_DEAL'].title + portal;
                                 append = true;
                             }else if(extItem[0] === 'awzorm'){
 
@@ -1551,12 +1574,22 @@ $(document).ready(function (){
                                                         if(gridParams.hasOwnProperty('2') && gridParams['2']){
                                                             code_to = gridParams['2'];
                                                         }
+                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'DEAL'){
+                                                        code = gridParams['1'];
+                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
+                                                            code_to = gridParams['2'];
+                                                        }
                                                     }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'EXT_COMPANY'){
                                                         code = gridParams['1'];
                                                         if(gridParams.hasOwnProperty('2') && gridParams['2']){
                                                             code_to = gridParams['2'];
                                                         }
                                                     }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'EXT_CONTACT'){
+                                                        code = gridParams['1'];
+                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
+                                                            code_to = gridParams['2'];
+                                                        }
+                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'EXT_DEAL'){
                                                         code = gridParams['1'];
                                                         if(gridParams.hasOwnProperty('2') && gridParams['2']){
                                                             code_to = gridParams['2'];
@@ -1637,6 +1670,8 @@ $(document).ready(function (){
                                                         code = 'EXT_COMPANY';
                                                     }else if(placement['handler'].indexOf('smartId=EXT_CONTACT')>-1){
                                                         code = 'EXT_CONTACT';
+                                                    }else if(placement['handler'].indexOf('smartId=EXT_DEAL')>-1){
+                                                        code = 'EXT_DEAL';
                                                     }else if(placement['handler'].indexOf('smartId=DOCS')>-1){
                                                         code = 'DOCS';
                                                     }else if(placement['handler'].indexOf('smartId=WORKS')>-1){
@@ -1693,6 +1728,11 @@ $(document).ready(function (){
                                                 if(code === 'EXT_CONTACT'){
                                                     item = {
                                                         'title':linksSmart['EXT_CONTACT'].title+' - '+placement['handler'].replace(/.*ext=(.*)\/rest\/.*/g,"$1")
+                                                    };
+                                                }
+                                                if(code === 'EXT_DEAL'){
+                                                    item = {
+                                                        'title':linksSmart['EXT_DEAL'].title+' - '+placement['handler'].replace(/.*ext=(.*)\/rest\/.*/g,"$1")
                                                     };
                                                 }
                                                 //if(code.indexOf('EXT_AWZORM_')>-1){
@@ -2047,9 +2087,13 @@ $(document).ready(function (){
                 method = this.gridOptions.method_list;
             }else if(this.gridOptions.PARAM_1 === 'CONTACT'){
                 method = this.gridOptions.method_list;
+            }else if(this.gridOptions.PARAM_1 === 'DEAL'){
+                method = this.gridOptions.method_list;
             }else if(this.gridOptions.PARAM_1 === 'EXT_COMPANY'){
                 method = this.gridOptions.method_list;
             }else if(this.gridOptions.PARAM_1 === 'EXT_CONTACT'){
+                method = this.gridOptions.method_list;
+            }else if(this.gridOptions.PARAM_1 === 'EXT_DEAL'){
                 method = this.gridOptions.method_list;
             }else if(this.gridOptions.PARAM_1.indexOf('EXT_AWZORM_')>-1){
                 method = this.gridOptions.method_list;
@@ -2511,7 +2555,7 @@ $(document).ready(function (){
                             'taskId':data['ID'][k]
                         }
                     });
-                }else if(['DOCS','COMPANY','CONTACT','EXT_COMPANY','EXT_CONTACT','DOCS_CRM','WORKS'].indexOf(this.gridOptions.PARAM_1)>-1){
+                }else if(['DOCS','COMPANY','CONTACT','DEAL','EXT_COMPANY','EXT_CONTACT','EXT_DEAL','DOCS_CRM','WORKS'].indexOf(this.gridOptions.PARAM_1)>-1){
                     batch.push({
                         'method':this.gridOptions.method_delete,
                         'params':{
@@ -2668,7 +2712,7 @@ $(document).ready(function (){
                             'fields':itm
                         }
                     });
-                }else if(['WORKS','COMPANY','EXT_COMPANY','CONTACT','EXT_CONTACT'].indexOf(this.gridOptions.PARAM_1)>-1){
+                }else if(['WORKS','COMPANY','EXT_COMPANY','CONTACT','EXT_CONTACT','DEAL','EXT_DEAL'].indexOf(this.gridOptions.PARAM_1)>-1){
                     batch.push({
                         'method':this.gridOptions.method_update,
                         'params':{
@@ -2893,10 +2937,14 @@ $(document).ready(function (){
                 window.AwzBx24Proxy.openPath('/crm/company/details/0/');
             }else if(this.gridOptions.PARAM_1 === 'CONTACT'){
                 window.AwzBx24Proxy.openPath('/crm/contact/details/0/');
+            }else if(this.gridOptions.PARAM_1 === 'DEAL'){
+                window.AwzBx24Proxy.openPath('/crm/deal/details/0/');
             }else if(this.gridOptions.PARAM_1 === 'EXT_COMPANY'){
                 window.AwzBx24Proxy.openPath('/crm/company/details/0/');
             }else if(this.gridOptions.PARAM_1 === 'EXT_CONTACT'){
                 window.AwzBx24Proxy.openPath('/crm/contact/details/0/');
+            }else if(this.gridOptions.PARAM_1 === 'EXT_DEAL'){
+                window.AwzBx24Proxy.openPath('/crm/deal/details/0/');
             }
         },
         rmCache: function(){
@@ -3624,11 +3672,19 @@ $(document).ready(function (){
                 method = this.gridOptions.method_list;
                 params['select'] = ['ID'];
                 check_order_upper = true;
+            }else if(this.gridOptions.PARAM_1 === 'DEAL'){
+                method = this.gridOptions.method_list;
+                params['select'] = ['ID'];
+                check_order_upper = true;
             }else if(this.gridOptions.PARAM_1 === 'EXT_COMPANY'){
                 method = this.gridOptions.method_list;
                 params['select'] = ['ID'];
                 check_order_upper = true;
             }else if(this.gridOptions.PARAM_1 === 'EXT_CONTACT'){
+                method = this.gridOptions.method_list;
+                params['select'] = ['ID'];
+                check_order_upper = true;
+            }else if(this.gridOptions.PARAM_1 === 'EXT_DEAL'){
                 method = this.gridOptions.method_list;
                 params['select'] = ['ID'];
                 check_order_upper = true;
@@ -3975,8 +4031,10 @@ $(document).ready(function (){
         }
         if(ent === 'COMPANY') ent = 'company';
         if(ent === 'CONTACT') ent = 'contact';
+        if(ent === 'DEAL') ent = 'deal';
         if(ent === 'EXT_COMPANY') ent = 'company';
         if(ent === 'EXT_CONTACT') ent = 'contact';
+        if(ent === 'EXT_DEAL') ent = 'deal';
         var path = '';
         if(ent === 'task'){
             path = '/company/personal/user/0/tasks/task/view/'+id+'/';

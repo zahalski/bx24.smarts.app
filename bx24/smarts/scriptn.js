@@ -1,7 +1,9 @@
+'use strict';
 function AwzBx24PageManager(){};
 AwzBx24PageManager.prototype = {
     init: function(options){
         this.initHandlers();
+        window.AwzBx24PageManager_ob = this;
         return this;
     },
     hidePages: function(){
@@ -33,7 +35,10 @@ AwzBx24PageManager.prototype = {
     },
     scrollTop: function(){
         $('html').scrollTop(0);
-        BX24.scrollParentWindow(0);
+        try{
+            BX24.scrollParentWindow(0);
+        }catch (e) {
+        }
     },
     showMessage: function(msg, el){
         if(!el) el = $('.result-block-messages');
@@ -51,6 +56,61 @@ AwzBx24PageManager.prototype = {
                 parent.find('.ui-block-content').addClass('active');
                 $(this).html('Свернуть');
             }
+        });
+        $(document).on('click','.awz-handler-slide',function(e){
+            if(!!e) e.preventDefault();
+            var data = $(this).data();
+            var url = $(this).attr('href');
+            if($(this).attr('data-page')){
+                url = '/bx24/smarts/pages/'+$(this).attr('data-page')+'.php';
+            }
+            BX.SidePanel.Instance.open(
+                url,
+                {
+                    requestMethod: 'post',
+                    requestParams: data,
+                    cacheable: false
+                }
+            );
+            window.AwzBx24PageManager_ob.scrollTop();
+        });
+        $(document).on('click','.awz-handler-slide-content',function(e){
+            if(!!e) e.preventDefault();
+            window.AwzBx24PageManager_ob.query_data = $(this).data();
+            window.AwzBx24PageManager_ob.query_data['html'] = 'Y';
+            window.AwzBx24PageManager_ob.url = '/bx24/smarts/pages/'+$(this).attr('data-page')+'.php';
+            BX.SidePanel.Instance.open(
+                md5(window.AwzBx24PageManager_ob.url),
+                {
+                    contentCallback: function(slider){
+                        return new Promise((resolve, reject) => {
+                            $.ajax({
+                                url: window.AwzBx24PageManager_ob.url,
+                                data: window.AwzBx24PageManager_ob.query_data,
+                                dataType : "html",
+                                type: "POST",
+                                CORS: false,
+                                crossDomain: true,
+                                timeout: 180000,
+                                async: false,
+                                success: function (data, textStatus){
+                                    window.AwzBx24PageManager_ob.scrollTop();
+                                    resolve({ html: '<div class="slide_side_slider"><div class="workarea">'+data+'</div></div>' });
+                                },
+                                error: function (err){
+                                    window.AwzBx24PageManager_ob.scrollTop();
+                                    resolve({
+                                        html: '<div class="slide_side_slider"><div class="workarea">Ошибка загрузки страницы с сервиса приложения</div></div>',
+                                        message: 'app error',
+                                        type: 'error'
+                                    });
+                                }
+                            });
+                        });
+                    },
+                    cacheable: false
+                }
+            );
         });
     }
 };
@@ -318,18 +378,1216 @@ AwzBx24PlacementManager.prototype = {
         });
     },
 };
+function AwzBx24EntityLoader(){};
+AwzBx24EntityLoader.prototype = {
+    cashed: {},
+    clearCache: function(){
+        this.cashed = {};
+    },
+    entKeys: {
+        'awz_employee':{
+            'caption': 'сотрудник','short':'',
+            'tab':'Сотрудники',
+            'alias':['EMPLOYEE','crm_employee','employee'],
+            'm_list':'user.get',
+            'm_search':'user.get',
+            'm_list_params':'{\'filter\':{\'ID\':#IDS#,\'USER_TYPE\':"employee"},\'start\':-1}',
+            'm_search_params':'{\'filter\':{\'NAME_SEARCH\':"#QUERY#",\'USER_TYPE\':"employee"},\'start\':-1}',
+        },
+        'awz_user':{
+            'caption': 'пользователь','short':'',
+            'tab':'Пользователь',
+            'alias':['USER','crm_user','user'],
+            'm_list':'user.get',
+            'm_search':'user.get',
+            'm_list_params':'{\'filter\':{\'ID\':#IDS#,\'USER_TYPE\':"employee"},\'start\':-1}',
+            'm_search_params':'{\'filter\':{\'NAME_SEARCH\':"#QUERY#"},\'start\':-1}',
+        },
+        'group':{
+            'caption': 'группа','short':'',
+            'tab':'Группа',
+            'alias':['GROUP','awz_group'],
+            'm_list':'sonet_group.get',
+            'm_search':'sonet_group.get',
+            'm_list_params':'{\'FILTER\':{\'ID\':#IDS#},\'start\':-1}',
+            'm_search_params':'{\'FILTER\':{\'%NAME\':"#QUERY#"},\'start\':-1}',
+        },
+        'company':{
+            'caption': 'компания','short':'CO',
+            'tab':'Компании',
+            'alias':['COMPANY','crm_company'],
+            'm_list':'crm.company.list',
+            'm_search':'crm.company.list',
+            'm_list_params':'{\'filter\':{\'ID\':#IDS#},\'start\':-1,\'select\':[\'ID\',\'TITLE\',\'DATE_CREATE\']}',
+            'm_search_params':'{\'filter\':{\'%TITLE\':"#QUERY#"},\'start\':-1,\'select\':[\'ID\',\'TITLE\',\'DATE_CREATE\']}',
+        },
+        'quote':{
+            'caption': 'предложение','short':'Q',
+            'tab':'Предложения',
+            'alias':['QUOTE','crm_quote'],
+            'm_list':'crm.quote.list',
+            'm_search':'crm.quote.list',
+            'm_list_params':'{\'filter\':{\'ID\':#IDS#},\'start\':-1,\'select\':[\'ID\',\'TITLE\',\'DATE_CREATE\',\'OPPORTUNITY\',\'CURRENCY_ID\']}',
+            'm_search_params':'{\'filter\':{\'%TITLE\':"#QUERY#"},\'start\':-1,\'select\':[\'ID\',\'TITLE\',\'DATE_CREATE\',\'OPPORTUNITY\',\'CURRENCY_ID\']}',
+        },
+        'contact':{
+            'caption': 'контакт','short':'C',
+            'tab':'Контакты',
+            'alias':['CONTACT','crm_contact'],
+            'm_list':'crm.contact.list',
+            'm_search':'crm.contact.list',
+            'm_list_params':'{\'filter\':{\'ID\':#IDS#},\'start\':-1,\'select\':[\'ID\',\'NAME\',\'LAST_NAME\',\'DATE_CREATE\']}',
+            'm_search_params':'[' +
+                '{\'filter\':{\'%NAME\':"#QUERY#"},\'start\':-1,\'select\':[\'ID\',\'NAME\',\'LAST_NAME\',\'DATE_CREATE\']},' +
+                '{\'filter\':{\'%LAST_NAME\':"#QUERY#"},\'start\':-1,\'select\':[\'ID\',\'NAME\',\'LAST_NAME\',\'DATE_CREATE\']}' +
+            ']',
+        },
+        'deal':{
+            'caption': 'сделка','short':'D',
+            'tab':'Сделки',
+            'alias':['DEAL','crm_deal'],
+            'm_list':'crm.deal.list',
+            'm_search':'crm.deal.list',
+            'm_list_params':'{\'filter\':{\'ID\':#IDS#},\'start\':-1,\'select\':[\'ID\',\'TITLE\',\'DATE_CREATE\',\'OPPORTUNITY\',\'CURRENCY_ID\']}',
+            'm_search_params':'{\'filter\':{\'%TITLE\':"#QUERY#"},\'start\':-1,\'select\':[\'ID\',\'TITLE\',\'DATE_CREATE\',\'OPPORTUNITY\',\'CURRENCY_ID\']}',
+        },
+        'lead':{
+            'caption': 'лид','short':'L',
+            'tab':'Лиды',
+            'alias':['LEAD','crm_lead'],
+            'm_list':'crm.lead.list',
+            'm_search':'crm.lead.list',
+            'm_list_params':'{\'filter\':{\'ID\':#IDS#},\'start\':-1,\'select\':[\'ID\',\'TITLE\',\'DATE_CREATE\']}',
+            'm_search_params':'{\'filter\':{\'%TITLE\':"#QUERY#"},\'start\':-1,\'select\':[\'ID\',\'TITLE\',\'DATE_CREATE\']}',
+        },
+        'smart_invoice':{
+            'caption': 'счет','short':'SI',
+            'tab':'Счета',
+            'alias':['SMART_INVOICE','crm_smart_invoice'],
+            'm_list':'crm.item.list',
+            'list_key':'items',
+            'm_search':'crm.item.list',
+            'm_list_params':'{\'entityTypeId\':31,\'filter\':{\'id\':#IDS#},\'start\':-1,\'select\':[\'id\',\'title\',\'createdTime\',\'opportunity\',\'currencyId\']}',
+            'm_search_params':'{\'entityTypeId\':31,\'filter\':{\'%title\':"#QUERY#"},\'start\':-1,\'select\':[\'id\',\'title\',\'createdTime\',\'opportunity\',\'currencyId\']}',
+        },
+    },
+    dinamicLoaded: false,
+    dinamicLoadedIbSect: false,
+    dinamicLoadedIbEl: false,
+    getLink:function(ent, id){
+        var lnk = this.getEntityParam(ent, 'link');
+        if(!lnk) return false;
+        return lnk.replace('#ID#',id);
+    },
+    setHookListDinamic: function(){
+        var q_data_hook = {
+            'domain':$('#signed_add_form').attr('data-domain'),
+            'app':$('#signed_add_form').attr('data-app'),
+            'signed':$('#signed_add_form').val()
+        };
+        this['entKeys']['awz_placementlist'] = {
+            'batch_dissable':'Y',
+            'caption': 'встройка','short':'',
+            'tab':'Встройки',
+            'alias':['AWZ_PLACEMENTLIST'],
+            'm_list':'dialoglist',
+            'm_search':'dialoglist',
+            'm_list_params':'{\'domain\':\'#domain#\',\'app\':\'#app#\',\'signed\':\'#signed#\',\'filter_ID\':#IDS#}',
+            'm_search_params':'{\'domain\':\'#domain#\',\'app\':\'#app#\',\'signed\':\'#signed#\',\'filter_QUERY\':"#QUERY#"}',
+        };
+        this['entKeys']['awz_placementlist']['m_list_params'] =
+            this['entKeys']['awz_placementlist']['m_list_params']
+                .replace('#domain#',$('#signed_add_form').attr('data-domain'));
+        this['entKeys']['awz_placementlist']['m_list_params'] =
+            this['entKeys']['awz_placementlist']['m_list_params']
+                .replace('#app#',$('#signed_add_form').attr('data-app'));
+        this['entKeys']['awz_placementlist']['m_list_params'] =
+            this['entKeys']['awz_placementlist']['m_list_params']
+                .replace('#signed#',$('#signed_add_form').val());
+        this['entKeys']['awz_placementlist']['m_search_params'] =
+            this['entKeys']['awz_placementlist']['m_search_params']
+                .replace('#domain#',$('#signed_add_form').attr('data-domain'));
+        this['entKeys']['awz_placementlist']['m_search_params'] =
+            this['entKeys']['awz_placementlist']['m_search_params']
+                .replace('#app#',$('#signed_add_form').attr('data-app'));
+        this['entKeys']['awz_placementlist']['m_search_params'] =
+            this['entKeys']['awz_placementlist']['m_search_params']
+                .replace('#signed#',$('#signed_add_form').val());
+        this['entKeys']['awz_placementlist']['url'] = '/bitrix/services/main/ajax.php?action=awz:bxapi.api.smartapp.';
+        this['entKeys']['awz_placementlist']['link'] = '/marketplace/view/'+window.awz_helper.MARKET_ID+'/?params[HOOK]=#ID#';
+    },
+    loadIblockEntity: function(start){
+        if(this.dinamicLoadedIbEl) return;
+        if(!start) start = 0;
+        var parent = this;
+
+        window.AwzBx24Proxy.callBatch({
+            'catalog':{
+                'method':'catalog.catalog.list',
+                'params':{}
+            },
+            'lists':{
+                'method':'lists.get',
+                'params':{'IBLOCK_TYPE_ID':'lists'}
+            },
+            'bitrix_processes':{
+                'method':'lists.get',
+                'params':{'IBLOCK_TYPE_ID':'bitrix_processes'}
+            },
+            'structure':{
+                'method':'lists.get',
+                'params':{'IBLOCK_TYPE_ID':'structure'}
+            },
+            'lists_socnet':{
+                'method':'lists.get',
+                'params':{'IBLOCK_TYPE_ID':'lists_socnet'}
+            },
+        }, function(result){
+            //console.log(result);
+            var instance = window.AwzBx24EntityLoader_ob;
+            if(window.awz_helper && window.awz_helper.hasOwnProperty('addBxTime')){
+                window.awz_helper.addBxTime(result);
+            }
+            try{
+                var k;
+                for(k in result){
+                    var row = result[k];
+                    var itr = null;
+                    var k2;
+                    if(row.hasOwnProperty('answer') && row['answer'].hasOwnProperty('result')){
+                        itr = row['answer']['result'];
+                        if(itr.hasOwnProperty('catalogs')){
+                            itr = itr['catalogs'];
+                        }
+                    }else if(row.hasOwnProperty('length')){
+                        itr = row;
+                    }
+                    if(itr){
+                        for(k2 in itr){
+                            var type = itr[k2];
+                            instance.setDynamicEntity(type, k);
+                        }
+                    }
+                }
+            }catch (e) {
+                console.log(e);
+            }
+            instance.dinamicLoadedIbEl = true;
+        });
+    },
+    loadIblockSectionEntity: function(start){
+
+    },
+    loadDynamicCrm: function(start){
+        if(this.dinamicLoaded) return;
+        if(!start) start = 0;
+        var parent = this;
+
+        window.awz_helper.callApi('crm.type.list', {
+                'order':{"title": "ASC"},
+                'start':start
+            }, function(res){
+                if(window.awz_helper && window.awz_helper.hasOwnProperty('addBxTime')){
+                    window.awz_helper.addBxTime(res);
+                }
+                try{
+                    var k;
+                    for(k in res['result']['types']){
+                        var type = res['result']['types'][k];
+                        parent.setDynamicEntity(type);
+                    }
+                }catch (e) {
+
+                }
+                parent.dinamicLoaded = true;
+            }
+        );
+    },
+    setDynamicEntity: function(type, key){
+        //console.log(['setDynamicEntity', type, key]);
+        if(key === 'bitrix_processes'){
+            this.entKeys['bitrix_processes_'+type['ID']] = {
+                'caption': type['NAME'],'short':'',
+                'tab':type['NAME'],
+                'alias':['BITRIX_PROCESSES_'+type['ID'], 'iblock_element_'+type['ID']],
+                'm_list':'lists.element.get',
+                'm_search':'lists.element.get',
+                'm_list_params':'{\'IBLOCK_TYPE_ID\':\'bitrix_processes\',\'IBLOCK_ID\':'+type['ID']+',\'FILTER\':{\'ID\':#IDS#},\'start\':-1}',
+                'm_search_params':'{\'IBLOCK_TYPE_ID\':\'bitrix_processes\',\'IBLOCK_ID\':'+type['ID']+',\'FILTER\':{\'%NAME\':"#QUERY#"},\'start\':-1}',
+            };
+        }else if(key === 'catalog'){
+            this.entKeys['catalog_'+type['iblockId']] = {
+                'caption': type['name'],'short':'',
+                'tab':type['name'],
+                'alias':['CATALOG_'+type['iblockId'], 'iblock_element_'+type['iblockId']],
+                'm_list':'crm.product.list',
+                'm_search':'crm.product.list',
+                'm_list_params':'{\'filter\':{\'CATALOG_ID\':'+type['entityTypeId']+',\'ID\':#IDS#},\'start\':-1,\'select\':[\'ID\',\'NAME\',\'CURRENCY_ID\',\'PRICE\',\'DATE_CREATE\']}',
+                'm_search_params':'{\'filter\':{\'CATALOG_ID\':'+type['entityTypeId']+',\'%NAME\':"#QUERY#"},\'start\':-1,\'select\':[\'ID\',\'NAME\',\'CURRENCY_ID\',\'PRICE\',\'DATE_CREATE\']}',
+            };
+            this.entKeys['s_catalog_'+type['iblockId']] = {
+                'caption': type['name'],'short':'',
+                'tab':type['name'],
+                'alias':['S_CATALOG_'+type['iblockId'], 'iblock_section_'+type['iblockId']],
+                'm_list':'crm.productsection.list',
+                'm_search':'crm.productsection.list',
+                'm_list_params':'{\'filter\':{\'CATALOG_ID\':'+type['entityTypeId']+',\'ID\':#IDS#},\'start\':-1,\'select\':[\'ID\',\'NAME\',\'SECTION_ID\']}',
+                'm_search_params':'{\'filter\':{\'CATALOG_ID\':'+type['entityTypeId']+',\'%NAME\':"#QUERY#"},\'start\':-1,\'select\':[\'ID\',\'NAME\',\'SECTION_ID\']}',
+            };
+        }else if(key === 'lists'){
+            this.entKeys['list_'+type['ID']] = {
+                'caption': type['NAME'],'short':'',
+                'tab':type['NAME'],
+                'alias':['LIST_'+type['ID'], 'iblock_element_'+type['ID']],
+                'm_list':'lists.element.get',
+                'm_search':'lists.element.get',
+                'm_list_params':'{\'IBLOCK_TYPE_ID\':\'lists\',\'IBLOCK_ID\':'+type['ID']+',\'FILTER\':{\'ID\':#IDS#},\'start\':-1}',
+                'm_search_params':'{\'IBLOCK_TYPE_ID\':\'lists\',\'IBLOCK_ID\':'+type['ID']+',\'FILTER\':{\'%NAME\':"#QUERY#"},\'start\':-1}',
+            };
+            this.entKeys['s_list_'+type['ID']] = {
+                'caption': type['NAME'],'short':'',
+                'tab':type['NAME'],
+                'alias':['S_LIST_'+type['ID'], 'iblock_section_'+type['ID']],
+                'm_list':'lists.section.get',
+                'm_search':'lists.section.get',
+                'm_list_params':'{\'IBLOCK_TYPE_ID\':\'lists\',\'IBLOCK_ID\':'+type['ID']+',\'FILTER\':{\'ID\':#IDS#},\'start\':-1}',
+                'm_search_params':'{\'IBLOCK_TYPE_ID\':\'lists\',\'IBLOCK_ID\':'+type['ID']+',\'FILTER\':{\'%NAME\':"#QUERY#"},\'start\':-1}',
+            };
+        }else if(key === 'structure'){
+            this.entKeys['structure_'+type['ID']] = {
+                'caption': type['NAME'],'short':'',
+                'tab':type['NAME'],
+                'alias':['STRUCTURE_'+type['ID'], 'iblock_element_'+type['ID']],
+                'm_list':'lists.element.get',
+                'm_search':'lists.element.get',
+                'm_list_params':'{\'IBLOCK_TYPE_ID\':\'structure\',\'IBLOCK_ID\':'+type['ID']+',\'FILTER\':{\'ID\':#IDS#},\'start\':-1}',
+                'm_search_params':'{\'IBLOCK_TYPE_ID\':\'structure\',\'IBLOCK_ID\':'+type['ID']+',\'FILTER\':{\'%NAME\':"#QUERY#"},\'start\':-1}',
+            };
+        }else if(key === 'lists_socnet'){
+
+        }else if(!key){
+            this.entKeys['dynamic_'+type['entityTypeId']] = {
+                'caption': type['title'],'short':'T'+parseInt(type['entityTypeId']).toString(16),
+                'tab':type['title'],
+                'alias':['DYNAMIC_'+type['entityTypeId'],'crm_dynamic_'+type['entityTypeId']],
+                'm_list':'crm.item.list',
+                'list_key':'items',
+                'm_search':'crm.item.list',
+                'm_list_params':'{\'entityTypeId\':'+type['entityTypeId']+',\'filter\':{\'id\':#IDS#},\'start\':-1,\'select\':[\'id\',\'title\',\'createdTime\',\'opportunity\',\'currencyId\']}',
+                'm_search_params':'{\'entityTypeId\':'+type['entityTypeId']+',\'filter\':{\'%title\':"#QUERY#"},\'start\':-1,\'select\':[\'id\',\'title\',\'createdTime\',\'opportunity\',\'currencyId\']}',
+            };
+        }
+    },
+    getEntityCode: function(code, repl){
+        if(this.entKeys.hasOwnProperty(code)) return code;
+
+        var k;
+        for(k in this.entKeys){
+            if(this.entKeys[k].hasOwnProperty('alias') &&
+                typeof this.entKeys[k]['alias']=='object' &&
+                this.entKeys[k]['alias'].hasOwnProperty('length') &&
+                this.entKeys[k]['alias'].indexOf(code)>-1
+            ){
+                return k;
+            }
+        }
+        if(!repl && code.toLowerCase().indexOf('dynamic_')>-1){
+            this.loadDynamicCrm();
+            if(!this.entKeys.hasOwnProperty(code.toLowerCase())){
+                var entityTypeId = code.toLowerCase().replace('dynamic_','');
+                var type = {'entityTypeId':entityTypeId, 'title': 'смарт '+entityTypeId};
+                this.setDynamicEntity(type);
+                return this.getEntityCode(code, true);
+            }
+        }
+        if(!repl && code.toLowerCase().indexOf('iblock_element_')>-1){
+            this.loadIblockEntity();
+        }
+        if(!repl && code.toLowerCase().indexOf('iblock_section_')>-1){
+            this.loadIblockSectionEntity();
+        }
+        return false;
+    },
+    format:function(type, val){
+        if(type === 'date'){
+            var dt = new Date(val);
+            return dt.toLocaleDateString("ru-RU");
+        }else if(type === 'currency'){
+            var codes = {
+                'RUB':'₽',
+                'BYN':'б.руб.',
+                'USD':'$',
+                'EUR':'€',
+            };
+            var dt = val.split('|');
+            if(dt.length == 2){
+                if(codes.hasOwnProperty(dt[1])){
+                    dt[1] = codes[dt[1]];
+                    return dt[0]+' '+dt[1];
+                }
+            }
+        }
+        return val;
+    },
+    set: function(type, itm, itm_resp){
+        if(!type) return;
+
+        var p_id = '';
+        p_id = $('.awz-autoload-'+type+'-'+itm['id']).attr('data-id');
+        if($('.awz-autoload-'+type+'-'+itm['id']).attr('data-ido')){
+            p_id = $('.awz-autoload-'+type+'-'+itm['id']).attr('data-ido');
+        }
+
+        var k;
+        for(k in itm){
+            if(itm[k] === null) itm[k] = '';
+        }
+        for(k in itm_resp){
+            if(itm_resp[k] === null) itm_resp[k] = '';
+        }
+        this.cashed[type][itm['id']] = itm;
+        var ht = '';
+        if(['awz_user','awz_employee'].indexOf(type)>-1){
+            ht += '<div class="tasks-grid-username-wrapper" style="margin-bottom:7px;">';
+            ht += '<a class="tasks-grid-username open-smart" data-ent="'+type+'" data-id="'+itm['id']+'" href="#">';
+            ht += '<span class="tasks-grid-avatar ui-icon ui-icon-common-user">';
+            var image = '';
+            if(itm.hasOwnProperty('avatar')){
+                image = itm['avatar'];
+            }
+            ht += "<i style=\"background-image: url('"+image+"')\"></i>";
+            ht += '</span>';
+            ht += '<span class="tasks-grid-username-inner">'+itm['title']+'</span>';
+            ht += '<span class="tasks-grid-filter-remove"></span>';
+            ht += '</a>';
+            ht += '</div>';
+        }else if(['group'].indexOf(type)>-1){
+            ht += '<div class="tasks-grid-username-wrapper" style="margin-bottom:7px;">';
+            ht += '<a class="tasks-grid-group open-smart" data-ent="'+type+'" data-id="'+itm['id']+'" href="#">';
+            ht += '<span class="tasks-grid-avatar ui-icon ui-icon-common-user-group">';
+            var image = '';
+            if(itm.hasOwnProperty('avatar')){
+                image = itm['avatar'];
+            }
+            ht += "<i style=\"background-image: url('"+image+"')\"></i>";
+            ht += '</span>';
+            ht += '<span class="tasks-grid-group-inner">'+itm['title']+'</span>';
+            ht += '<span class="tasks-grid-filter-remove"></span>';
+            ht += '</a>';
+            ht += '</div>';
+        }else{
+            ht += '<div class="awz-grid-item1-wrapper">';
+            ht += '<a class="open-smart" data-id="'+itm['id']+'" data-ent="'+type+'" href="#">['+p_id+'] '+itm['title']+'</a>';
+            if(itm.hasOwnProperty('subtitle') && itm['subtitle']){
+                ht += '<span class="subtitle">'+itm['subtitle']+'</span>';
+            }
+            ht += '</div>';
+        }
+        $('.awz-autoload-'+type+'-'+itm['id'])
+            .html(ht)
+            .removeClass('awz-loaded-field')
+            .addClass('awz-loaded-field');
+    },
+    getCache: function(type, id){
+        if(!type) return false;
+        if(!this.cashed.hasOwnProperty(type)){
+            return false;
+        }
+        if(this.cashed[type].hasOwnProperty(id)){
+            this.set(type, this.cashed[type][id]);
+            return true;
+        }
+        return false;
+    },
+    load: function (cur_cnt){
+        if(!cur_cnt) cur_cnt = 1;
+        if(cur_cnt>5) return;
+        var parent = this;
+        var ids = {};
+        var batchCaller = {};
+        $('.awz-autoload-field').each(function(){
+            var id = $(this).attr('data-id');
+            var type = $(this).attr('data-type');
+            if(!!type && !!id && !$(this).hasClass('awz-loaded-field')){
+                var type_main = parent.getEntityCode(type);
+                if(type_main){
+                    if(!ids.hasOwnProperty(type_main)){
+                        ids[type_main] = [];
+                    }
+                    if(type_main != type){
+                        $(this).removeClass('awz-autoload-'+type_main+'-'+id)
+                            .addClass('awz-autoload-'+type_main+'-'+id);
+                    }
+                    if(ids[type_main].length>=50) return;
+                    if(!parent.cashed.hasOwnProperty(type_main)){
+                        parent.cashed[type_main] = {};
+                    }
+                    if(!parent.getCache(type_main, id) && ids[type_main].indexOf(id)===-1){
+                        ids[type_main].push(id);
+
+                        var itm = parent.createItemOptions({'id':id}, type_main);
+                        if(!itm){
+                            $(this).addClass('awz-loaded-field');
+                        };
+                        parent.cashed[type_main][id] = itm;
+                    }
+                }
+            }
+        });
+        var k;
+        var batch_start = false;
+        var batch_cnt = 0;
+        for(k in ids){
+            if(!ids[k].length) continue;
+            var method = this.getMethodList(k);
+            var method_params = this.getEntityParam(k, 'm_list_params');
+            if(method && method_params){
+                var batch_dissable = this.getEntityParam(k, 'batch_dissable');
+                if(batch_dissable){
+                    try{
+                        var tmp_method = this.getEntityParam(k,'url') ? [this.getEntityParam(k,'url'), method] : method;
+                        eval("var tmp_params = "+method_params.replace('#IDS#','["'+ids[k].join('","')+'"]')+";");
+                        window.awz_helper.callApi(tmp_method, tmp_params, function(res){
+                            try{
+                                var instance = window.AwzBx24EntityLoader_ob;
+                                var k2;
+                                var row = res['result'];
+                                var listKey = window.AwzBx24EntityLoader_ob.getEntityParam(k, 'list_key');
+                                var itr = null;
+                                if(listKey){
+                                    itr = row[listKey];
+                                }else{
+                                    itr = row;
+                                }
+                                if(itr){
+                                    for(k2 in itr){
+                                        var itm = itr[k2];
+                                        var item = instance.createItemOptions(itm, k);
+                                        instance.set(k, item, itm);
+                                    }
+                                }
+                                window.awz_helper.resize();
+                                instance.load(instance.cur_cnt);
+                            }catch (e) {
+
+                            }
+                        });
+                    }catch (e) {
+                        console.log(e);
+                    }
+                }else{
+                    if(!batchCaller.hasOwnProperty(k)){
+                        batchCaller[k] = {};
+                        batch_cnt+=1;
+                    }
+                    try{
+                        batchCaller[k]['method'] = method;
+                        eval("batchCaller[k]['params'] = "+method_params.replace('#IDS#','["'+ids[k].join('","')+'"]')+";");
+                        batch_start = true;
+                    }catch (e) {
+                        delete batchCaller[k];
+                        console.log(e);
+                    }
+                }
+            }
+        }
+
+        if(batch_start){
+            var nbatchCaller = {};
+            var k;
+            var cn = 0;
+            for(k in batchCaller){
+                cn+=1;
+                if(cn<=50){
+                    nbatchCaller[k] = batchCaller[k];
+                    var k2;
+                    for(k2 in ids[k]){
+
+                    }
+                }else{
+                    break;
+                }
+            }
+            batchCaller = nbatchCaller;
+            //console.log(['batchCaller', batchCaller]);
+            window.AwzBx24EntityLoader_ob.cur_cnt = cur_cnt+1;
+            window.AwzBx24Proxy.callBatch(batchCaller, function(result){
+                //console.log(result);
+                var instance = window.AwzBx24EntityLoader_ob;
+                if(window.awz_helper && window.awz_helper.hasOwnProperty('addBxTime')){
+                    window.awz_helper.addBxTime(result);
+                }
+                try{
+                    var k;
+                    for(k in result){
+                        var row = result[k];
+                        var listKey = window.AwzBx24EntityLoader_ob.getEntityParam(k, 'list_key');
+                        var itr = null;
+                        var k2;
+                        if(row.hasOwnProperty('answer') && row['answer'].hasOwnProperty('result')){
+                            if(listKey){
+                                itr = row['answer']['result'][listKey];
+                            }else{
+                                itr = row['answer']['result'];
+                            }
+                        }else if(!listKey && row.hasOwnProperty('length')){
+                            itr = row;
+                        }else if(listKey && row.hasOwnProperty(listKey) && row[listKey].hasOwnProperty('length')){
+                            itr = row[listKey];
+                        }
+                        if(itr){
+                            for(k2 in itr){
+                                var itm = itr[k2];
+                                var item = instance.createItemOptions(itm, k);
+                                instance.set(k, item, itm);
+                            }
+                        }
+                        window.awz_helper.resize();
+                        instance.load(instance.cur_cnt);
+                    }
+                }catch (e) {
+                    console.log(e);
+                }
+            });
+        }
+    },
+    searchTimeouts: null,
+    search: function(entries){
+
+        if(this.searchTimeouts){
+            clearInterval(this.searchTimeouts);
+            this.searchTimeouts = null;
+        }
+
+        if(!this.lastTab) return;
+
+        var query = this.dialog.getTagSelector().getTextBoxValue();
+        if(query) this.lastQuery = query;
+        //console.log(query);
+
+        this.setQueryFooter();
+
+        if(this.lastTab && this.lastQueryTabs.hasOwnProperty(this.lastTab) &&
+            this.lastQueryTabs[this.lastTab] === this.lastQuery){
+            return;
+        }
+        this.lastQueryTabs[this.lastTab] = this.lastQuery;
+
+        if(!entries) entries = this.lastEntries;
+
+        var parent = this;
+        var k;
+        for(k in entries){
+            var ent_code = this.getEntityCode(entries[k]);
+            if(this.lastTab === ent_code){
+                var method = this.getEntityParam(ent_code, 'm_search');
+                var method_url = this.getEntityParam(ent_code, 'url');
+                try{
+                    var method_params;
+                    eval('method_params = '+this.getEntityParam(ent_code, 'm_search_params').replaceAll('#QUERY#',parent.lastQuery)+';');
+                    if(!method_params.hasOwnProperty('length')){
+                        method_params = [method_params];
+                    }
+                    parent.dialog.getEntityItems(ent_code).forEach(function(item){
+                        if(!item.isSelected()) parent.dialog.removeItem(item);
+                    });
+                    var k2;
+                    for(k2 in method_params){
+                        window.awz_helper.callApi(
+                            method_url ? [method_url, method] : method,
+                            method_params[k2],
+                            function(res){
+                                var k3;
+                                var listKey = parent.getEntityParam(ent_code, 'list_key');
+                                var itr = null;
+                                if(listKey){
+                                    itr = res['result'][listKey];
+                                }else{
+                                    itr = res['result'];
+                                }
+                                for(k3 in itr){
+                                    var itm = itr[k3];
+                                    parent.dialog.addItem(parent.createItemOptions(itm, ent_code));
+                                }
+                            }
+                        );
+                    }
+                }catch (e) {
+                    console.log(e);
+                }
+                return;
+            }
+        }
+    },
+    lastEntries: [],
+    lastQuery: '',
+    lastQueryTabs: {},
+    lastTab: '',
+    lastQueryTime: null,
+    reloadDialog: function(){
+        this.lastQuery = '';
+        this.lastQueryTabs = {};
+        this.lastQueryTime = null;
+        this.lastEntries = [];
+        this.lastTab = '';
+        this.dialog = null;
+    },
+    setQueryFooter: function(){
+        var q = this.lastQuery;
+        var ht = '<div class="awz-dialog-search-help">';
+        if(q){
+            ht += 'Показаны элементы для запроса: <b style="color:red;">'+q+'</b>';
+        }else{
+            ht += 'Пустой поисковой запрос, введите текст и нажмите <b>Enter</b> в строке поиска';
+        }
+        ht += '</div>';
+        this.dialog.setFooter(ht);
+    },
+    getCurrentElements: function(nodeId){
+        var current_elements = [];
+        var keys = this.entKeys;
+        try{
+            var inpVal = $(nodeId).val().split(',');
+            var k;
+            for (k in inpVal){
+                if(!inpVal[k]) continue;
+                if(inpVal[k].indexOf('_')>-1){
+                    var k2;
+                    for(k2 in keys){
+                        var shortCode = this.getEntityParam(k2,'short');
+                        if(shortCode && inpVal[k].indexOf(shortCode+'_')>-1){
+                            var itm = {
+                                'id':inpVal[k].replace(shortCode+'_','',inpVal[k]),
+                                'title':inpVal[k]
+                            };
+                            current_elements.push(this.createItemOptions(itm, k2));
+                        }
+                    }
+                }else{
+                    var itm = {
+                        'id':inpVal[k]
+                    };
+                    current_elements.push(this.createItemOptions(itm, 'auto'));
+                }
+            }
+        }catch (e) {
+            console.log(e);
+        }
+        return current_elements;
+    },
+    getMethodList: function(entity){
+        return this.getEntityParam(entity, 'm_list');
+    },
+    getEntityParam: function(entity, key){
+        if(!key) return false;
+        entity = this.getEntityCode(entity);
+        if(key === 'type'){
+            return entity;
+        }
+        var keys = (typeof key == 'object') ? key : [key];
+
+        if(this.entKeys.hasOwnProperty(entity)){
+            var k;
+            for(k in keys){
+                if(this.entKeys[entity].hasOwnProperty(keys[k])){
+                    return this.entKeys[entity][keys[k]];
+                }
+            }
+        }
+        return false;
+    },
+    replaceItemFromItm: function(itm, type){
+        var item = this.createItemOptions(itm, type);
+        //console.log([item,type]);
+        if(item && item.hasOwnProperty('entityId') && item.hasOwnProperty('id')){
+            var currentItem = this.dialog.getItem([item['entityId'], item['id']]);
+            var tag = this.dialog.getTagSelector().getTag({'id':item['id'], 'entityId': item['entityId']});
+            if(item.hasOwnProperty('title')){
+                if(currentItem)
+                    currentItem.setTitle(item['title']);
+                if(tag){
+                    tag.setTitle(item['title']);
+                    if(item.hasOwnProperty('avatar')){
+                        tag.setAvatar(item['avatar']);
+                    }
+                    tag.render();
+                }
+            }
+            if(item.hasOwnProperty('subtitle')){
+                if(currentItem)
+                    currentItem.setSubtitle(item['subtitle']);
+            }
+            if(item.hasOwnProperty('caption')){
+                if(currentItem)
+                    currentItem.setCaption(item['caption']);
+            }
+            if(item.hasOwnProperty('linkTitle')){
+                if(currentItem)
+                    currentItem.setLinkTitle(item['linkTitle']);
+            }
+            if(item.hasOwnProperty('link')){
+                if(currentItem)
+                    currentItem.setLink(item['link']);
+            }
+            if(item.hasOwnProperty('avatar')){
+                if(currentItem)
+                    currentItem.setAvatar(item['avatar']);
+            }
+        }
+    },
+    createItemOptions:function(itm, type){
+        //console.log(['createItemOptions',itm, type]);
+        if(type === 'auto' && this.lastEntries.hasOwnProperty('length') && this.lastEntries.length){
+            type = this.lastEntries[0];
+        }
+        var defOptions = {
+            linkTitle: 'подробнее',
+            entityId: type,
+            tabs: type,
+            subtitle: ''
+        };
+        var id = null;
+        if(itm.hasOwnProperty('ID')) {
+            id = itm['ID'];
+        }else if(itm.hasOwnProperty('id')) {
+            id = itm['id'];
+        }
+        if(!id) return false;
+        if(typeof id !== 'string') id = id.toString();
+        defOptions['id'] = id;
+        defOptions['link'] = '#'+type+'||'+id;
+        var caption = this.getEntityParam(type, 'caption');
+        if(!caption) caption = 'элемент';
+        defOptions['caption'] = id+' '+caption;
+
+        var title = null;
+        if(itm.hasOwnProperty('TITLE') && itm['TITLE']){
+            title = itm['TITLE'];
+        }else if(itm.hasOwnProperty('title') && itm['title']){
+            title = itm['title'];
+        }else if(itm.hasOwnProperty('NAME') && itm['NAME']){
+            title = itm['NAME'];
+            if(itm.hasOwnProperty('LAST_NAME') && itm['LAST_NAME']){
+                title += ' '+itm['LAST_NAME'];
+            }
+        }else if(itm.hasOwnProperty('name') && itm['name']){
+            title = itm['name'];
+            if(itm.hasOwnProperty('lastName') && itm['lastName']){
+                title += ' '+itm['lastName'];
+            }
+        }
+        if(!title) title = 'ID: '+id;
+        defOptions['title'] = title;
+
+        if(itm.hasOwnProperty('DATE_CREATE') && itm['DATE_CREATE']){
+            defOptions['subtitle'] = this.format('date',itm['DATE_CREATE']);
+        }else if(itm.hasOwnProperty('createdTime') && itm['createdTime']){
+            defOptions['subtitle'] = this.format('date',itm['createdTime']);
+        }
+        if(itm.hasOwnProperty('CATALOG_QUANTITY')){
+            defOptions['subtitle'] += ' '+parceInt(itm)+'шт.'
+        }
+        //'OPPORTUNITY','CURRENCY_ID'
+        if(itm.hasOwnProperty('OPPORTUNITY') && itm['OPPORTUNITY'] &&
+            itm.hasOwnProperty('CURRENCY_ID') && itm['CURRENCY_ID']){
+            defOptions['subtitle'] += ' '+this.format('currency',itm['OPPORTUNITY']+'|'+itm['CURRENCY_ID']);
+        }
+        if(itm.hasOwnProperty('PRICE') && itm['PRICE'] &&
+            itm.hasOwnProperty('CURRENCY_ID') && itm['CURRENCY_ID']){
+            defOptions['subtitle'] += ' '+this.format('currency',itm['PRICE']+'|'+itm['CURRENCY_ID']);
+        }
+        if(itm.hasOwnProperty('opportunity') && itm['opportunity'] &&
+            itm.hasOwnProperty('currencyId') && itm['currencyId']){
+            defOptions['subtitle'] += ' '+this.format('currency',itm['opportunity']+'|'+itm['currencyId']);
+        }
+        if(itm.hasOwnProperty('subtitle') && itm['subtitle']){
+            defOptions['subtitle'] = itm['subtitle'];
+        }
+        defOptions['customData'] = {};
+        if(['awz_employee','awz_user'].indexOf(type)>-1){
+            //PERSONAL_PROFESSION
+            defOptions['subtitle'] = '';
+            if(itm.hasOwnProperty('PERSONAL_PROFESSION') && itm['PERSONAL_PROFESSION']){
+                defOptions['subtitle'] = itm['PERSONAL_PROFESSION'];
+            }
+            if(itm.hasOwnProperty('PERSONAL_PHOTO') && itm['PERSONAL_PHOTO']){
+                defOptions['avatar'] = itm['PERSONAL_PHOTO'];
+            }else{
+                defOptions['avatar'] = '/bitrix/js/ui/icons/b24/images/ui-user.svg';
+            }
+            defOptions['customData']['image'] = defOptions['avatar'];
+        }
+        if(['group','awz_group'].indexOf(type)>-1){
+            if(itm.hasOwnProperty('IMAGE') && itm['IMAGE']){
+                defOptions['avatar'] = itm['IMAGE'];
+            }else{
+                defOptions['avatar'] = '/bitrix/js/ui/icons/b24/images/ui-user-group.svg';
+            }
+            defOptions['customData']['image'] = defOptions['avatar'];
+        }
+        if(itm.hasOwnProperty('image') && itm['image']){
+            defOptions['avatar'] = itm['image'];
+            defOptions['customData']['image'] = defOptions['avatar'];
+        }
+
+        return defOptions;
+    },
+    loadPreSelectedItems: function(items){
+        var k;
+        var batchIds = {};
+        var batchCaller = {};
+        for(k in items){
+            var itm = items[k];
+            if(!batchIds.hasOwnProperty(itm['entityId'])){
+                batchIds[itm['entityId']] = [];
+            }
+            batchIds[itm['entityId']].push(itm['id']);
+        }
+        var batch_start = false;
+        for(k in batchIds){
+            var method = this.getMethodList(k);
+            var method_params = this.getEntityParam(k, 'm_list_params');
+            if(method && method_params){
+
+                var batch_dissable = this.getEntityParam(k, 'batch_dissable');
+                if(batch_dissable){
+                    try{
+                        var tmp_method = this.getEntityParam(k,'url') ? [this.getEntityParam(k,'url'), method] : method;
+                        eval("var tmp_params = "+method_params.replace('#IDS#','["'+batchIds[k].join('","')+'"]')+";");
+                        window.awz_helper.callApi(tmp_method, tmp_params, function(res){
+                            try{
+                                var k2;
+                                var listKey = window.AwzBx24EntityLoader_ob.getEntityParam(k, 'list_key');
+                                var itr = null;
+                                var row = res['result'];
+                                if(listKey){
+                                    itr = row[listKey];
+                                }else{
+                                    itr = row;
+                                }
+                                if(itr){
+                                    for(k2 in itr){
+                                        var itm = itr[k2];
+                                        window.AwzBx24EntityLoader_ob.replaceItemFromItm(itm, k);
+                                    }
+                                }
+
+                            }catch (e) {
+
+                            }
+                        });
+                    }catch (e) {
+                        console.log(e);
+                    }
+                }else{
+                    if(!batchCaller.hasOwnProperty(k)){
+                        batchCaller[k] = {};
+                    }
+                    try{
+                        batchCaller[k]['method'] = method;
+                        eval("batchCaller[k]['params'] = "+method_params.replace('#IDS#','["'+batchIds[k].join('","')+'"]')+";");
+                        batch_start = true;
+                    }catch (e) {
+                        delete batchCaller[k];
+                        console.log(e);
+                    }
+                }
+            }
+        }
+        if(batch_start){
+            window.AwzBx24Proxy.callBatch(batchCaller, function(result){
+                //console.log(result);
+                if(window.awz_helper && window.awz_helper.hasOwnProperty('addBxTime')){
+                    window.awz_helper.addBxTime(result);
+                }
+                try{
+                    var k;
+                    for(k in result){
+                        var row = result[k];
+                        var listKey = window.AwzBx24EntityLoader_ob.getEntityParam(k, 'list_key');
+                        var k2;
+                        var itr = null;
+                        if(row.hasOwnProperty('answer') && row['answer'].hasOwnProperty('result')){
+                            if(listKey){
+                                itr = row['answer']['result'][listKey];
+                            }else{
+                                itr = row['answer']['result'];
+                            }
+                        }else if(!listKey && row.hasOwnProperty('length')){
+                            itr = row;
+                        }else if(listKey && row.hasOwnProperty(listKey) && row[listKey].hasOwnProperty('length')){
+                            itr = row[listKey];
+                        }
+                        if(itr){
+                            for(k2 in itr){
+                                var itm = itr[k2];
+                                window.AwzBx24EntityLoader_ob.replaceItemFromItm(itm, k);
+                            }
+                        }
+                    }
+                }catch (e) {
+                    console.log(e);
+                }
+            });
+        }
+    },
+    setInputValuesFromItems: function(items){
+
+        if(!items){
+            items = this.dialog.getSelectedItems();
+        }
+
+        var add_short = false;
+        if(this.lastEntries.length>1){
+            add_short = true;
+        }
+        var values = [];
+        var k;
+        for(k in items){
+            var itm = items[k];
+            var short_code = this.getEntityParam(itm.getEntityId(),'short');
+            if(add_short && short_code){
+                values.push(this.getEntityParam(itm.getEntityId(),'short')+'_'+itm.getId());
+            }else{
+                values.push(itm.getId());
+            }
+        }
+        $(this.dialog.getTargetNode()).find('input').val(values.join(','));
+    },
+    showDialog: function(entries, nodeId, multiple){
+        if(!entries.hasOwnProperty('length')) return false;
+        if(!entries.length) return false;
+        if(!this.lastQueryTime) this.lastQueryTime = new Date().getTime() + 500;
+        /* not destroyed dialog */
+        if(this.dialog) {
+            try{
+                this.dialog.destroy();
+            }catch (e) {
+
+            }
+            this.reloadDialog();
+            return this.showDialog(entries, nodeId, multiple);
+        }
+        this.lastEntries = [];
+        var parent = this;
+        var tabs = [];
+        var k;
+        for(k in entries){
+            var entity = this.getEntityParam(entries[k], 'type');
+            if(entity){
+                tabs.push({
+                    id: entity,
+                    title: this.getEntityParam(entity, ['tab','caption']),
+                    itemMaxDepth:10,
+                    hovered: true
+                });
+                this.lastEntries.push(entity);
+            }
+        }
+
+        var startSelected = this.getCurrentElements('#'+nodeId+' input');
+
+        if(!tabs.length) {
+            alert('Описание сущности '+entries[0]+' не найдено');
+            return false;
+        }
+        this.dialog = new BX.UI.EntitySelector.Dialog({
+            targetNode: document.getElementById(nodeId),
+            tabs:tabs,
+            cacheable: false,
+            enableSearch: true,
+            dropdownMode: true,
+            clearSearchOnSelect: false,
+            focusOnFirst: false,
+            selectedItems: startSelected,
+            multiple: multiple,
+            tagSelectorOptions: {
+                placeholder: 'текст + Enter',
+                events: {
+                    onEnter: function(e){
+                        e.preventDefault();
+                        window.AwzBx24EntityLoader_ob.search();
+                    },
+                }
+            },
+            events: {
+                'Item:onSelect':function(e){
+                    parent.setInputValuesFromItems();
+                },
+                'Item:onDeselect':function(e){
+                    parent.setInputValuesFromItems();
+                },
+                'ItemNode:onLinkClick': function(e){
+                    var dt = e.getData();
+                    var item = dt['node']['item'];
+                    dt['event'].preventDefault();
+                    var link = item.getLink();
+                    //console.log(link);
+                    if(link.indexOf('#')>-1 && link.indexOf('||')>-1){
+                        try{
+                            var parce_href = link.replace('#','');
+                            var parce_href_ob = parce_href.split('||');
+                            var path = window.AwzBx24Proxy.createPath(parce_href_ob[0], parce_href_ob[1]);
+                            window.AwzBx24Proxy.openPath(path);
+                        }catch (e) {
+                            console.log(e);
+                        }
+                    }else{
+                        window.AwzBx24Proxy.openPath(link);
+                    }
+                    //var path = window.AwzBx24Proxy.createPath(item.getEntityId(), item.getId());
+                    //window.AwzBx24Proxy.openPath(path);
+                },
+                'Tab:onSelect': function(e){
+
+                    if(parent.searchTimeouts){
+                        clearInterval(parent.searchTimeouts);
+                        parent.searchTimeouts = null;
+                    }
+
+                    var tab = e.getData();
+                    parent.lastTab = tab['tab'].getId();
+                    if(parent.lastQuery){
+                        parent.search(entries);
+                    }
+                },
+                onDestroy: function(){
+                    parent.reloadDialog();
+                },
+                onBeforeSearch: function(e){
+                    e.preventDefault();
+                },
+                onFirstShow: function(e){
+                    try{
+                        var dialog = e.getTarget();
+                        var selItems = dialog.getSelectedItems();
+                        parent.loadPreSelectedItems(selItems);
+                    }catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
+        });
+        this.dialog.show();
+        this.dialog.selectFirstTab();
+        this.lastTab = this.dialog.getActiveTab().getId();
+        this.setQueryFooter();
+    },
+    initHandlers: function(){
+        window.AwzBx24EntityLoader_ob = this;
+        $(document).on('click','a.ui-tag-selector-tag-content', function(e){
+            if($(this).attr('href').indexOf('#')>-1 && $(this).attr('href').indexOf('||')>-1){
+                e.preventDefault();
+                try{
+                    var parce_href = $(this).attr('href').replace('#','');
+                    var parce_href_ob = parce_href.split('||');
+                    var path = window.AwzBx24Proxy.createPath(parce_href_ob[0], parce_href_ob[1]);
+                    window.AwzBx24Proxy.openPath(path);
+                }catch (e) {
+                    console.log(e);
+                }
+            }
+        });
+    },
+    init: function(){
+        this.initHandlers();
+        //this.loadDynamicCrm();
+    }
+}
 window.AwzBx24Proxy = {
+    createPath: function(ent, id){
+        try{
+            var prepareProviders = window.AwzBx24EntityLoader_ob.getLink(ent, id);
+            if(prepareProviders) return prepareProviders;
+        }catch (e) {
+            console.log(e);
+        }
+        if(ent === 'placement'){
+            return id;
+        }
+        if(ent === 'app'){
+            return '/marketplace/view/'+window.awz_helper.MARKET_ID+'/'+id;
+        }
+        if(typeof id !== 'string') id = id.toString();
+        if (ent === 'auto'){
+            var tmp = id.replace(/([\d\+])/g,'');
+            if(tmp == 'C_') ent = 'contact';
+            if(tmp == 'CO_') ent = 'company';
+            if(tmp == 'D_') ent = 'deal';
+            if(tmp == 'L_') ent = 'lead';
+            if(tmp == 'SI_') ent = 'smart_invoice';
+            if(tmp == 'Q_') ent = 'quote';
+            if(id.charAt(0) === 'T') {
+                var tmp2 = id.split('_');
+                ent = parseInt(tmp2[0].replace(/^T/g,''), 16);
+                id = tmp2[1];
+            }
+        }
+        if(ent === 'COMPANY') ent = 'company';
+        if(ent === 'CONTACT') ent = 'contact';
+        if(ent === 'DEAL') ent = 'deal';
+        if(ent === 'LEAD') ent = 'lead';
+        if(ent === 'EXT_COMPANY') ent = 'company';
+        if(ent === 'EXT_CONTACT') ent = 'contact';
+        if(ent === 'EXT_DEAL') ent = 'deal';
+        if(ent === 'employee') ent = 'user';
+        if(ent === 'awz_employee') ent = 'user';
+        if(ent === 'awz_user') ent = 'user';
+        var path = '';
+        if(ent.indexOf('s_catalog_')>-1){
+            path = '/crm/catalog/section/'+id+'/?IBLOCK_ID='+ent.replace('s_catalog_','')+'&type=CRM_PRODUCT_CATALOG&lang=ru&ID='+id+'&find_section_section=0';
+        }else if(ent.indexOf('catalog_')>-1){
+            path = '/crm/catalog/'+ent.replace('catalog_','')+'/product/'+id+'/';
+        }else if(ent.indexOf('bitrix_processes_')>-1){
+            path = '/bizproc/processes/'+ent.replace('bitrix_processes_','')+'/element/0/'+id+'/';
+        }else if(ent.indexOf('list_')>-1){
+            path = '/company/lists/'+ent.replace('list_','')+'/element/0/'+id+'/';
+        }else if(ent.indexOf('dynamic_')>-1){
+            path = '/crm/type/'+ent.replace('dynamic_','')+'/details/'+id+'/';
+        }else if(ent.indexOf('DYNAMIC_')>-1){
+            path = '/crm/type/'+ent.replace('DYNAMIC_','')+'/details/'+id+'/';
+        }else if(ent === 'task'){
+            path = '/company/personal/user/0/tasks/task/view/'+id+'/';
+        }else if(ent === 'deal'){
+            path = '/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/';
+        }else if(ent === 'lead'){
+            path = '/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/';
+        }else if(ent === 'company'){
+            path = '/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/';
+        }else if(ent === 'contact'){
+            path = '/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/';
+        }else if(ent === 'quote'){
+            path = '/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/';
+        }else if(ent === 'smart_invoice'){
+            path = '/crm/type/31/details/'+id.replace(/([^\d\+])/g,'')+'/';
+        }else if(ent === 'user'){
+            path = '/company/personal/'+ent+'/'+id+'/';
+        }else if(ent === 'group'){
+            path = '/workgroups/'+ent+'/'+id+'/';
+        }else{
+            path = '/crm/type/'+ent+'/details/'+id+'/';
+            //BX24.openPath('/crm/type/'+ent+'/details/'+id+'/');
+        }
+        return path;
+    },
     openPath: function(path){
         var dsbl_ext = false;
         if(path == '/marketplace/detail/awz.smartbag/') dsbl_ext = true;
         if(!dsbl_ext && window.awz_helper.hasOwnProperty('extUrl')){
             var path_ext = window.awz_helper.extUrl.replace(/(.*?)\/rest\/.*/g,"$1") + path;
-            $('body').append('<div class="awz-ext-window-bg"><div class="awz-ext-window"><h4>Переход на внешний портал</h4><div class="buttons">' +
+            $('body').append('<div style="z-index:2000!important;" class="awz-ext-window-bg"><div class="awz-ext-window"><h4>Переход на внешний портал</h4><div class="buttons">' +
                 '<a href="#" class="close ui-btn ui-btn-xs ui-btn-danger">закрыть окно</a>'+
                 '<a href="'+path_ext+'" target="_blank" class="close_ext ui-btn ui-btn-xs">перейти</a>'+
                 '</div></div></div>');
         }else{
-            BX24.openPath(path);
+            BX24.openPath(path, function(e){
+                if(e.hasOwnProperty('errorCode') && e['errorCode'] == 'PATH_NOT_AVAILABLE'){
+                    $('body').append('<div style="z-index:2000!important;" class="awz-ext-window-bg"><div class="awz-ext-window"><h4>Отктытие в слайдере невозможно</h4><div class="buttons">' +
+                        '<a href="#" class="close ui-btn ui-btn-xs ui-btn-danger">закрыть окно</a>'+
+                        '<a href="https://' + BX24.getDomain() +path+'" target="_blank" class="close_ext ui-btn ui-btn-xs">перейти на страницу элемента</a>'+
+                        '</div></div></div>');
+                }
+            });
         }
     },
     util_type: {
@@ -471,7 +1729,7 @@ window.AwzBx24Proxy = {
         if(window.awz_helper.hasOwnProperty('extUrl')){
 
             //window.awz_helper.addBxTime(result);
-            var cmdData = [];
+            var cmdData = {};
             var k;
             var cnt = 0;
             for(k in batch){
@@ -485,7 +1743,7 @@ window.AwzBx24Proxy = {
                     }
                     query_data +=  res;
                 });
-                cmdData.push(batch_row.method+''+query_data);
+                cmdData[k] = batch_row.method+''+query_data;
                 cnt += 1;
             }
 
@@ -502,7 +1760,11 @@ window.AwzBx24Proxy = {
                 success: function (data, textStatus){
                     //console.log(data);
                     window.awz_helper.addBxTime(data);
-                    callback(data['result']);
+                    if(data['result'].hasOwnProperty('result')){
+                        callback(data['result']['result']);
+                    }else{
+                        callback(data['result']);
+                    }
                     //window.awz_helper.getSmartData();
                     //console.log(data);
                 },
@@ -708,14 +1970,10 @@ $(document).ready(function (){
         },
         getPlacementManager: function(){
             if(!this.placements){
+                window.AwzBx24EntityLoader_ob.setHookListDinamic();
                 this.placements = new AwzBx24PlacementManager;
                 this.placements.init({
                     'placements':[
-                        {
-                            'value':'REST_APP_URI',
-                            'title':'Ссылка на приложение с параметрами',
-                            'data-code':'REST_APP_URI'
-                        },
                         {
                             'value':'CRM_LIST_TOOLBAR',
                             'title':'Кнопка возле роботов',
@@ -776,12 +2034,28 @@ $(document).ready(function (){
                             'title':'Кнопка в документах компании',
                             'data-code':'CRM_COMPANY_DOCUMENTGENERATOR_BUTTON'
                         },
+                        {
+                            'value':'REST_APP_URI',
+                            'title':'Ссылка на приложение с параметрами',
+                            'data-code':'REST_APP_URI'
+                        },
+                        {
+                            'value':'REST_APP_WRAP',
+                            'title':'Список встроек',
+                            'data-code':'REST_APP_WRAP'
+                        },
                     ],
                     'onBeforeGetList': function(option, from, to){
                         if(!from) return false;
                         if(!to) return false;
+                        if(option.value === 'REST_APP_URI'){
+                            return true;
+                        }
                         if(from === 'APP_LINK'){
                             if(to === 'APP_LINK' && option.value === 'REST_APP_URI'){
+                                return true;
+                            }
+                            if(to === 'APP_LINK' && option.value === 'REST_APP_WRAP'){
                                 return true;
                             }
                             return false;
@@ -911,7 +2185,7 @@ $(document).ready(function (){
                     addHandler: function(from, to, type, name){
                         var group = $('#placement-sett-manager-group').val();
                         var userId = $('#placement-sett-manager-user').val();
-                        if(type === 'REST_APP_URI'){
+                        if(type === 'REST_APP_URI' && from === 'APP_LINK'){
                             if(!name) name = 'CRM Сущности';
                             BX24.callMethod(
                                 'placement.bind',
@@ -940,7 +2214,7 @@ $(document).ready(function (){
                             var smart = from;
                             var smart_to = to;
 
-                            version = 'new';
+                            //version = 'new';
                             /*if(smart === 'DOCS') version = 'new';
                             if(smart === 'DOCS_CRM') version = 'new';
                             if(smart === 'TASK_USER') version = 'new';
@@ -989,6 +2263,7 @@ $(document).ready(function (){
                                 url_code = 'orm';
                             }
                             if(smart_to === 'DOCS') smart_to = '';
+                            if(type === 'REST_APP_WRAP') url_code = 'index';
 
                             $('#placement-sett-manager-type').find('option').each(function(){
                                 if($(this).attr('value') === type){
@@ -1060,27 +2335,21 @@ $(document).ready(function (){
                                 'signed':$('#signed_add_form').val()
                             }
 
-                            $.ajax({
-                                url: '/bitrix/services/main/ajax.php?action=awz:bxapi.api.smartapp.addhook',
-                                data: q_data,
-                                dataType : "json",
-                                type: "POST",
-                                CORS: false,
-                                crossDomain: true,
-                                timeout: 180000,
-                                async: false,
-                                success: function (data, textStatus){
-                                    try{
-                                        q_data_del['id'] = data['data']['hook']['ID'];
-                                        q_data_del['hash'] = data['data']['hook']['TOKEN'];
-                                        url = window.awz_helper.APP_URL+url_code+
-                                            'n.php?ID='+data['data']['hook']['ID']+'&TOKEN='+data['data']['hook']['TOKEN'];
-
+                            if(['REST_APP_WRAP','REST_APP_URI'].indexOf(type)>-1){
+                                window.awz_helper.generateHookUrl(q_data, q_data_del, url_code, null,
+                                    function(awz_url, q_data_del){
+                                        window.awz_helper.loadHandledApp();
+                                    }
+                                );
+                            }else{
+                                window.awz_helper.generateHookUrl(q_data, q_data_del, url_code, null,
+                                    function(awz_url, q_data_del){
                                         BX24.callMethod(
                                             'placement.bind',
                                             {
                                                 'PLACEMENT': placement,
-                                                'HANDLER': url,
+                                                'HANDLER': awz_url,
+                                                //'HANDLER': q_data['url'],
                                                 'LANG_ALL': {
                                                     ru : {
                                                         'TITLE': name,
@@ -1093,39 +2362,188 @@ $(document).ready(function (){
                                             {
                                                 window.awz_helper.addBxTime(res);
                                                 if(res.answer.hasOwnProperty('error_description')){
-
                                                     window.awz_helper.deleteHook(q_data_del);
-
                                                     alert(res.answer.error_description);
                                                 }else{
                                                     window.awz_helper.loadHandledApp();
                                                 }
                                             }
                                         );
-
-                                    }catch (e) {
-                                        console.log(e.message);
-                                        alert('ошибка генерации веб хука на сервисе приложения');
                                     }
-                                },
-                                error: function (err){
-
-                                }
-                            });
-
-
-                            if(url.length>255){
-                                alert('Превышена максимальная длина вебхука '+url.length+' > 255');
-                            }else{
-
+                                );
                             }
+
                         }
                     },
                 });
             }
             return this.placements;
         },
-        deleteHook: function(q_data_del){
+        generateHookUrl:function(q_data, q_data_del, url_code, placement_handler, callback){
+            var url = q_data['url'];
+            $.ajax({
+                url: '/bitrix/services/main/ajax.php?action=awz:bxapi.api.smartapp.addhook',
+                data: q_data,
+                dataType : "json",
+                type: "POST",
+                CORS: false,
+                crossDomain: true,
+                timeout: 180000,
+                async: false,
+                success: function (data, textStatus){
+                    try{
+                        if(data['status']=='success'){
+                            q_data_del['id'] = data['data']['hook']['ID'];
+                            q_data_del['hash'] = data['data']['hook']['TOKEN'];
+                            var awz_url = window.awz_helper.APP_URL+url_code+
+                                'n.php?ID='+data['data']['hook']['ID']+'&TOKEN='+data['data']['hook']['TOKEN'];
+
+                            if(typeof callback == 'function'){
+                                callback.call(window.document, awz_url, q_data_del, placement_handler);
+                            }
+                        }else{
+                            var k;
+                            for(k in data['errors']){
+                                alert('ошибка '+data['errors'][k]['code']+': '+data['errors'][k]['message']);
+                            }
+                        }
+                    }catch (e) {
+                        console.log(e.message);
+                        alert('ошибка генерации веб хука на сервисе приложения');
+                    }
+                },
+                error: function (err){
+
+                }
+            });
+        },
+        replaceHandler: function(old_url, placement_code){
+            if('REST_APP_URI' == placement_code){
+                alert('встройка не требует замены');
+                return;
+            }
+            var q_data = {
+                'url':old_url,
+                'domain':$('#signed_add_form').attr('data-domain'),
+                'app':$('#signed_add_form').attr('data-app'),
+                'signed':$('#signed_add_form').val(),
+                'params':{
+                    'handler':{
+                        'name':'',
+                        'app': $('#signed_add_form').attr('data-app')
+                    }
+                }
+            };
+            var q_data_del = {
+                'domain':$('#signed_add_form').attr('data-domain'),
+                'app':$('#signed_add_form').attr('data-app'),
+                'signed':$('#signed_add_form').val()
+            }
+
+            BX24.callMethod(
+                'placement.get',
+                {},
+                function(res) {
+                    window.awz_helper.addBxTime(res);
+                    try {
+                        if (res.answer.result.length){
+                            var k;
+                            for (k in res.answer.result) {
+                                var placement = res.answer.result[k];
+                                if(placement['handler'].indexOf('&TOKEN=')===-1 ||
+                                    placement['handler'].indexOf('n.php?ID=')===-1
+                                ){
+                                    if(placement['handler'] === q_data['url']){
+                                        console.log('pls', placement);
+                                        q_data['name'] = placement['title'];
+                                        var url_code = q_data['url'].replace(/.*\/([a-z]+)n\.php\?.*/, "$1");
+
+                                        window.awz_helper.generateHookUrl(q_data, q_data_del, url_code, placement,
+                                            function(awz_url, q_data_del, placement_handler){
+                                                BX24.callMethod(
+                                                    'placement.bind',
+                                                    {
+                                                        'PLACEMENT': placement_handler['placement'],
+                                                        'HANDLER': awz_url,
+                                                        'LANG_ALL': {
+                                                            'ru' : {
+                                                                'TITLE': placement_handler['langAll']['ru']['TITLE'],
+                                                                'GROUP_NAME':placement_handler['langAll']['ru']['GROUP_NAME']
+                                                            }
+                                                        },
+                                                        'USER_ID': placement_handler['userId']
+                                                    },
+                                                    function(res)
+                                                    {
+                                                        window.awz_helper.addBxTime(res);
+                                                        if(res.answer.hasOwnProperty('error_description')){
+                                                            window.awz_helper.deleteHook(q_data_del);
+                                                            alert(res.answer.error_description);
+                                                        }else{
+
+                                                            BX24.callMethod(
+                                                                'placement.unbind',
+                                                                {
+                                                                    'PLACEMENT': placement_handler['placement'],
+                                                                    'HANDLER': placement_handler['handler']
+                                                                },
+                                                                function(resDel)
+                                                                {
+                                                                    window.awz_helper.loadHandledApp();
+                                                                }
+                                                            );
+
+                                                        }
+                                                    }
+                                                );
+                                        });
+
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        alert('ошибка получения списка встроек');
+                    }
+                }
+            );
+        },
+        updateGridParams: function(q_data, callback){
+            $.ajax({
+                url: '/bitrix/services/main/ajax.php?action=awz:bxapi.api.smartapp.updategrid',
+                data: q_data,
+                dataType: "json",
+                type: "POST",
+                CORS: false,
+                crossDomain: true,
+                timeout: 180000,
+                async: false,
+                success: function (data, textStatus) {
+                    if(typeof callback == 'function'){
+                        callback.call(window.document, data);
+                    }
+                }
+            });
+        },
+        updateHookParams: function(q_data, callback){
+            q_data['type'] = 'hook_params';
+            $.ajax({
+                url: '/bitrix/services/main/ajax.php?action=awz:bxapi.api.smartapp.updatehook',
+                data: q_data,
+                dataType: "json",
+                type: "POST",
+                CORS: false,
+                crossDomain: true,
+                timeout: 180000,
+                async: false,
+                success: function (data, textStatus) {
+                    if(typeof callback == 'function'){
+                        callback.call(window.document, data);
+                    }
+                }
+            });
+        },
+        deleteHook: function(q_data_del, callback){
             $.ajax({
                 url: '/bitrix/services/main/ajax.php?action=awz:bxapi.api.smartapp.deletehook',
                 data: q_data_del,
@@ -1136,7 +2554,9 @@ $(document).ready(function (){
                 timeout: 180000,
                 async: false,
                 success: function (data, textStatus) {
-                    console.log(data);
+                    if(typeof callback == 'function'){
+                        callback.call(window.document, data);
+                    }
                 }
             });
         },
@@ -1167,19 +2587,158 @@ $(document).ready(function (){
             }
             return options;
         },
-        loadHandledApp: function(){
+        loadHandledAppNoAdmin: function(){
 
-            this.pagesManager = new AwzBx24PageManager();
-            this.pagesManager = this.pagesManager.init();
+            if(!window.awz_helper.hasOwnProperty('MARKET_ID')){
+                window.awz_helper.MARKET_ID = 'awz.smartbag';
+                BX24.callMethod('app.info', {}, function(res){
+                    try{
+                        window.awz_helper.MARKET_ID = res['answer']['result']['CODE'];
+                    }catch (e) {
 
-            if(!BX24.isAdmin()){
+                    }
+                    window.awz_helper.loadHandledAppNoAdmin();
+                });
+                return;
+            }
+
+            this.showStat();
+
+            var q_data_hook = {
+                'domain':$('#signed_add_form').attr('data-domain'),
+                'app':$('#signed_add_form').attr('data-app'),
+                'signed':$('#signed_add_form').val(),
+                'publicmode':1,
+                'parentplacement':window.awz_helper.parentPlacement,
+                'grid_id':$('#grid-settings-button').attr('data-grid_id'),
+                'key':$('#grid-settings-button').attr('data-key'),
+                'check_active':1
+            };
+
+            $.ajax({
+                url: '/bitrix/services/main/ajax.php?action=awz:bxapi.api.smartapp.listhook',
+                data: q_data_hook,
+                dataType: "json",
+                type: "POST",
+                CORS: false,
+                crossDomain: true,
+                timeout: 180000,
+                async: false,
+                success: function (hookList, textStatus) {
+                    //console.log(hookList);
+                    $('.appWrapPlaceList .row-items-active').html('');
+                    try{
+                        var k;
+
+                        var itrSorted = [];
+                        for (k in hookList['data']){
+                            itrSorted.push(hookList['data'][k]);
+                        }
+                        itrSorted.sort(function(itm1, itm2){
+                            return (itm1['SORT'] > itm2['SORT']) ? 1 : -1
+                        });
+                        //console.log(itrSorted);
+
+                        for (k in itrSorted){
+                            var plc = itrSorted[k];
+                            if(plc.hasOwnProperty('DESC') && plc['DESC']){
+                                plc['NAME'] += '<i>'+plc['DESC']+'</i>';
+                            }
+                            $('.appWrapPlaceList .row-items-active').append(
+                                '<div class="item" style="background:'+plc['BG']+';"><a class="open-smart" data-ent="placement" href="/marketplace/view/'+window.awz_helper.MARKET_ID+'/?params[HOOK]='+plc['ID']+'">' +
+                                '<div class="image"><img src="'+plc['IMAGE']+'"></div>' +
+                                '<div class="name">'+plc['NAME']+'</div>' +
+                                '</a></div>'
+                            );
+                        }
+                    }catch (e) {
+                        console.log(e);
+                    }
+                    if(!window.awz_helper.parentPlacement){
+                        var helpUrl = 'https://zahalski.dev/contacts/';
+                        $('.appWrapPlaceList .row-items-active').append(
+                            '<div class="item"><a class="awz-handler-slide" data-page="help" href="#">' +
+                            '<div class="image"><img src="/bitrix/js/ui/forms/images/quest.svg"></div>' +
+                            '<div class="name">Поддержка решения</div>' +
+                            '</a></div>'
+                        );
+                    }
+                }
+            });
+        },
+        appendNotHandledPlacement: function(allPlacements, hookExistsIds){
+            try{
+                var k;
+                for(k in allPlacements['data']){
+                    var pls = allPlacements['data'][k];
+                    var sett_link = '<a href="#" data-app="'+$('#signed_add_form').attr('data-app')+'" data-domain="'+$('#signed_add_form').attr('data-domain')+'" data-signed="'+$('#signed_add_form').val()+'" data-id="'+pls['ID']+'" data-hash="'+pls['HASH']+'" data-page="sett-handler" class="awz-handler-slide-content ui-btn ui-btn-xs ui-btn-icon-setting"></a>';
+                    var del_link = '<a href="#" data-type="app-placement" data-id="'+pls['ID']+'" data-hash="'+pls['HASH']+'" class="remove_smart_handled ui-btn ui-btn-xs ui-btn-icon-alert">удалить</a>';
+                    if(hookExistsIds.indexOf(pls['ID'])===-1){
+                        var title = 'ID: '+pls['ID'];
+                        if(pls['PARAMS'].hasOwnProperty('handler') &&
+                            pls['PARAMS']['handler'].hasOwnProperty('name') && pls['PARAMS']['handler']['name']){
+                            title = pls['PARAMS']['handler']['name'];
+                        }
+                        $('.rows-smarts').append('<div class="row" style="margin-bottom:10px;">' +
+                            '<div style="display:block;clear:both;width:100%;height:10px;"></div>'+
+                            '<div class="col-xs-3 no-padding-l">' +
+                            '<label class="main-grid-control-label">'+title+'</label>' +
+                            '</div>' +
+                            '<div class="col-xs-6">' +
+                            '<label style="display:block;overflow:hidden;" class="main-grid-control-label">URL: '+pls['URL']+'</label>' +
+                            '</div>' +
+                            '<div class="col-xs-3 no-padding-r">'+del_link+ sett_link +
+                            '</div>' +
+                            '</div>');
+                    }
+                    var htDesc = '';
+                    if(pls['PARAMS'].hasOwnProperty('hook') && pls['PARAMS']['hook'].hasOwnProperty('desc_admin')){
+                        htDesc = pls['PARAMS']['hook']['desc_admin'];
+                    }
+                    $('.row-placement-'+pls['ID']+' .desc').remove();
+                    $('.row-placement-'+pls['ID']).append('<div class="desc"></div>');
+                    if(htDesc){
+                        $('.row-placement-'+pls['ID']+' .desc').html('<div class="col-xs-12"><div class="row" style="border:none;">'+htDesc+'</div></div>');
+                    }
+
+                }
+            }catch (e) {
+                console.log(e);
+            }
+            //console.log('addpls',[allPlacements, hookExistsIds]);
+        },
+        parentPlacement: 0,
+        loadHandledApp: function(parentPlacement){
+            if(parentPlacement) this.parentPlacement = parentPlacement;
+            if(!this.hasOwnProperty('pagesManager') || !this.pagesManager){
+                this.pagesManager = new AwzBx24PageManager();
+                this.pagesManager = this.pagesManager.init();
+            }
+
+            if(!this.autoLoadEntity){
+                this.autoLoadEntity = new AwzBx24EntityLoader();
+                this.autoLoadEntity.init();
+            }
+
+            this.loadHandledAppNoAdmin();
+
+            var plcInfo = BX24.placement.info();
+            var hideSett = false;
+            if(plcInfo.hasOwnProperty('options') && plcInfo['options'].hasOwnProperty('HOOK')){
+                hideSett = true;
+            }
+
+            if(!BX24.isAdmin() || hideSett){
                 this.pagesManager.hidePages();
-                this.pagesManager.showMessage('<div class="ui-alert ui-alert-danger">Настройка встроек доступна только администратору портала</div>');
+                if(!hideSett){
+                    this.pagesManager.showMessage('<div class="ui-alert ui-alert-danger">Добавление встроек доступно только администратору портала</div>');
+                }
                 return;
             }
 
             var placementManager = this.getPlacementManager();
             placementManager.show();
+            //this.replaceHandler();
 
             placementManager.appendFrom({
                 'value':'APP_LINK',
@@ -1201,9 +2760,6 @@ $(document).ready(function (){
                 },
                 'CONTACT':{
                     'title': 'Контакты'
-                },
-                'DEAL':{
-                    'title': 'Сделки'
                 },
                 'COMPANY':{
                     'title': 'Компании'
@@ -1482,6 +3038,7 @@ $(document).ready(function (){
                         'signed':$('#signed_add_form').val()
                     };
 
+
                     $.ajax({
                         url: '/bitrix/services/main/ajax.php?action=awz:bxapi.api.smartapp.listhook',
                         data: q_data_hook,
@@ -1492,8 +3049,8 @@ $(document).ready(function (){
                         timeout: 180000,
                         async: false,
                         success: function (hookList, textStatus) {
-                            console.log(hookList);
-
+                            //console.log(hookList);
+                            var hookExists = [];
                             BX24.callMethod(
                                 'placement.get',
                                 {},
@@ -1508,12 +3065,15 @@ $(document).ready(function (){
                                             for (k in res.answer.result) {
                                                 var placement = res.answer.result[k];
                                                 placement['bx_handler'] = '';
+                                                placement['bx_handler_id'] = '';
                                                 try{
                                                     if(placement['handler'].indexOf('ID=')>-1){
                                                         var handlerId = placement['handler'].match(/ID=([0-9]+)/i);
                                                         if(hookList['data'][handlerId[1]]['URL']){
                                                             placement['bx_handler'] = placement['handler'];
                                                             placement['handler'] = hookList['data'][handlerId[1]]['URL'];
+                                                            hookExists.push(handlerId[1]);
+                                                            placement['bx_handler_id'] = handlerId[1];
                                                         }
                                                     }
                                                 }catch (e) {
@@ -1524,7 +3084,7 @@ $(document).ready(function (){
                                                 var candidate = placement['placement'].split('_');
 
                                                 var gridParams = window.awz_helper.getGridParamsFromUrl(placement['handler']);
-                                                console.log([gridParams, candidate, placement]);
+                                                //console.log([gridParams, candidate, placement]);
 
                                                 var code_type = '';
                                                 var code_to = '';
@@ -1741,10 +3301,24 @@ $(document).ready(function (){
                                                     //    'title':'AWZ ORM Api - '+placement['handler'].replace(/.*ext=(.*)\/bitrix\/.*/g,"$1")
                                                     //};
                                                 //}
-                                                console.log([code,code_to,item,item_to]);
+                                                //console.log([code,code_to,item,item_to]);
 
+                                                var sett_link = '<a href="#" data-app="'+$('#signed_add_form').attr('data-app')+'" data-domain="'+$('#signed_add_form').attr('data-domain')+'" data-signed="'+$('#signed_add_form').val()+'" data-bxhandler="'+placement['bx_handler']+'" data-page="sett-handler" class="awz-handler-slide-content ui-btn ui-btn-xs ui-btn-icon-setting"></a>';
+                                                var plc_link = '<a href="#" data-bxhandler="'+placement['bx_handler']+'" data-handler="'+placement['handler']+'" data-placement="'+placement['placement']+'" class="remove_smart_handled ui-btn ui-btn-xs ui-btn-icon-alert">Деактивировать</a>';
+                                                var regenLink = '';//replaceHandler
+                                                if(!placement['bx_handler'] && placement['placement']!='REST_APP_URI'){
+                                                    regenLink = '<a href="#" data-handler="'+placement['handler']+'" data-placement="'+placement['placement']+'" class="update_smart_handled ui-btn ui-btn-xs ui-btn-danger ui-btn-icon-alert">обновить URL</a>'
+                                                    sett_link = '';
+                                                }
+                                                if(placement['placement']=='REST_APP_URI'){
+                                                    sett_link = '';
+                                                }
+
+                                                if(!placement.hasOwnProperty('bx_handler_id')){
+                                                    placement['bx_handler_id'] = '';
+                                                }
                                                 if(!item || !item_to){
-                                                    $('.rows-smarts').append('<div class="row" style="margin-bottom:10px;">' +
+                                                    $('.rows-smarts').append('<div class="row row-placement-'+placement['bx_handler_id']+'" style="margin-bottom:10px;">' +
                                                         '<div class="col-xs-9 no-padding-l">' +
                                                         '<label class="main-grid-control-label">'+placement['handler']+'</label>' +
                                                         '</div>' +
@@ -1762,11 +3336,11 @@ $(document).ready(function (){
                                                         '<label class="main-grid-control-label">'+(placement.userId ? 'Для пользователя с ID '+placement.userId : 'Для всех пользователей')+'</label>' +
                                                         '</div>' +
                                                         '<div class="col-xs-3 no-padding-r">' +(old_version_handler ? '<b style="color:red;">Устарела! Пересоздайте!</b><br>' : '')+
-                                                        '<a href="#" data-bxhandler="'+placement['bx_handler']+'" data-handler="'+placement['handler']+'" data-placement="'+placement['placement']+'" class="remove_smart_handled ui-btn ui-btn-xs ui-btn-icon-alert">Деактивировать</a>' +
+                                                        regenLink + plc_link + sett_link +
                                                         '</div>' +
                                                         '</div>');
                                                 }else{
-                                                    $('.rows-smarts').append('<div class="row" style="margin-bottom:10px;">' +
+                                                    $('.rows-smarts').append('<div class="row row-placement-'+placement['bx_handler_id']+'" style="margin-bottom:10px;">' +
                                                         '<div class="col-xs-3 no-padding-l">' +
                                                         '<label class="main-grid-control-label">'+item.title+'</label>' +
                                                         '</div>' +
@@ -1787,7 +3361,7 @@ $(document).ready(function (){
                                                         '<label class="main-grid-control-label">'+(placement.userId ? 'Для пользователя с ID '+placement.userId : 'Для всех пользователей')+'</label>' +
                                                         '</div>' +
                                                         '<div class="col-xs-3 no-padding-r">' +(old_version_handler ? '<b style="color:red;">Устарела! Пересоздайте!</b><br>' : '')+
-                                                        '<a href="#" data-bxhandler="'+placement['bx_handler']+'" data-handler="'+placement['handler']+'" data-placement="'+placement['placement']+'" class="remove_smart_handled ui-btn ui-btn-xs ui-btn-icon-alert">Деактивировать</a>' +
+                                                        regenLink + plc_link + sett_link +
                                                         '</div>' +
                                                         '</div>');
                                                 }
@@ -1797,6 +3371,7 @@ $(document).ready(function (){
                                     } catch (e) {
                                         console.log(e);
                                     }
+                                    window.awz_helper.appendNotHandledPlacement(hookList, hookExists);
                                     window.awz_helper.resize();
                                 }
                             );
@@ -1814,6 +3389,7 @@ $(document).ready(function (){
         pagesize_total: 0,
         pagesize_next: 0,
         page_size: 10,
+        autoLoadEntity: null,
         postData: function(data){
             console.log('postData',data);
             data['smartId'] = this.smartId;
@@ -1842,15 +3418,57 @@ $(document).ready(function (){
             }
             //console.log(JSON.stringify(PLACEMENT_OPTIONS));
 
+            try{
+                if(data.hasOwnProperty('users'))
+                    delete data['users'];
+                if(data.hasOwnProperty('page_size')){
+                    var next_cn = 0;
+                    if(data.hasOwnProperty('next')){
+                        next_cn = parseInt(data['next']);
+                    }
+                    var active_keys = [];
+                    var k = 0;
+                    for(k=0;k < parseInt(data['page_size']);k+=1){
+                        active_keys.push((k+next_cn) % 50);
+                    }
+                    if(data.hasOwnProperty('items') && data['items'].hasOwnProperty('length')){
+                        var k;
+                        for(k in data['items']){
+                            if(active_keys.indexOf(parseInt(k))===-1){
+                                data['items'][k] = [];
+                            }
+                        }
+                    }
+                    if(data.hasOwnProperty('tasks') && data['tasks'].hasOwnProperty('length')){
+                        var k;
+                        for(k in data['tasks']){
+                            if(active_keys.indexOf(parseInt(k))===-1){
+                                data['tasks'][k] = [];
+                            }
+                        }
+                    }
+                    //console.log(['active_keys',active_keys]);
+                }
+            }catch (e) {
+                console.log(e);
+            }
+
+            //window.location.pathname + window.location.search;
+            //window.location.pathname = window.location.pathname.replace('/smarts/index.php');
+            //console.log([window.location.pathname, window.location.search]);
+
+            //var urlGrid = window.location.pathname + window.location.search;
+
             BX.Main.gridManager.getById(this.gridId).instance.
             reloadTable('POST', {'bx_result':data, key: window.awz_helper.key, PLACEMENT_OPTIONS: JSON.stringify(PLACEMENT_OPTIONS)},function(){
+                window.awz_helper.autoLoadEntity.load();
                 window.awz_helper.preventSortableClick = false;
                 window.awz_helper.resize();
                 var loader_tmp = BX.Main.gridManager.getById(window.awz_helper.gridId).instance.getLoader();
                 setTimeout(function(){
                     loader_tmp.hide();
                 },1000);
-            });
+            }, window.awz_helper.gridUrl);
         },
         getSmartDataFiltered: function(filter, only_filter){
             var format_filter = {};
@@ -2268,6 +3886,16 @@ $(document).ready(function (){
         grid_ob: null,
         placement_el_cache: null,
         init: function(key, smartId, gridId, startSize, gridOptions){
+
+            if(!this.hasOwnProperty('pagesManager') || !this.pagesManager){
+                this.pagesManager = new AwzBx24PageManager();
+                this.pagesManager = this.pagesManager.init();
+            }
+
+            if(!this.autoLoadEntity){
+                this.autoLoadEntity = new AwzBx24EntityLoader();
+                this.autoLoadEntity.init();
+            }
             try{
                 if(!this.placement_el_cache){
                     var plc_info = BX24.placement.info();
@@ -2518,11 +4146,19 @@ $(document).ready(function (){
             $('#uiToolbarContainer').append('<div class="adm-toolbar-panel-container"><div class="adm-toolbar-panel-flexible-space"></div><a onclick="window.AwzBx24Proxy.openPath(\'/marketplace/detail/awz.smartbag/\');return false;" href="#" style="line-height:12px;" class="ui-btn ui-btn-sm ui-btn-icon-plan ui-btn-danger">Оставь бесплатный отзыв <br>для бесплатного приложения</a></div>');
         },
         showStat: function(){
+            var q_data_hook = {
+                'domain':$('#signed_add_form').attr('data-domain'),
+                'app':$('#signed_add_form').attr('data-app'),
+                'signed':$('#signed_add_form').val(),
+                'publicmode':1,
+                'parentplacement':window.awz_helper.parentPlacement
+            };
+            var set_grid_button = '<a href="#" id="grid-settings-button" data-parentplacement="'+q_data_hook['parentplacement']+'" data-publicmode="'+q_data_hook['publicmode']+'" data-signed="'+q_data_hook['signed']+'" data-app="'+q_data_hook['app']+'" data-domain="'+q_data_hook['domain']+'" data-grid_id="'+this.gridId+'" data-key="'+this.key+'" data-page="sett-grid" class="awz-handler-slide-content ui-btn ui-btn-xs ui-btn-icon-setting"></a>';
             if($('#stat-app').html()){
                 if($('#stat-app-moved').length){
-                    $('#stat-app-moved').html($('#stat-app').html());
+                    $('#stat-app-moved').html(set_grid_button+$('#stat-app').html());
                 }else{
-                    $('.main-grid').append('<div id="stat-app-moved">'+$('#stat-app').html()+'</div>');
+                    $('.main-grid').append('<div id="stat-app-moved">'+set_grid_button+$('#stat-app').html()+'</div>');
                 }
             }
         },
@@ -2842,7 +4478,13 @@ $(document).ready(function (){
 
             this.getAuth(function(auth){
                 var PARAMS = window.awz_helper.PARAMS;
-                var url = 'http'+(PARAMS.PROTOCOL?'s':'')+'://' + PARAMS.DOMAIN + PARAMS.PATH + '/' + encodeURIComponent(method) + '.json';
+                var url = '';
+                if(typeof method == 'string'){
+                    url = 'http'+(PARAMS.PROTOCOL?'s':'')+'://' + PARAMS.DOMAIN + PARAMS.PATH + '/' + encodeURIComponent(method) + '.json';
+                }else if(typeof method == 'object' && method.hasOwnProperty('length')){
+                    url = method[0]+method[1];
+                }
+
                 var query_data = 'auth=' + auth.access_token;
 
                 window.AwzBx24Proxy.prepareData(data, '', function(res){
@@ -2952,6 +4594,7 @@ $(document).ready(function (){
             this.getSmartData();
         },
         reloadList: function(){
+            this.autoLoadEntity.clearCache();
             this.getSmartData();
         },
         replaceFilter: function(filter){
@@ -2959,24 +4602,29 @@ $(document).ready(function (){
             var k;
             for(k in filter){
                 var val = filter[k];
-                if(typeof val === 'object'){
-                    var k3;
-                    for(k3 in val){
-                        if(val[k3].indexOf("#")>-1 && this.placement_el_cache){
+                try{
+                    if(typeof val === 'object'){
+                        var k3;
+                        for(k3 in val){
+                            if(val[k3].indexOf("#")>-1 && this.placement_el_cache){
+                                var k2;
+                                for(k2 in this.placement_el_cache){
+                                    val[k3] = val[k3].replace("#"+k2+"#", this.placement_el_cache[k2]);
+                                }
+                            }
+                        }
+                    }else{
+                        if(val.indexOf("#")>-1 && this.placement_el_cache){
                             var k2;
                             for(k2 in this.placement_el_cache){
-                                val[k3] = val[k3].replace("#"+k2+"#", this.placement_el_cache[k2]);
+                                val = val.replace("#"+k2+"#", this.placement_el_cache[k2]);
                             }
                         }
                     }
-                }else{
-                    if(val.indexOf("#")>-1 && this.placement_el_cache){
-                        var k2;
-                        for(k2 in this.placement_el_cache){
-                            val = val.replace("#"+k2+"#", this.placement_el_cache[k2]);
-                        }
-                    }
+                }catch (e) {
+
                 }
+
                 new_filter[k] = val;
             }
             console.log(['replaceFilter', filter, new_filter]);
@@ -3747,6 +5395,13 @@ $(document).ready(function (){
             this.clearTimeouts();
             //this.grid_ob.getParent().getActionsPanel().removeItemsRelativeCurrent(BX('base_action_select_control'));
         },
+        openDialogAwzCrm: function(controlId, entityIds, multiple){
+            try{
+                this.autoLoadEntity.showDialog(entityIds.split(','), controlId, (multiple === 'Y'));
+            }catch (e) {
+                console.log(e);
+            }
+        },
         openDialogCrmOne: function(controlId, entityIds, only_int){
             var ent = entityIds.split(',');
             var value = $('#'+controlId).val();
@@ -3973,6 +5628,79 @@ $(document).ready(function (){
             }
         });
     });
+    $(document).on('click', '#awz-save-grid-sett', function(e){
+        //grid-settings-button
+        /*var q_data_hook = {
+            'grid_id':window.awz_helper.gridId,
+            'key':window.awz_helper.key,
+            'params':$('#custom-user-grid-sett').serialize()
+        };*/
+        $('.awz-save-grid-sett-tmp-keys').remove();
+        $('#custom-user-grid-sett').append('<div class="awz-save-grid-sett-tmp-keys"><input type="hidden" name="grid_id" value="'+window.awz_helper.gridId+'"><input type="hidden" name="key" value="'+window.awz_helper.key+'"></div>');
+
+        window.awz_helper.updateGridParams($('#custom-user-grid-sett').serialize(), function(data){
+            console.log(data);
+            try{
+                if(data['status'] === 'error'){
+                    var k;
+                    for(k in data['errors']){
+                        $('.err-rows-sett').append('<div class="ui-alert ui-alert-danger">'+data['errors'][k]['code']+': '+data['errors'][k]['message']+'</div>');
+                    }
+                    return;
+                }
+            }catch (e) {
+                console.log(e);
+            }
+            window.awz_helper.loadHandledApp();
+            BX.SidePanel.Instance.close();
+        });
+
+    });
+    $(document).on('click', '#awz-save-hook-params', function(e){
+        e.preventDefault();
+        $('.err-rows-sett').html('');
+        var q_data = {
+            'domain':$('#signed_add_form').attr('data-domain'),
+            'app':$('#signed_add_form').attr('data-app'),
+            'signed':$('#signed_add_form').val(),
+            'id': $(this).attr('data-id'),
+            'hash': $(this).attr('data-hash'),
+            'params':{
+                'users': $('#users-right').val().split(','),
+                'desc_admin':$('#placement-desc-admin').val(),
+                'min_name_user':$('#placement-min-name-user').val(),
+                'desc_user':$('#placement-desc-user').val(),
+                'desc_icon':$('#placement-icon-user').val(),
+                'desc_bg_hex':$('#placement-icon-hex').val(),
+                'placements':[]
+            }
+        };
+        if($('#placements-list').val()){
+            q_data['params']['placements'] = $('#placements-list').val().split(',');
+        }
+        window.awz_helper.updateHookParams(q_data, function(data){
+            console.log(data);
+            try{
+                if(data['status'] === 'error'){
+                    var k;
+                    for(k in data['errors']){
+                        $('.err-rows-sett').append('<div class="ui-alert ui-alert-danger">'+data['errors'][k]['code']+': '+data['errors'][k]['message']+'</div>');
+                    }
+                    return;
+                }
+            }catch (e) {
+                console.log(e);
+            }
+            window.awz_helper.loadHandledApp();
+            BX.SidePanel.Instance.close();
+        });
+    });
+    $(document).on('click', '.update_smart_handled', function(e){
+        e.preventDefault();
+        var placement = $(this).attr('data-placement');
+        var handler = $(this).attr('data-handler');
+        window.awz_helper.replaceHandler(handler, placement);
+    });
     $(document).on('click', '.remove_smart_handled', function(e){
         e.preventDefault();
         var placement = $(this).attr('data-placement');
@@ -3980,6 +5708,19 @@ $(document).ready(function (){
         var handler_bx = $(this).attr('data-bxhandler');
         if(handler_bx){
             handler = handler_bx;
+        }
+        if($(this).attr('data-type') === 'app-placement'){
+            var q_data_del = {
+                'domain':$('#signed_add_form').attr('data-domain'),
+                'app':$('#signed_add_form').attr('data-app'),
+                'signed':$('#signed_add_form').val()
+            }
+            q_data_del['id'] = $(this).attr('data-id');
+            q_data_del['hash'] = $(this).attr('data-hash');
+            window.awz_helper.deleteHook(q_data_del, function(){
+                window.awz_helper.loadHandledApp();
+            });
+            return;
         }
         BX24.callMethod(
             'placement.unbind',
@@ -4017,45 +5758,10 @@ $(document).ready(function (){
         e.preventDefault();
         var id = $(this).attr('data-id');
         var ent = $(this).attr('data-ent');
-        if (ent === 'auto'){
-            var tmp = id.replace(/([\d\+])/g,'');
-            if(tmp == 'C_') ent = 'contact';
-            if(tmp == 'CO_') ent = 'company';
-            if(tmp == 'D_') ent = 'deal';
-            if(tmp == 'L_') ent = 'lead';
-            if(id.charAt(0) === 'T') {
-                var tmp2 = id.split('_');
-                ent = parseInt(tmp2[0].replace(/^T/g,''), 16);
-                id = tmp2[1];
-            }
+        if(!id){
+            id = $(this).attr('href');
         }
-        if(ent === 'COMPANY') ent = 'company';
-        if(ent === 'CONTACT') ent = 'contact';
-        if(ent === 'DEAL') ent = 'deal';
-        if(ent === 'EXT_COMPANY') ent = 'company';
-        if(ent === 'EXT_CONTACT') ent = 'contact';
-        if(ent === 'EXT_DEAL') ent = 'deal';
-        var path = '';
-        if(ent === 'task'){
-            path = '/company/personal/user/0/tasks/task/view/'+id+'/';
-        }else if(ent === 'deal'){
-            path = '/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/';
-        }else if(ent === 'lead'){
-            path = '/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/';
-        }else if(ent === 'company'){
-            path = '/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/';
-        }else if(ent === 'contact'){
-            path = '/crm/'+ent+'/details/'+id.replace(/([^\d\+])/g,'')+'/';
-        }else if(ent === 'smart_invoice'){
-            path = '/crm/type/31/details/'+id.replace(/([^\d\+])/g,'')+'/';
-        }else if(ent === 'user'){
-            path = '/company/personal/'+ent+'/'+id+'/';
-        }else if(ent === 'group'){
-            path = '/workgroups/'+ent+'/'+id+'/';
-        }else{
-            path = '/crm/type/'+ent+'/details/'+id+'/';
-            //BX24.openPath('/crm/type/'+ent+'/details/'+id+'/');
-        }
+        var path = window.AwzBx24Proxy.createPath(ent, id);
         window.AwzBx24Proxy.openPath(path);
     });
 

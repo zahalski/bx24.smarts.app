@@ -255,6 +255,11 @@ class DealList extends IList implements IParams {
                 $(document).ready(function(){
                     BX24.ready(function() {
                         BX24.init(function () {
+                            window.awz_helper.gridUrl = window.location.pathname + window.location.search;
+                            <?if(defined('CURRENT_CODE_PAGE')){?>
+                            window.awz_helper.gridUrl = window.awz_helper.gridUrl.replace('/smarts/index.php?','/smarts/?');
+                            window.awz_helper.gridUrl = window.awz_helper.gridUrl.replace('/smarts/?','/smarts/<?=CURRENT_CODE_PAGE?>.php?');
+                            <?}?>
                             <?
                             $gridOptions = new GridOptions($this->getParam('TABLEID'));
                             $sort = $gridOptions->getSorting(['sort'=>[$this->getParam('PRIMARY') =>'desc']]);
@@ -390,6 +395,7 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
             CJSCore::Init(array('popup', 'date'));
             Asset::getInstance()->addCss("/bitrix/css/main/font-awesome.css");
             Asset::getInstance()->addJs("/bx24/smarts/scriptn.js");
+            Asset::getInstance()->addJs("/bx24/smarts/md5.js");
         }
         Asset::getInstance()->addCss("/bx24/smarts/style.css");
         ?>
@@ -429,6 +435,14 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
         $arParams['GRID_ID'] = $gridId;
         $loadParamsEntity = \Awz\Admin\Helper::getGridParams($gridId);
         $gridOptions = [];
+        if($request->get('h_ID')){
+            $resTokenRight = \Awz\BxApi\Api\Controller\SmartApp::checkUserRightHook(
+                $checkAuthDomain, $app->getConfig('APP_ID'), $request->get('h_ID'), $checkAuthMember
+            );
+            if(!$resTokenRight->isSuccess()){
+                $loadParamsEntity->addErrors($resTokenRight->getErrors());
+            }
+        }
         if($loadParamsEntity->isSuccess()){
             $loadParamsEntityData = $loadParamsEntity->getData();
             $gridOptions = $loadParamsEntityData['options'];
@@ -653,6 +667,9 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
 
             \Bitrix\Main\UI\Extension::load("ui.progressbar");
             \Bitrix\Main\UI\Extension::load('ui.entity-selector');
+            \Bitrix\Main\UI\Extension::load('ui.forms');
+            \Bitrix\Main\UI\Extension::load('ui.alerts');
+            \Bitrix\Main\UI\Extension::load('ui.layout-form');
             $adminCustom->setParam('ACTION_PANEL', $arParams['ACTION_PANEL']);
             $adminCustom->setParam('FIND',$adminCustom->formatFilterFields($arParams['FIND']));
             $adminCustom->defaultInterface();

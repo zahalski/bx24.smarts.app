@@ -4,7 +4,7 @@
 .padding5 {padding-left:5px!important;padding-right:5px!important;}
 .padding5-r {padding-right:5px!important;}
 .padding5-l {padding-left:5px!important;}
-.slide_side_slider .workarea, .placement_REST_APP_URI .workarea, .placement_CRM_DEAL_DETAIL_TAB .workarea
+.slide_side_slider .workarea, .slide_rest_app_uri .workarea, .placement_REST_APP_URI .workarea, .placement_CRM_DEAL_DETAIL_TAB .workarea
 {padding: 20px;
     box-sizing: border-box;}
 
@@ -25,7 +25,7 @@
 }
 
 .awz-ext-window-bg {display:block;position:absolute;top:0;left:0;width:100%;
-    height:100%;background:#ffffff;opacity:0.95;z-index:1000;}
+    height:100%;background:#ffffff;opacity:0.95;z-index:1060;}
 .awz-ext-window {
     display:block;width:400px;position:fixed;top:20%;z-index:1001;
     text-align: center;
@@ -257,3 +257,64 @@ font-size:13px;line-height:16px;
 }
 .form-link-current .row {display:block;padding:5px 0;border-bottom:1px dotted #c6cdd3;clear:both;margin:5px 0;}
 #uiToolbarContainer {width:100%;}
+
+.awz-autoload-field {display:inline-block;float:left;min-width:140px;}
+.ui-selector-tab-labels {min-width:160px;}
+.awz-grid-item1-wrapper {display:inline-block;padding:2px 4px;border:1px solid #eef2f4;border-radius:8px;
+margin:3px 3px 0 0;background:#ffffff;min-width:140px;
+}
+.awz-grid-item1-wrapper a {font-size:13px;line-height:15px;text-decoration: none;
+display:block;max-height:30px;overflow:hidden;}
+.awz-grid-item1-wrapper .subtitle {font-size:11px;opacity:0.5;display:block;clear:both;line-height:13px;padding:3px 0 0 0;}
+
+.ui-selector-tab-labels {max-height:90%;overflow:hidden;overflow-y:auto;}
+.ui-selector-tab-labels::-webkit-scrollbar-thumb{background:#bcedfc;}
+.ui-selector-tab-labels::-webkit-scrollbar-track{background:#e4ebed;}
+.ui-selector-tab-labels::-webkit-scrollbar{width: 8px;height: 18px;}
+
+.appWrapPlaceList .row-items-active {display:flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
+    align-items: center;
+}
+.appWrapPlaceList .row-items-active .item {display:block;min-height:120px;min-width:220px;
+    padding:5px;
+    margin:10px;
+    border:1px solid #e4ebed;
+    border-radius:3px;
+    opacity:0.85;
+    transition:0.5s;
+}
+.appWrapPlaceList .row-items-active .item a {display:block;width:100%;height:100%;min-height:120px;
+text-decoration: none;
+    position:relative;
+}
+.appWrapPlaceList .row-items-active .item .name {display:block;
+text-align:center;color:#525c69;font-size: 14px;
+    position: absolute;
+    bottom: 0px;
+    width: 100%;
+    text-align: center;
+    background: #525c69;
+    color: #ffffff;
+    border-radius: 3px;
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+    opacity: 0.9;
+    line-height: 16px;
+    padding: 5px;
+    text-transform: uppercase;
+    box-shadow: 0px 0px 3px #848484;
+}
+.appWrapPlaceList .row-items-active .item .name i {display:block;clear:both;
+font-size:12px;line-height:13px;padding:3px 0 0 0;text-transform: lowercase;
+    max-height:29px;overflow:hidden;}
+.appWrapPlaceList .row-items-active .item .image {text-align:center;height:100px;margin-bottom:15px;
+    padding:5px 10px;
+}
+.appWrapPlaceList .row-items-active .item .image img {color:#c6cdd3;height:100px;width:auto;}
+.appWrapPlaceList .row-items-active .item:hover {background: #eef2f4;opacity:1;transition:0.5s;}
+.appWrapPlaceList .row-items-active .item:hover .name i {max-height:100%;}
+#grid-settings-button {float:left;}

@@ -18,6 +18,7 @@ use Awz\BxApi\Helper;
 use Bitrix\Iblock\PropertyEnumerationTable;
 use Bitrix\Main\Grid\Options as GridOptions;
 use Bitrix\Main\UI\PageNavigation;
+use Awz\BxApi\Api\Filters\Request\SetFilter;
 
 if(!Loader::includeModule('awz.bxapi')){
     return;
@@ -36,12 +37,108 @@ if($request->get('app')){
     $appId = $request->get('app');
 }
 $app = new App(array(
-   'APP_ID'=>$appId,
-   'APP_SECRET_CODE'=>Helper::getSecret($appId),
-   //'LOG_FILENAME'=>'bx_log_save_txt_n_test2.txt',
-   //'LOG_DIR'=>__DIR__
+    'APP_ID'=>$appId,
+    'APP_SECRET_CODE'=>Helper::getSecret($appId),
+    //'LOG_FILENAME'=>'bx_log_save_txt_n_test2.txt',
+    //'LOG_DIR'=>__DIR__
 ));
 
+try{
+    if($request->get('PLACEMENT') == 'REST_APP_URI'){
+        $pStart = Json::decode($request->get('PLACEMENT_OPTIONS'));
+        if($pStart['HOOK']){
+            $handlerData = \Awz\BxApi\HandlersTable::getList([
+                'select'=>['*'],
+                'filter'=>[
+                    '=ID'=>$pStart['HOOK'],
+                    '=PORTAL'=>$request->get('DOMAIN')
+                ]
+            ])->fetch();
+            if($handlerData &&
+                isset($handlerData['PARAMS']['handler']['app']) &&
+                $handlerData['PARAMS']['handler']['app'] &&
+                $handlerData['PARAMS']['handler']['app'] === $request->get('app')
+            ){
+                $tkn = array();
+                $tkn['access_token'] = htmlspecialchars($app->getRequest()->get('AUTH_ID'));
+                $tkn['client_endpoint'] = 'https://' .htmlspecialchars($app->getRequest()->get('DOMAIN')). '/rest/';
+                $app->setAuth($tkn);
+
+                $resOption = $app->getMethod('app.option.get');
+                $portalData = $app->getCurrentPortalData($request->get('DOMAIN'), 'Y');
+                if(!empty($portalData) && isset($portalData['PARAMS']['key']) &&
+                    $portalData['PARAMS']['key'] && $resOption->isSuccess())
+                {
+                    $resOptionData = $resOption->getData();
+                    $check = false;
+                    if($resOptionData['result']['result']['auth'] === $portalData['PARAMS']['key']){
+                        if(!isset($handlerData['PARAMS']['hook']['users'])){
+                            $check = true;
+                        }elseif(empty($handlerData['PARAMS']['hook']['users'])){
+                            $check = true;
+                        }elseif(!empty($handlerData['PARAMS']['hook']['users'])){
+                            $resUser = $app->getMethod('profile');
+                            if($resUser->isSuccess()){
+                                $resUserData = $resUser->getData();
+                                if(
+                                    isset($resUserData['result']['result']['ID']) &&
+                                    in_array($resUserData['result']['result']['ID'], $handlerData['PARAMS']['hook']['users'])
+                                ){
+                                    $check = true;
+                                }else{
+                                    $check = true;
+                                    //echo 'Встройка не доступна для Вас, администратор ограничил ее видимость.';
+                                }
+                            }
+                        }
+                    }
+
+                    $page = preg_replace('/.*\/([a-z]+)\.php.*/is',"$1",$handlerData['URL']);
+                    $page = preg_replace('/([^a-z])/is','',$page);
+
+
+                    if($check){
+                        if($page === 'indexn'){
+                            define('CURRENT_PARENT_PLACEMENT', $handlerData['ID']);
+                            $handledAr = explode('grid=',$handlerData['URL']);
+                            if(count($handledAr) == 2){
+                                $request->addFilter(new SetFilter('grid_id', $handledAr[1], 'get'));
+                            }
+                        }else{
+                            $filePath = __DIR__.'/'.$page.'.php';
+                            if(file_exists($filePath)){
+                                $server = \Bitrix\Main\Application::getInstance()->getContext()->getServer();
+                                $newReqUrl = str_replace('/smarts/index.php?','/smarts/'.$page.'.php?',$server->getRequestUri());
+                                $newReqUrl = str_replace('/smarts/?','/smarts/'.$page.'.php?',$newReqUrl);
+                                $server->rewriteUri($newReqUrl, $_SERVER['QUERY_STRING']);
+                                global $APPLICATION;
+                                $APPLICATION->setCurPage($newReqUrl);
+                                $request->addFilter(new SetFilter('ID', $handlerData['ID'], 'get'));
+                                $request->addFilter(new SetFilter('TOKEN', $handlerData['HASH'], 'get'));
+                                $request->addFilter(new SetFilter('DOMAIN', $handlerData['PORTAL'], 'get'));
+                                //echo'<pre>';print_r($request->getValues());echo'</pre>';
+                                define('CURRENT_CODE_PAGE', $page);
+                                require($filePath);
+                                die();
+                            }
+                        }
+                    }
+
+                    //echo'<pre>';print_r($request->get);echo'</pre>';
+                    //echo'<pre>';print_r($portalData);echo'</pre>';
+                    //echo'<pre>';print_r($handlerData);echo'</pre>';
+                    //echo'<pre>';print_r($resUserData['result']['result']['ID']);echo'</pre>';
+                }
+
+            }
+        }
+    }
+}catch (\Exception $e){
+
+}
+if(!defined('CURRENT_PARENT_PLACEMENT')){
+    $request->addFilter(new SetFilter('grid_id', 'awz_s__1_APP_LINK__2_APP_LINK__h_main', 'get'));
+}
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -50,6 +147,7 @@ $app = new App(array(
     Asset::getInstance()->addCss("/bitrix/css/main/bootstrap.css");
     Asset::getInstance()->addCss("/bitrix/css/main/font-awesome.css");
     Asset::getInstance()->addCss("/bx24/smarts/style.css");
+    Asset::getInstance()->addCss("/bitrix/components/awz/public.ui.grid/templates/.default/style.css");
     ?>
     <?$APPLICATION->ShowHead()?>
     <script src="//api.bitrix24.com/api/v1/"></script>
@@ -63,13 +161,39 @@ if($placement){
         $fraimeType = 'slide_'.strtolower($placement['IFRAME_TYPE']);
     }
 }
-$appViewType = 'admin';
-if($app->getRequest()->get('PLACEMENT') === 'REST_APP_URI'){
-    $appViewType = 'user';
+if(!$fraimeType && $app->getRequest()->get('IFRAME_TYPE')){
+    $fraimeType = 'slide_'.strtolower($app->getRequest()->get('IFRAME_TYPE'));
 }
+if(!$fraimeType && $app->getRequest()->get('PLACEMENT')==='REST_APP_URI'){
+    $fraimeType = 'slide_'.strtolower($app->getRequest()->get('PLACEMENT'));
+}
+//echo'<pre>';print_r($request->getQueryList());echo'</pre>';
+//echo'<pre>';print_r($request->getPostList());echo'</pre>';
 ?>
 <body class="<?=$fraimeType?>"><div class="workarea">
 <div class="container"><div class="row"><div class="result-block-messages"></div></div></div>
+
+
+<div class="appWrapPlaceList" data-page="place-list">
+    <div class="container"><div class="row"><div class="ui-block-wrapper">
+                <div class="ui-block-title">
+                    <div class="ui-block-title-text">Доступные Вам встройки</div>
+                    <div class="ui-block-title-actions">
+                        <a href="#" class="ui-block-title-actions-show-hide">Свернуть</a>
+                    </div>
+                </div>
+                <div class="ui-block-content active">
+                    <div class="container">
+                        <div class="row row-items-active">
+
+                        </div>
+                    </div>
+                    <div class="container">
+                        <div id="stat-app-moved"></div>
+                    </div>
+                </div>
+            </div></div></div>
+</div>
 <div class="appWrap" data-page="main">
 <?if($app->getRequest()->get('install') == 'Y')
 {
@@ -173,6 +297,7 @@ else
 {
     $signedParameters = '';
     CJsCore::init('jquery');
+    CJSCore::init("sidepanel");
     UIExt::load("ui.buttons");
     UIExt::load("ui.buttons.icons");
     UIExt::load("ui.forms");
@@ -181,6 +306,8 @@ else
     UIExt::load("ui.hint");
     UIExt::load("ui.icons.b24");
     UIExt::load("ui.icons.service");
+    UIExt::load("ui.layout-form");
+    UIExt::load('ui.entity-selector');
     Asset::getInstance()->addJs("/bx24/smarts/md5.min.js");
     Asset::getInstance()->addJs("/bx24/smarts/scriptn.js");
     $portalData = $app->getCurrentPortalData();
@@ -192,7 +319,35 @@ else
         }
     }
     $authResult = null;
+    $isAdmin = 0;
+    $user_id = 0;
 ?>
+    <?
+                $tkn = array();
+                $tkn['access_token'] = htmlspecialchars($app->getRequest()->get('AUTH_ID'));
+                $tkn['client_endpoint'] = 'https://' .htmlspecialchars($app->getRequest()->get('DOMAIN')). '/rest/';
+                $app->setAuth($tkn);
+                $currentUser = $app->getMethod('profile');
+                if($currentUser->isSuccess()){
+                    $currentUserData = $currentUser->getData();
+                    if($currentUserData['result']['result']['ADMIN']){
+                        $isAdmin = 1;
+                    }
+                    $user_id = intval($currentUserData['result']['result']['ID']);
+
+
+                }
+                ?>
+
+
+    <?
+    $gridId = htmlspecialcharsEx((string) $app->getRequest()->get('grid_id') ?? "");
+    if(Loader::includeModule('awz.bxapistats')){
+        $tracker = \Awz\BxApiStats\Tracker::getInstance(htmlspecialchars($app->getRequest()->get('DOMAIN')), $app->getConfig('APP_ID'));
+        $addHtml = \Awz\BxApiStats\Helper::getHtmlStats($tracker, $gridId);
+        echo $addHtml;
+    }
+    ?>
     <div class="container"><div class="row"><div class="ui-block-wrapper">
         <div class="ui-block-title">
             <div class="ui-block-title-text">Настройки синхронизации портала и сервиса api.zahalski.dev</div>
@@ -218,9 +373,7 @@ else
                 </div>
             <?}?>
         <?
-        }
-        else
-        {
+        }else{
 
             $authResult = $app->checkCurrentPortalSignKey();
 
@@ -230,13 +383,21 @@ else
                 $signer = new Security\Sign\Signer();
 
                 $signedParameters = $signer->sign(base64_encode(serialize(array(
-                      'domain'=>htmlspecialchars($app->getRequest()->get('DOMAIN')),
-                      'key'=>$app->getCurrentPortalOption('auth'),
-                      's_id'=>htmlspecialchars($app->getRequest()->get('AUTH_ID')),
-                      'app_id'=>$app->getConfig('APP_ID')
-                  ))));
+                    'domain'=>htmlspecialchars($app->getRequest()->get('DOMAIN')),
+                    'key'=>$app->getCurrentPortalOption('auth'),
+                    's_id'=>htmlspecialchars($app->getRequest()->get('AUTH_ID')),
+                    'app_id'=>$app->getConfig('APP_ID'),
+                    'admin'=>$isAdmin,
+                    'user_id'=>$user_id
+                ))));
+                $gridKey = $app->getCurrentPortalOption('auth').'|'.$app->getRequest()->get('DOMAIN').'|'.$user_id.'|'.$app->getConfig('APP_ID');
+                $hash = hash_hmac('sha256', $gridKey, $app->getConfig('APP_SECRET_CODE'));
+                $gridKey .= '|'.$hash;
+                $app->getRequest()->addFilter(new SetFilter('key', $gridKey));
+        //94p1ft6l3fdepblsgzmedhdb0vvb6h4r|zahalski.bitrix24.by|1|local.63d41ad5cb0013.65983794|6bb2fa465739b15e3bc164d7232d953f0e066f5b3801255d0a10f21268d577a6
 
-                if($tracker){
+
+        if($tracker){
                     $tracker->setPortal($app->getRequest()->get('DOMAIN'))
                         ->setAppId($app->getConfig('APP_ID'));
                 }
@@ -261,6 +422,14 @@ else
 
                         <div class="row" style="margin-bottom:10px;">
                             <h4>Добавить встройку</h4>
+                        </div>
+                        <div class="row">
+                        <div class="ui-alert ui-alert-warning awz-save-hook-params-empty">
+                            <span class="ui-alert-message">
+                            Для работы пользовательских гридов, обязательно добавить встройку на приложение!<br>
+                                Приложение - Битрикс24 - Ссылка на приложение с параметрами
+                            </span>
+                        </div>
                         </div>
                         <div class="row" id="placement-sett-manager" style="margin-bottom:10px;">
                             <div class="col-xs-3 no-padding-l">
@@ -371,9 +540,12 @@ else
         $(document).ready(function(){
             BX24.ready(function() {
                 BX24.init(function () {
+                    window.awz_helper.key = '<?=$app->getRequest()->get('key')?>';
+                    window.awz_helper.gridId = '<?=$app->getRequest()->get('grid_id')?>';
+                    window.awz_helper.MARKET_ID = '<?=($appId != 'app.63d6b637131902.97765356' ? $appId : 'awz.smartbag')?>';
                     window.awz_helper.APP_ID = '<?=$appId?>';
                     window.awz_helper.APP_URL = 'https://<?=$_SERVER['HTTP_HOST']?>/bx24/smarts/';
-                    window.awz_helper.loadHandledApp();
+                    window.awz_helper.loadHandledApp(<?=(defined('CURRENT_PARENT_PLACEMENT') ? CURRENT_PARENT_PLACEMENT : 0)?>);
                 });
             });
         });
@@ -399,6 +571,7 @@ else
         .adm-header-wrap {display:none;}
         #menu_mirrors_cont {display:none;}
     </style>
+
 
     <?}?>
 <?

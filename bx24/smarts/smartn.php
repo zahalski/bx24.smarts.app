@@ -3,10 +3,11 @@ define("NOT_CHECK_PERMISSIONS", true);
 define("STOP_STATISTICS", true);
 define("BX_SENDPULL_COUNTER_QUEUE_DISABLE", true);
 define('BX_SECURITY_SESSION_VIRTUAL', true);
-require($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_before.php");
-require($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/interface/admin_list.php');
-require($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/interface/admin_lib.php');
+require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/modules/main/include/prolog_before.php");
+
 //header("Access-Control-Allow-Origin: *");
+require($_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/interface/admin_list.php');
+require($_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/interface/admin_lib.php');
 
 use Awz\Admin\Grid\Option as GridOptions;
 use Awz\Admin\IList;
@@ -33,6 +34,8 @@ if(!Loader::includeModule('awz.admin')){
 
 $request = Application::getInstance()->getContext()->getRequest();
 $request->addFilter(new ParseHook());
+
+//echo'<pre>';print_r($request->getValues());echo'</pre>';
 
 $tracker = null;
 if(Loader::includeModule('awz.bxapistats')){
@@ -129,91 +132,6 @@ class SmartList extends IList implements IParams {
         $entity = $this->getParam('ENTITY');
         $fields = $entity::$fields;
         $primaryCode = $this->getParam('PRIMARY', 'ID');
-
-
-        foreach($fields as $fieldCode=>$fieldData){
-            if($fieldData['type'] == 'crm_entity'){
-                if(!$fieldData['isReadOnly']) {
-                    $row->AddInputField($fieldCode, array("size" => $fieldData['settings']['SIZE']));
-                }else{
-                    $row->AddViewField($fieldCode, $row->arRes[$fieldCode]);
-                }
-                if(!$fieldData['isMultiple']){
-                    $value = $row->arRes[$fieldCode];
-                    if(isset($fieldData['settings']['parentEntityTypeId']) && $fieldData['settings']['parentEntityTypeId']){
-                        $ent = $this->getEntityCodeFromId($fieldData['settings']['parentEntityTypeId']);
-                        if(!empty($ent)){
-                            if($value){
-                                $row->AddViewField($fieldCode, \Awz\Admin\Helper::createCrmLink($value, mb_strtolower($ent['CODE'])));
-                            }else{
-                                $row->AddViewField($fieldCode, $value);
-                            }
-                            $editId = $fieldCode.'_'.$row->arRes[$primaryCode];
-                            $fieldHtml = '<div class="wrp" id="'.$editId.'"><input style="width:80%;" value="'.$value.'" name="'.$fieldCode.'" class="main-grid-editor main-grid-editor-text" id="'.$fieldCode.'_control"/><button class="ui-btn ui-btn-xs ui-btn-light-border" onclick="window.awz_helper.openDialogCrmOne(\''.$editId.' input\',\''.mb_strtolower($ent['CODE']).'\', true);return false;">...</button></div>';
-                            $row->AddEditField($fieldCode, $fieldHtml);
-                        }
-                    }
-                }
-            }
-            if($fieldData['type'] == 'crm'){
-                if(!$fieldData['isReadOnly']) {
-                    $row->AddInputField($fieldCode, array("size" => $fieldData['settings']['SIZE']));
-                }else{
-                    $row->AddViewField($fieldCode, $row->arRes[$fieldCode]);
-                }
-                if($fieldData['isMultiple']){
-                    $value = '';
-                    if(empty($row->arRes[$fieldCode]) || $row->arRes[$fieldCode] == 'false'){
-                        $row->AddViewField($fieldCode, '');
-                        $row->arRes[$fieldCode] = '';
-                    }elseif(!empty($row->arRes[$fieldCode])){
-                        $viewedAr = [];
-                        foreach($row->arRes[$fieldCode] as $val){
-                            $viewedAr[] = \Awz\Admin\Helper::createCrmLink($val);
-                        }
-                        $row->AddViewField($fieldCode, implode(", ",$viewedAr));
-                        $value = implode(',',$row->arRes[$fieldCode]);
-                    }
-                    if(!empty($this->getParam('EXT_PARAMS', []))){
-
-                    }else{
-                        $editId = $fieldCode.'_'.$row->arRes[$primaryCode];
-                        $fieldHtml = '<div class="wrp" id="'.$editId.'"><input style="width:80%;" value="'.$value.'" name="'.$fieldCode.'" class="main-grid-editor main-grid-editor-text" id="'.$fieldCode.'_control"/><button class="ui-btn ui-btn-xs ui-btn-light-border" onclick="window.awz_helper.openDialogCrm(\''.$editId.' input\',\'deal,lead,contact,company\');return false;">...</button></div>';
-                        $row->AddEditField($fieldCode, $fieldHtml);
-                    }
-                }else{
-                    $entityCode = '';
-                    foreach($fieldData['settings'] as $code=>$val){
-                        if(mb_strpos($code, 'DYNAMIC_') !== false && $val=='Y'){
-                            $entityCode = str_replace('DYNAMIC_','',$code);
-                        }else{
-                            $entityCode = $this->getEntityIdFromCode($code);
-                        }
-                        if($entityCode){
-                            break;
-                        }
-                    }
-                    if($entityCode){
-                        $value = $row->arRes[$fieldCode];
-                        $ent = $this->getEntityCodeFromId((int)$entityCode);
-                        if(!empty($ent)){
-                            if($value){
-                                $row->AddViewField($fieldCode, \Awz\Admin\Helper::createCrmLink($value, mb_strtolower($ent['CODE'])));
-                            }else{
-                                $row->AddViewField($fieldCode, $value);
-                            }
-                            $editId = $fieldCode.'_'.$row->arRes[$primaryCode];
-                            $fieldHtml = '<div class="wrp" id="'.$editId.'"><input style="width:80%;" value="'.$value.'" name="'.$fieldCode.'" class="main-grid-editor main-grid-editor-text" id="'.$fieldCode.'_control"/><button class="ui-btn ui-btn-xs ui-btn-light-border" onclick="window.awz_helper.openDialogCrmOne(\''.$editId.' input\',\''.mb_strtolower($ent['CODE']).'\', true);return false;">...</button></div>';
-                            $row->AddEditField($fieldCode, $fieldHtml);
-                        }else{
-                            //смарт элементы
-                            $row->AddViewField($fieldCode, \Awz\Admin\Helper::createCrmLink($value, $entityCode));
-                        }
-                    }
-                }
-                //$row->AddEditField($fieldCode, '');
-            }
-        }
     }
 
     public function trigerInitFilter(){
@@ -386,9 +304,15 @@ class SmartList extends IList implements IParams {
             $sort = $gridOptions->getSorting(['sort'=>['id'=>'desc']]);
             ?>
             <script type="text/javascript">
+
                 $(document).ready(function(){
                     BX24.ready(function() {
                         BX24.init(function () {
+                            window.awz_helper.gridUrl = window.location.pathname + window.location.search;
+                            <?if(defined('CURRENT_CODE_PAGE')){?>
+                            window.awz_helper.gridUrl = window.awz_helper.gridUrl.replace('/smarts/index.php?','/smarts/?');
+                            window.awz_helper.gridUrl = window.awz_helper.gridUrl.replace('/smarts/?','/smarts/<?=CURRENT_CODE_PAGE?>.php?');
+                            <?}?>
                             window.awz_helper.currentUserId = '<?=$this->getParam('CURRENT_USER')?>';
                             window.awz_helper.lastOrder = <?=\CUtil::PhpToJSObject($sort['sort'])?>;
                             window.awz_helper.fields = <?=\CUtil::PhpToJSObject($this->getParam('SMART_FIELDS'))?>;
@@ -505,6 +429,7 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
         CJSCore::Init(array('popup', 'date'));
         Asset::getInstance()->addCss("/bitrix/css/main/font-awesome.css");
         Asset::getInstance()->addJs("/bx24/smarts/scriptn.js");
+        Asset::getInstance()->addJs("/bx24/smarts/md5.js");
     }
     Asset::getInstance()->addCss("/bx24/smarts/style.css");
     ?>
@@ -544,6 +469,14 @@ if(!$checkAuth){
     $arParams['GRID_ID'] = $gridId;
     $loadParamsEntity = \Awz\Admin\Helper::getGridParams($gridId);
     $gridOptions = [];
+    if($request->get('h_ID')){
+        $resTokenRight = \Awz\BxApi\Api\Controller\SmartApp::checkUserRightHook(
+            $checkAuthDomain, $app->getConfig('APP_ID'), $request->get('h_ID'), $checkAuthMember
+        );
+        if(!$resTokenRight->isSuccess()){
+            $loadParamsEntity->addErrors($resTokenRight->getErrors());
+        }
+    }
     if($loadParamsEntity->isSuccess()){
         $loadParamsEntityData = $loadParamsEntity->getData();
         $gridOptions = $loadParamsEntityData['options'];
@@ -660,6 +593,29 @@ if(!$checkAuth){
                         }
                         $field['values'] = $values;
                     }
+                    if($field['type']=='crm_entity' && isset($field['settings']['parentEntityTypeId'])){
+                        $codesEntity = Helper::entityCodes();
+                        foreach($codesEntity as $ent){
+                            if(!in_array($ent['ID'], [1,2,3,4])) continue;
+                            if($ent['ID'] == $field['settings']['parentEntityTypeId']){
+                                $field['type'] = 'crm_'.mb_strtolower($ent['CODE']);
+                                break;
+                            }
+                        }
+                    }
+                    if($field['type']=='crm' && isset($field['settings']) && is_array($field['settings'])){
+                        $codes = [];
+                        foreach($field['settings'] as $code=>$act){
+                            if($act === 'Y'){
+                                if(in_array($code, ['COMPANY','DEAL','LEAD','CONTACT'])){
+                                    $codes[] = $code;
+                                }
+                            }
+                        }
+                        if(count($codes) == 1){
+                            $field['type'] = 'crm_'.mb_strtolower($codes[0]);
+                        }
+                    }
                 }
                 unset($field);
 
@@ -739,6 +695,9 @@ if(!$checkAuth){
 
         \Bitrix\Main\UI\Extension::load("ui.progressbar");
         \Bitrix\Main\UI\Extension::load('ui.entity-selector');
+        \Bitrix\Main\UI\Extension::load('ui.forms');
+        \Bitrix\Main\UI\Extension::load('ui.alerts');
+        \Bitrix\Main\UI\Extension::load('ui.layout-form');
         $adminCustom->setParam('ACTION_PANEL', $arParams['ACTION_PANEL']);
         $adminCustom->setParam('FIND',$adminCustom->formatFilterFields($arParams['FIND']));
         $adminCustom->defaultInterface();

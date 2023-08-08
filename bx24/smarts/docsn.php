@@ -357,7 +357,7 @@ class DocsList extends IList implements IParams {
                 });
             </script>
             <?php
-            die();
+            //die();
         }
 
     }
@@ -419,8 +419,12 @@ if($s_id){
     $tkn['access_token'] = htmlspecialchars($app->getRequest()->get('AUTH_ID'));
     $tkn['client_endpoint'] = 'https://' .htmlspecialchars($app->getRequest()->get('DOMAIN')). '/rest/';
     $app->setAuth($tkn);
-    $resOptions = $app->getMethod('app.option.get', array('option'=>array()));
-    $resUser = $app->getMethod('profile');
+    $app->prepareBatchCached([
+        'app.option.get'=>'app.option.get',
+        'profile'=>'profile',
+    ]);
+    $resOptions = $app->getBatchCached('app.option.get');
+    $resUser = $app->getBatchCached('profile');
     $keyExternal = '';
 
     if($resOptions->isSuccess()){
@@ -453,8 +457,7 @@ $checkAuthGroupId = $placement['GROUP_ID'] ?? "";
 <head>
     <?
     if($checkAuth){
-        CJsCore::init('jquery');
-        CJSCore::Init(array('popup', 'date'));
+        CJSCore::Init(array('jquery', 'popup', 'date', 'sidepanel'));
         Asset::getInstance()->addCss("/bitrix/css/main/font-awesome.css");
         Asset::getInstance()->addJs("/bx24/smarts/scriptn.js");
         Asset::getInstance()->addJs("/bx24/smarts/md5.js");

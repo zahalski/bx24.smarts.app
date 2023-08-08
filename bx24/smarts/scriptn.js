@@ -122,6 +122,34 @@ AwzBx24PlacementManager.prototype = {
     placements: {
         'codes':[]
     },
+    codes: {
+        from:{},
+        to:{},
+        type:{},
+    },
+    getTitle:function(code, type){
+        if(typeof code !== 'string') return '';
+        if(typeof type !== 'string') return '';
+        if(!this.codes.hasOwnProperty(type)) return '';
+        if(type === 'type'){
+            var all_pls = this.getAllPlacements();
+            if(all_pls.hasOwnProperty(code)){
+                return all_pls[code];
+            }
+        }else if(this.codes[type].hasOwnProperty(code)){
+            return this.codes[type][code];
+        }
+        return '';
+    },
+    getTitleFrom: function(code){
+        return this.getTitle(code, 'from');
+    },
+    getTitleTo: function(code){
+        return this.getTitle(code, 'to');
+    },
+    getTitleType: function(code){
+        return this.getTitle(code, 'type');
+    },
     onAfterShow: function(from, to, type, name){},
     addHandler: function(from, to, type, name){},
     onBeforeGetList: function(option, from, to){
@@ -173,7 +201,59 @@ AwzBx24PlacementManager.prototype = {
             this.addHandler = options['addHandler'];
         }
         this.initHandlers();
+        this.getAllPlacements();
         return this;
+    },
+    createAllPlacementsList: function(selId){
+        $('#'+selId).html('<option value="">Выберите встройку</option>');
+        var p = this.getAllPlacements();
+        var k;
+        for(k in p){
+            if(k === 'REST_APP_URI') continue;
+            $('#'+selId).append('<option value="'+k+'">'+p[k]+'</option>');
+        }
+    },
+    getAllPlacements: function(){
+        if(this.hasOwnProperty('all_placements')){
+            return this.all_placements;
+        }
+        var codes = {
+            'LEAD':['лидов','лида'],
+            'DEAL':['сделок','сделки'],
+            'CONTACT':['контактов','контакта'],
+            'COMPANY':['компаний','компании']
+        };
+        this.all_placements = {
+            'LEFT_MENU':'Левое меню (приложения)',
+            'REST_APP_URI':'Ссылка на приложение с параметрами',
+            'CRM_INVOICE_LIST_MENU':'Контекстное меню счетов',
+            'CRM_QUOTE_LIST_MENU':'Контекстное меню предложений',
+            'CRM_ACTIVITY_LIST_MENU':'Контекстное меню дел',
+            'CRM_ANALYTICS_MENU':'Меню CRM-аналитики',
+            'CRM_FUNNELS_TOOLBAR':'Кнопка в тулбаре Тунелей продаж',
+            'CRM_ANALYTICS_TOOLBAR':'Кнопка в тулбаре CRM-аналитики',
+            'TASK_USER_LIST_TOOLBAR':'Кнопка около роботов задачах',
+            'TASK_LIST_CONTEXT_MENU':'Контекстное меню списка задач',
+            'TASK_VIEW_TAB':'Вкладка в форме просмотра задачи',
+            'TASK_VIEW_SIDEBAR':'Боковая панель формы просмотра задачи',
+            'TASK_VIEW_TOP_PANEL':'Пункт в верхнем меню формы просмотра задачи',
+            'TASK_GROUP_LIST_TOOLBAR':'Кнопка около роботов в задачах группы',
+            'SONET_GROUP_TOOLBAR':'Кнопка на вкладке Основное в группе',
+            'SONET_GROUP_ROBOT_DESIGNER_TOOLBAR':'Кнопка у роботов в группе',
+            'USER_PROFILE_MENU':'Кнопка в главном меню портала',
+            'USER_PROFILE_TOOLBAR':'Кнопка в профиле пользователя',
+            'SONET_GROUP_DETAIL_TAB':'Закладка рабочей группы',
+        };
+        var k;
+        for(k in codes){
+            this.all_placements['CRM_'+k+'_LIST_MENU'] = 'Контекстное меню '+codes[k][0];
+            this.all_placements['CRM_'+k+'_DETAIL_TAB'] = 'Пункт в табе в карточке '+codes[k][1];
+            this.all_placements['CRM_'+k+'_DETAIL_ACTIVITY'] = 'Пункт в меню таймлайна '+codes[k][1];
+            this.all_placements['CRM_'+k+'_DETAIL_TOOLBAR'] = 'Пункт в списке приложений карточки '+codes[k][1];
+            this.all_placements['CRM_'+k+'_LIST_TOOLBAR'] = 'Кнопка около Роботов в списке '+codes[k][0];
+            this.all_placements['CRM_'+k+'_DOCUMENTGENERATOR_BUTTON'] = 'Кнопка в документах '+codes[k][1];
+        }
+        return this.all_placements;
     },
     getPlacementNames: function(){
         var k;
@@ -271,6 +351,9 @@ AwzBx24PlacementManager.prototype = {
 
     },
     appendFrom: function(option){
+        if(!this.codes.from.hasOwnProperty(option.value)){
+            this.codes.from[option.value] = option.title;
+        }
         if(!this.hasOwnProperty('from')) this.from = [];
         var check = false;
         var k;
@@ -285,6 +368,9 @@ AwzBx24PlacementManager.prototype = {
         this.addOptionHtml('from', option);
     },
     appendTo: function(option){
+        if(!this.codes.to.hasOwnProperty(option.value)){
+            this.codes.to[option.value] = option.title;
+        }
         if(!this.hasOwnProperty('to')) this.to = [];
         var check = false;
         var k;
@@ -299,6 +385,9 @@ AwzBx24PlacementManager.prototype = {
         this.addOptionHtml('to', option);
     },
     appendType: function(option){
+        if(!this.codes.type.hasOwnProperty(option.value)){
+            this.codes.type[option.value] = option.title;
+        }
         if(!this.hasOwnProperty('type')) this.type = [];
         var check = false;
         var k;
@@ -1582,9 +1671,12 @@ window.AwzBx24Proxy = {
         }else{
             BX24.openPath(path, function(e){
                 if(e.hasOwnProperty('errorCode') && e['errorCode'] == 'PATH_NOT_AVAILABLE'){
+                    if(path.indexOf('https:')===-1){
+                        path = 'https://' + BX24.getDomain() + path;
+                    }
                     $('body').append('<div style="z-index:2000!important;" class="awz-ext-window-bg"><div class="awz-ext-window"><h4>Отктытие в слайдере невозможно</h4><div class="buttons">' +
                         '<a href="#" class="close ui-btn ui-btn-xs ui-btn-danger">закрыть окно</a>'+
-                        '<a href="https://' + BX24.getDomain() +path+'" target="_blank" class="close_ext ui-btn ui-btn-xs">перейти на страницу элемента</a>'+
+                        '<a href="' + path+'" target="_blank" class="close_ext ui-btn ui-btn-xs">перейти на страницу элемента</a>'+
                         '</div></div></div>');
                 }
             });
@@ -1750,7 +1842,7 @@ window.AwzBx24Proxy = {
             //console.log(cmdData);
             $.ajax({
                 url: window.awz_helper.extUrl.replace('bxorm.api.hook.call','bxorm.api.hook.batch')+'batch',
-                data: {cmd: cmdData, halt: false},
+                data: {cmd: cmdData, halt: 1},
                 dataType : "json",
                 type: "POST",
                 CORS: false,
@@ -1826,6 +1918,560 @@ window.AwzBx24Proxy = {
         $(document).on('click','.awz-ext-window .close_ext',function(e){
             $('.awz-ext-window-bg').remove();
         });
+    }
+};
+
+window.awz_nhelper = {
+    status: {
+        ok: 'success',
+        err: 'error'
+    },
+    handGroupTitles: {
+        'REST_APP_URI':'Обработка URL приложением (для работы меню и гридов)',
+        'ALL_LINKED': 'Гриды с активными встройками в Битрикс24',
+        'APP_LINK':'Ссылки на текущее приложения с параметрами',
+        'APP_EXLINK':'Ссылки на сторонние приложения с параметрами',
+        'REST_APP_WRAP': 'Настраиваемые меню с иконками',
+        'ALL':'Не определены или устаревшие',
+        'ALL_BX': 'Не определены или устаревшие в Битрикс24'
+    },
+    getHandGroupTitles: function(key){
+        if(typeof key !== 'string') return 'Группа встроек';
+        if(this.handGroupTitles.hasOwnProperty(key)){
+            return this.handGroupTitles[key];
+        }
+        return key;
+    },
+    getAwzHookMethods: function(urls){
+        console.log('hooks',urls);
+        return new Promise((resolve, reject) => {
+            var k;
+            var max_counter = urls.length;
+            if(max_counter === 0) resolve([]);
+            var counter = 0;
+            var iterators = [];
+            var return_resolve = function(){
+                counter += 1;
+                if(counter>=max_counter) {
+                    resolve(iterators);
+                }
+            };
+            for(k in urls){
+                var url = urls[k].replace('api.hook.call', 'api.hook.methods');
+                $.ajax({
+                    url:  url,
+                    data: {},
+                    dataType: "json",
+                    type: "POST",
+                    CORS: false,
+                    crossDomain: true,
+                    timeout: 6000,
+                    async: true,
+                    success: function (data) {
+                        console.log('awz_hook methods',data);
+                        try{
+                            if(data['status']===window.awz_nhelper.status.err){
+                                iterators.push(data)
+                                return_resolve();
+                            }else if(typeof data['data']['methods'] === 'object'){
+                                iterators.push(data['data']['methods']);
+                                return_resolve();
+                            }
+                        }catch (e) {
+                            return_resolve();
+                        }
+                    },
+                    error: function(e){
+                        console.log(e);
+                        return_resolve();
+                    }
+                });
+            }
+        });
+    },
+    getEntityForPlacement: function(){
+        var parent = this;
+        return new Promise((resolve, reject) => {
+            var counter = 0;
+            var max_counter = 2;
+            var maxTimeout = setTimeout(function(){
+                reject(new Error('Истек таймаут соединения в 15 секунд на получение данных для встроек'));
+            },15000);
+            var batch = {
+                'crm_type':{'method':'crm.type.list', 'params':{}},
+                'sonet_group':{'method':'sonet_group.get',
+                    'params':{'IS_ADMIN': 'Y', 'FILTER ':{'ACTIVE':'Y'}}
+                },
+                'user_option':{'method':'user.option.get'},
+                'placement_get':{'method':'placement.get'}
+            };
+            var iterators = {'awz_hook_list':null,'awz_orm':null};
+
+            var return_resolve = function(){
+                counter += 1;
+                if(counter>=max_counter) {
+                    clearTimeout(maxTimeout);
+                    resolve(iterators);
+                }
+            };
+            var rej_return = function(data){
+                clearTimeout(maxTimeout);
+                reject(data);
+            };
+
+            $.ajax({
+                url: '/bitrix/services/main/ajax.php?action=awz:bxapi.api.smartapp.listhook',
+                data: {
+                    'domain':$('#signed_add_form').attr('data-domain'),
+                    'app':$('#signed_add_form').attr('data-app'),
+                    'signed':$('#signed_add_form').val()
+                },
+                dataType: "json",
+                type: "POST",
+                CORS: false,
+                crossDomain: true,
+                timeout: 180000,
+                async: true,
+                success: function (hookList, textStatus) {
+                    try{
+                        if(hookList['status'] === parent.status.ok){
+                            iterators['awz_hook_list'] = hookList['data'];
+                        }else if(hookList['status'] === parent.status.err){
+                            iterators['awz_hook_list'] = hookList;
+                        }else{
+                            rej_return(new Error('awz_api', 'Неизвестный ответ сервиса приложения'));
+                        }
+                    }catch (e) {
+                        rej_return(e);
+                    }
+                    return_resolve();
+                },
+                error:function(){
+                    rej_return(new Error('awz_api', 'Ошибка на сервисе приложения'));
+                }
+            });
+
+            window.AwzBx24Proxy.callBatch(
+                batch,
+                function(res)
+                {
+                    window.awz_helper.addBxTime(res);
+                    //console.log(res);
+                    var urls = [];
+                    Object.keys(batch).forEach(function(itm){
+                        iterators[itm] = null;
+                        if(res.hasOwnProperty(itm) && res[itm].hasOwnProperty('answer')){
+                            if(itm === 'crm_type'){
+                                iterators[itm] = res[itm].answer.result['types'];
+                            }else{
+                                var tmp = res[itm].answer.result;
+                                if(itm === 'user_option' && tmp){
+                                    Object.keys(tmp).forEach(function(key){
+                                        if(!key) return;
+                                        if(key.indexOf('e_')===-1 && key.indexOf('entity_')===-1) return;
+                                        var item = tmp[key];
+                                        var extItem = item.split('---');
+                                        if(extItem.length < 2) return;
+                                        if(!iterators[itm]) iterators[itm] = {};
+                                        iterators[itm][key] = item;
+                                        if(extItem[0] === 'awzorm'){
+                                            urls.push(extItem[1]);
+                                        }
+                                    });
+                                }else{
+                                    iterators[itm] = tmp;
+                                }
+                            }
+                        }
+                    });
+                    parent.getAwzHookMethods(urls).then((hooks)=>{
+                        iterators['awz_orm'] = hooks;
+                        return_resolve();
+                    });
+                }
+            );
+
+        });
+    },
+    appendExtHook: function(ext_hooks){
+        ext_hooks.forEach(function(item){
+            $('.rows-ext-smarts').append('<div class="row" style="margin-bottom:10px;">' +
+                '<div class="col-xs-3 no-padding-l">' +
+                '<label class="main-grid-control-label">'+item['key']+'</label>' +
+                '</div>' +
+                '<div class="col-xs-3">' +
+                '<label class="main-grid-control-label">'+item['title']+'</label>' +
+                '</div>' +
+                '<div class="col-xs-3">' +
+                '<label class="main-grid-control-label">'+item['url_title']+'</label>' +
+                '</div>' +
+                '<div class="col-xs-3 no-padding-r">' +
+                '<a href="#" data-handler="'+item['key']+'" class="remove_ext_smart_handled ui-btn ui-btn-xs ui-btn-icon-alert">Удалить</a>' +
+                '</div>' +
+                '</div>');
+        });
+        window.awz_helper.resize();
+    },
+    getHandlerFromHash: function(md5_hash){
+        var hash = '';
+        if(typeof md5_hash === 'object' && md5_hash.hasOwnProperty('md5_2')){
+            hash = md5_hash['md5_2'];
+        }else if(typeof md5_hash === 'object' && md5_hash.hasOwnProperty('md5')){
+            hash = md5_hash['md5'];
+        }else{
+            hash = md5_hash;
+        }
+        if(typeof hash === 'string' && this.hashes.hasOwnProperty(hash)){
+            return this.hashes[hash];
+        }else{
+            return null;
+        }
+    },
+    createHashesHandlers: function(handlersAwz, handlersBx){
+        this.hashes = {};
+        var parent = this;
+        Object.keys(handlersAwz).forEach(function (handler_key) {
+            var handler = handlersAwz[handler_key];
+            if(handler.hasOwnProperty('URL')){
+                var hash = md5(handler['URL']);
+                handler['md5'] = hash;
+                if(!parent.hashes.hasOwnProperty(hash)){
+                    parent.hashes[hash] = {'awz':handler};
+                }else{
+                    parent.hashes[hash]['awz'] = handler;
+                }
+                handler['hash_url'] = '&ID='+handler['ID']+'&TOKEN='+handler['HASH'];
+                var hash_link = md5(handler['ID']);
+                handler['md5_2'] = hash_link;
+                if(!parent.hashes.hasOwnProperty(hash_link)){
+                    parent.hashes[hash_link] = {'awz':handler};
+                }else{
+                    parent.hashes[hash_link]['awz'] = handler;
+                }
+            }
+        });
+        handlersBx.forEach(function (handler) {
+            if(handler.hasOwnProperty('handler')){
+                var hash = md5(handler['handler']);
+                handler['md5'] = hash;
+                if(!parent.hashes.hasOwnProperty(hash)){
+                    parent.hashes[hash] = {'bx':handler};
+                }else{
+                    parent.hashes[hash]['bx'] = handler;
+                }
+
+                if(handler['handler'].indexOf('MENUID=')>-1) {
+                    var handlerId = handler['handler'].match(/MENUID=([0-9]+)/i);
+                    if(handlerId.hasOwnProperty('length') && handlerId['length']===2){
+                        var hash_link = md5(handlerId[1]);
+                        handler['md5_2'] = hash_link;
+                        if(parent.hashes.hasOwnProperty(hash_link) &&
+                            parent.hashes[hash_link].hasOwnProperty('awz')
+                        ){
+                            if(!parent.hashes[hash_link]['awz'].hasOwnProperty('links')){
+                                parent.hashes[hash_link]['awz']['links'] = [];
+                            }
+                            parent.hashes[hash_link]['awz']['links'].push(handler);
+                        }
+                        handler['parent_awz'] = handlerId[1];
+                    }
+                }else if(handler['handler'].indexOf('ID=')>-1 && handler['handler'].indexOf('&TOKEN=')>-1) {
+                    var handlerId = handler['handler'].match(/ID=([0-9]+)/i);
+                    var tokenId = handler['handler'].match(/TOKEN=([0-9a-zA-Z]+)/i);
+                    if(handlerId.hasOwnProperty('length') && handlerId['length']===2 &&
+                        tokenId.hasOwnProperty('length') && tokenId['length']===2
+                    ){
+                        handler['hash_url'] = '&ID='+handlerId[1]+'&TOKEN='+tokenId[1];
+                        var hash_link = md5(handlerId[1]);
+                        handler['md5_2'] = hash_link;
+                        if(!parent.hashes.hasOwnProperty(hash_link)){
+                            parent.hashes[hash_link] = {'bx':handler};
+                        }else{
+                            parent.hashes[hash_link]['bx'] = handler;
+                        }
+                    }
+                }
+            }
+        });
+        //console.log(parent.hashes);
+    },
+    appendHandlers: function(handlersAwz, handlersBx) {
+        this.createHashesHandlers(handlersAwz, handlersBx);
+        var parent = this;
+        Object.keys(this.handGroupTitles).forEach(function(group_key){
+            var check_class = 'rows-smarts-'+group_key;
+            var group = $('.rows-smarts').find('.'+check_class);
+            if(!group.length){
+                $('.rows-smarts').append('<div class="row-placement-title-block '+check_class+'"><div class="row row-title"><h4>'+parent.getHandGroupTitles(group_key)+'</h4></div></div>');
+            }
+        });
+        Object.keys(handlersAwz).forEach(function (handler_key) {
+            var handler = handlersAwz[handler_key];
+            if(handler.hasOwnProperty('PARAMS') &&
+                handler['PARAMS'].hasOwnProperty('handler') &&
+                handler['PARAMS']['handler'].hasOwnProperty('from') &&
+                handler['PARAMS']['handler']['from'] === 'APP_EXLINK'
+            ){
+                parent.appendHandlerRow(handler, 'APP_EXLINK');
+            }else if(handler.hasOwnProperty('PARAMS') &&
+                handler['PARAMS'].hasOwnProperty('handler') &&
+                handler['PARAMS']['handler'].hasOwnProperty('type') &&
+                handler['PARAMS']['handler']['type'] === 'REST_APP_WRAP'
+            ){
+                parent.appendHandlerRow(handler, 'REST_APP_WRAP');
+            }else if(handler.hasOwnProperty('PARAMS') &&
+                handler['PARAMS'].hasOwnProperty('handler') &&
+                handler['PARAMS']['handler'].hasOwnProperty('type') &&
+                handler['PARAMS']['handler']['type'] === 'REST_APP_URI'
+            ){
+                parent.appendHandlerRow(handler, 'APP_LINK');
+            }else{
+                parent.appendHandlerRow(handler, 'ALL');
+            }
+        });
+        handlersBx.forEach(function (handler) {
+            if(handler.hasOwnProperty('placement') && handler['placement'] === 'REST_APP_URI'){
+                parent.appendHandlerRow(handler, 'REST_APP_URI');
+            }else{
+                parent.appendHandlerRow(handler, 'ALL_BX');
+            }
+        });
+
+    },
+    appendHandlerRow: function(handler, type){
+        var plsMan = window.AwzBx24PlacementManager_ob;
+        var check_class = 'rows-smarts-'+type;
+        var group = $('.rows-smarts').find('.'+check_class);
+        if(!group.length){
+            $('.rows-smarts').append('<div class="row-placement-title-block '+check_class+'"><div class="row row-title"><h4>'+this.getHandGroupTitles(type)+'</h4></div></div>');
+        }
+        if(handler.hasOwnProperty('exists') && handler['exists']) return;
+
+        var formatedItem = {'name':'','type':'','group':''};
+        formatedItem['buttons'] = [];
+        formatedItem['bx_handler'] = ''; //url обработчика на сервисе
+        formatedItem['bx_handler_id'] = '';
+        formatedItem['sett_handler'] = '';
+        formatedItem['plc_handler'] = ''; //код встройки в битрикс24
+        formatedItem['plc_handler_url'] = ''; //урл в битрикс24
+        formatedItem['app_type'] = ''; //тип удаления обработчика
+
+        var hashHandler = this.getHandlerFromHash(handler);
+        if(type === 'ALL' && hashHandler.hasOwnProperty('awz') && hashHandler.hasOwnProperty('bx')){
+            type = 'ALL_LINKED';
+            check_class = 'rows-smarts-'+type;
+            group = $('.rows-smarts').find('.'+check_class);
+        }
+
+
+        if(hashHandler && hashHandler.hasOwnProperty('awz')){
+
+            var gridParams = window.awz_helper.getGridParamsFromUrl(hashHandler['awz']['URL']);
+
+            if(hashHandler['awz'].hasOwnProperty('PARAMS') && hashHandler['awz']['PARAMS'].hasOwnProperty('handler')){
+                if(gridParams && gridParams.hasOwnProperty('1')){
+                    if(!hashHandler['awz']['PARAMS']['handler'].hasOwnProperty('from') ||
+                        !hashHandler['awz']['PARAMS']['handler']['from'])
+                    {
+                        hashHandler['awz']['PARAMS']['handler']['from'] = gridParams['1'];
+                    }
+                }
+                if(gridParams && gridParams.hasOwnProperty('2')){
+                    if(!hashHandler['awz']['PARAMS']['handler'].hasOwnProperty('to') ||
+                        !hashHandler['awz']['PARAMS']['handler']['to'])
+                    {
+                        hashHandler['awz']['PARAMS']['handler']['to'] = gridParams['2'];
+                    }
+                }
+            }
+
+            ['from','to','type'].forEach(function (t){
+                if(hashHandler['awz'].hasOwnProperty('PARAMS') &&
+                    hashHandler['awz']['PARAMS'].hasOwnProperty('handler') &&
+                    hashHandler['awz']['PARAMS']['handler'].hasOwnProperty(t)
+                ){
+                    formatedItem[t] = plsMan.getTitle(hashHandler['awz']['PARAMS']['handler'][t], t);
+                    if(t === 'type' && !formatedItem[t] && gridParams && gridParams.hasOwnProperty('plc')){
+                        formatedItem[t] = plsMan.getTitle(gridParams['plc'], t);
+                    }
+                }
+            });
+
+            if(hashHandler['awz'].hasOwnProperty('PARAMS') &&
+                hashHandler['awz']['PARAMS'].hasOwnProperty('hook') &&
+                hashHandler['awz']['PARAMS']['hook'].hasOwnProperty('desc_admin')
+            ){
+                formatedItem['desc_admin'] = hashHandler['awz']['PARAMS']['hook']['desc_admin'];
+            }
+            if(hashHandler['awz'].hasOwnProperty('PARAMS') &&
+                hashHandler['awz']['PARAMS'].hasOwnProperty('handler') &&
+                hashHandler['awz']['PARAMS']['handler'].hasOwnProperty('name')
+            ){
+                formatedItem['name'] = hashHandler['awz']['PARAMS']['handler']['name'];
+            }
+
+
+
+            if(hashHandler['awz'].hasOwnProperty('URL')){
+                formatedItem['plc_handler_url'] = hashHandler['awz']['URL'];
+            }
+            if(hashHandler['awz'].hasOwnProperty('ID')){
+                formatedItem['bx_handler_id'] = hashHandler['awz']['ID'];
+            }
+            if(hashHandler['awz'].hasOwnProperty('ID') &&
+                hashHandler['awz'].hasOwnProperty('HASH')
+            ){
+                formatedItem['sett_handler'] = '&ID='+hashHandler['awz']['ID']+'&TOKEN='+hashHandler['awz']['HASH'];
+            }
+        }
+        if(hashHandler && hashHandler.hasOwnProperty('bx')){
+            if(!formatedItem['type']){
+                formatedItem['type'] = plsMan.getTitleType(hashHandler['bx']['placement']);
+            }
+            if(!formatedItem['name']){
+                formatedItem['name'] = hashHandler['bx']['langAll']['ru']['TITLE'];
+            }
+            if(!formatedItem['group']){
+                formatedItem['group'] = hashHandler['bx']['langAll']['ru']['GROUP_NAME'];
+            }
+            if(hashHandler['bx']['placement'] === "REST_APP_URI"){
+                formatedItem['from'] = plsMan.getTitleFrom('APP_LINK');
+                formatedItem['to'] = plsMan.getTitleTo('APP_LINK');
+            }
+            formatedItem['plc_handler'] = hashHandler['bx']['placement'];
+            formatedItem['bx_handler'] = hashHandler['bx']['handler'];
+        }
+        if(!formatedItem['name']){
+            //встройка битрикс
+        }
+        if(!formatedItem['type'] && handler.hasOwnProperty('placement')){
+            formatedItem['type'] = plsMan.getTitleType(handler['placement']);
+            if(!formatedItem['type']) formatedItem['type'] = handler['placement'];
+        }
+        if(!formatedItem['plc_handler'] && handler.hasOwnProperty('placement')){
+            formatedItem['plc_handler'] = handler['placement'];
+        }
+        if(handler.hasOwnProperty('parent_awz')) {
+            formatedItem['plc_handler_url'] = handler['handler'];
+            formatedItem['bx_handler'] = '';
+            formatedItem['plc_handler'] = handler['placement'];
+        }
+
+
+        var buttons = {};
+        buttons['sett_link'] = '<a href="#" ' +
+            'data-app="'+$('#signed_add_form').attr('data-app')+'" ' +
+            'data-domain="'+$('#signed_add_form').attr('data-domain')+'" ' +
+            'data-signed="'+$('#signed_add_form').val()+'" ' +
+            'data-bxhandler="'+formatedItem['sett_handler']+'" ' +
+            'data-page="sett-handler" ' +
+            'class="awz-handler-slide-content ui-btn ui-btn-xs ui-btn-icon-setting">' +
+            '</a>';
+        buttons['plc_link'] = '<a href="#" ' +
+            'data-bxhandler="'+formatedItem['bx_handler']+'" ' +
+            'data-type="'+formatedItem['app_type']+'" ' +
+            'data-handler="'+formatedItem['plc_handler_url']+'" ' +
+            'data-placement="'+formatedItem['plc_handler']+'" ' +
+            'class="remove_smart_handled ui-btn ui-btn-xs ui-btn-icon-alert">' +
+            'Деактивировать' +
+            '</a>';
+        buttons['regen_link'] = '<a href="#" ' +
+            'data-handler="'+formatedItem['plc_handler_url']+'" ' +
+            'data-placement="'+formatedItem['plc_handler']+'" ' +
+            'class="update_smart_handled ui-btn ui-btn-xs ui-btn-danger ui-btn-icon-alert">' +
+            'обновить URL' +
+            '</a>';
+
+
+        //var regenLink = '';//replaceHandler
+        //if(!placement['bx_handler'] && placement['placement']!='REST_APP_URI'){
+        //    regenLink = '<a href="#" data-handler="'+placement['handler']+'" data-placement="'+placement['placement']+'" class="update_smart_handled ui-btn ui-btn-xs ui-btn-danger ui-btn-icon-alert">обновить URL</a>'
+        //    sett_link = '';
+        //}
+
+        if(formatedItem['sett_handler'] && !handler.hasOwnProperty('parent_awz')){
+            formatedItem['buttons'].push('sett_link');
+        }
+        if((hashHandler && hashHandler.hasOwnProperty('bx')) || handler.hasOwnProperty('parent_awz')){
+            formatedItem['buttons'].push('plc_link');
+        }
+        if(['REST_APP_WRAP','APP_EXLINK','APP_LINK','ALL'].indexOf(type)>-1 && handler.hasOwnProperty('ID')){
+            formatedItem['app_type'] = 'app-placement';
+            buttons['plc_link'] = '<a href="#" ' +
+                'data-id="'+handler['ID']+'" ' +
+                'data-hash="'+handler['HASH']+'" ' +
+                'data-type="'+formatedItem['app_type']+'" ' +
+                'class="remove_smart_handled ui-btn ui-btn-xs ui-btn-icon-alert">' +
+                'Удалить' +
+                '</a>';
+            if(formatedItem['buttons'].indexOf('plc_link')===-1)
+                formatedItem['buttons'].push('plc_link');
+        }
+
+        if(hashHandler && handler.hasOwnProperty('parent_awz')){
+            var ht = '';
+            if(handler.hasOwnProperty('title') && handler['title']){
+                formatedItem['name'] = handler['title'];
+            }else if(handler.hasOwnProperty('langAll') && handler['langAll']['ru']['TITLE']){
+                formatedItem['name'] = handler['langAll']['ru']['TITLE'];
+            }
+            ht += '<div class="row">';
+            ht += '<div class="col-xs-8 no-padding-l">' +'<span class="ui-btn ui-btn-xs ui-btn-icon-share"></span>'+
+                '['+formatedItem['name']+'] - '+formatedItem['type']+'</div>';
+            ht += '<div class="col-xs-4 no-padding-r">';
+            formatedItem['buttons'].forEach(function(btn_code){
+                ht += buttons[btn_code];
+            });
+            ht += '</div>';
+            ht += '</div>';
+            $('.row-placement-'+handler['parent_awz']+' .links-bx').append(ht);
+            return;
+        }
+
+        var ht = '<div class="row row-placement-'+formatedItem['bx_handler_id']+'" style="margin-bottom:10px;">';
+        if(!formatedItem['from'] && !formatedItem['to'] && formatedItem.hasOwnProperty('plc_handler_url')){
+            ht += '<div class="col-xs-6">' +
+                '<label class="main-grid-control-label">'+formatedItem['plc_handler_url']+'</label>' +
+                '</div>';
+        }else{
+            ht += '<div class="col-xs-3">' +
+                '<label class="main-grid-control-label">'+formatedItem['from']+'</label>' +
+                '</div>';
+            ht += '<div class="col-xs-3 no-padding-r">' +
+                '<label class="main-grid-control-label">'+formatedItem['to']+'</label>' +
+                '</div>';
+        }
+
+        var add_links = '';
+        if(hashHandler && hashHandler.hasOwnProperty('awz') && hashHandler['awz'].hasOwnProperty('links')){
+            add_links += '<div class="container links-bx"></div>';
+        }
+
+        ht += '<div class="col-xs-6 no-padding-r">' +
+            '<label class="main-grid-control-label">'+formatedItem['type']+'</label>' +add_links+
+            '</div>';
+        ht += '<div style="display:block;clear:both;width:100%;height:10px;"></div>';
+        ht += '<div class="col-xs-3">' +
+            '<label class="main-grid-control-label">'+formatedItem['name']+'</label>' +
+            '</div>';
+        ht += '<div class="col-xs-3">' +
+            '<label class="main-grid-control-label">'+formatedItem['group']+'</label>' +
+            '</div>';
+        ht += '<div class="col-xs-3">' +
+            '<label class="main-grid-control-label"></label>' +
+            '</div>';
+        ht += '<div class="col-xs-3 no-padding-r">';
+            //regenLink + plc_link + sett_link;
+        ht += '</div>';
+        formatedItem['buttons'].forEach(function(btn_code){
+            ht += buttons[btn_code];
+        });
+        ht += '</div>';
+        $('.rows-smarts .'+check_class).append(ht);
+        if(hashHandler && hashHandler.hasOwnProperty('bx')){
+            hashHandler['bx']['exists'] = 1;
+        }
+        //console.log(formatedItem, hashHandler, handler);
     }
 };
 
@@ -1969,10 +2615,10 @@ $(document).ready(function (){
             //bxTime
         },
         getPlacementManager: function(){
-            if(!this.placements){
+            if(!window.AwzBx24PlacementManager_ob){
                 window.AwzBx24EntityLoader_ob.setHookListDinamic();
-                this.placements = new AwzBx24PlacementManager;
-                this.placements.init({
+                window.AwzBx24PlacementManager_ob = new AwzBx24PlacementManager;
+                window.AwzBx24PlacementManager_ob.init({
                     'placements':[
                         {
                             'value':'CRM_LIST_TOOLBAR',
@@ -2060,6 +2706,12 @@ $(document).ready(function (){
                             }
                             return false;
                         }
+                        if(from === 'APP_EXLINK'){
+                            if(to === 'APP_LINK' && option.value === 'REST_APP_URI'){
+                                return true;
+                            }
+                            return false;
+                        }
                         if(['TASK_USER_CRM'].indexOf(from)>-1){
                             if(['TASK_USER_CRM_CRM_DETAIL_TAB'].indexOf(option.value)>-1) {
                                 return true;
@@ -2124,6 +2776,10 @@ $(document).ready(function (){
                     },
                     onAfterShow: function(from, to, type, name){
                         if(from === 'APP_LINK'){
+                            $('#placement-sett-manager-to').find('option').each(function(){
+                                if($(this).attr('value') && $(this).attr('value')!=='APP_LINK') $(this).remove();
+                            });
+                        }else if(from === 'APP_EXLINK'){
                             $('#placement-sett-manager-to').find('option').each(function(){
                                 if($(this).attr('value') && $(this).attr('value')!=='APP_LINK') $(this).remove();
                             });
@@ -2214,15 +2870,6 @@ $(document).ready(function (){
                             var smart = from;
                             var smart_to = to;
 
-                            //version = 'new';
-                            /*if(smart === 'DOCS') version = 'new';
-                            if(smart === 'DOCS_CRM') version = 'new';
-                            if(smart === 'TASK_USER') version = 'new';
-                            if(smart === 'TASK_USER_CRM') version = 'new';
-                            if(smart === 'TASK_GROUPS') version = 'new';
-                            if(smart.indexOf('TASK_GROUP_')>-1) version = 'new';
-                            if(smart.indexOf('EXT_TASK_USER_')>-1) version = 'new';*/
-
                             var url_code = '';
                             var placement = '';
                             var add_params = '';
@@ -2264,6 +2911,9 @@ $(document).ready(function (){
                             }
                             if(smart_to === 'DOCS') smart_to = '';
                             if(type === 'REST_APP_WRAP') url_code = 'index';
+                            if(from === 'APP_EXLINK' && type === 'REST_APP_URI') url_code = 'index';
+
+                            //console.log('placement_add', from, to, type, url_code);
 
                             $('#placement-sett-manager-type').find('option').each(function(){
                                 if($(this).attr('value') === type){
@@ -2288,7 +2938,7 @@ $(document).ready(function (){
                             }
                             url = window.awz_helper.APP_URL+
                                 url_code+
-                                'n.php?plc='+window.awz_helper.placements.getPlacementCodeShort(placement, true)+
+                                'n.php?plc='+placement+
                                 '&app='+
                                 window.awz_helper.APP_ID;
                             var hashAr = [placement, url_code, smart, smart_to, name];
@@ -2377,7 +3027,7 @@ $(document).ready(function (){
                     },
                 });
             }
-            return this.placements;
+            return window.AwzBx24PlacementManager_ob;
         },
         generateHookUrl:function(q_data, q_data_del, url_code, placement_handler, callback){
             var url = q_data['url'];
@@ -2565,7 +3215,7 @@ $(document).ready(function (){
             var opts = this.getGridParamsFromStr(urlOb.searchParams.get('grid'));
             opts['plc'] = urlOb.searchParams.get('plc');
             if(opts['plc']){
-                opts['plc'] = this.placements.getPlacementCodeShort(opts['plc']);
+                opts['plc'] = opts['plc'];
             }
             return opts;
         },
@@ -2595,7 +3245,7 @@ $(document).ready(function (){
                     try{
                         window.awz_helper.MARKET_ID = res['answer']['result']['CODE'];
                     }catch (e) {
-
+                        console.log(e);
                     }
                     window.awz_helper.loadHandledAppNoAdmin();
                 });
@@ -2641,11 +3291,17 @@ $(document).ready(function (){
 
                         for (k in itrSorted){
                             var plc = itrSorted[k];
+                            if(plc.hasOwnProperty('MENU') && plc['MENU']!='Y') continue;
                             if(plc.hasOwnProperty('DESC') && plc['DESC']){
                                 plc['NAME'] += '<i>'+plc['DESC']+'</i>';
                             }
+                            var hookUrl = '/marketplace/view/'+window.awz_helper.MARKET_ID+'/?params[HOOK]='+plc['ID'];
+                            var plc_type = 'placement'; //не парсит урл
+                            if(plc.hasOwnProperty('MLINK')){
+                                hookUrl = plc['MLINK'];
+                            }
                             $('.appWrapPlaceList .row-items-active').append(
-                                '<div class="item" style="background:'+plc['BG']+';"><a class="open-smart" data-ent="placement" href="/marketplace/view/'+window.awz_helper.MARKET_ID+'/?params[HOOK]='+plc['ID']+'">' +
+                                '<div class="item" style="background:'+plc['BG']+';"><a class="open-smart" data-ent="'+plc_type+'" href="'+hookUrl+'">' +
                                 '<div class="image"><img src="'+plc['IMAGE']+'"></div>' +
                                 '<div class="name">'+plc['NAME']+'</div>' +
                                 '</a></div>'
@@ -2665,47 +3321,6 @@ $(document).ready(function (){
                     }
                 }
             });
-        },
-        appendNotHandledPlacement: function(allPlacements, hookExistsIds){
-            try{
-                var k;
-                for(k in allPlacements['data']){
-                    var pls = allPlacements['data'][k];
-                    var sett_link = '<a href="#" data-app="'+$('#signed_add_form').attr('data-app')+'" data-domain="'+$('#signed_add_form').attr('data-domain')+'" data-signed="'+$('#signed_add_form').val()+'" data-id="'+pls['ID']+'" data-hash="'+pls['HASH']+'" data-page="sett-handler" class="awz-handler-slide-content ui-btn ui-btn-xs ui-btn-icon-setting"></a>';
-                    var del_link = '<a href="#" data-type="app-placement" data-id="'+pls['ID']+'" data-hash="'+pls['HASH']+'" class="remove_smart_handled ui-btn ui-btn-xs ui-btn-icon-alert">удалить</a>';
-                    if(hookExistsIds.indexOf(pls['ID'])===-1){
-                        var title = 'ID: '+pls['ID'];
-                        if(pls['PARAMS'].hasOwnProperty('handler') &&
-                            pls['PARAMS']['handler'].hasOwnProperty('name') && pls['PARAMS']['handler']['name']){
-                            title = pls['PARAMS']['handler']['name'];
-                        }
-                        $('.rows-smarts').append('<div class="row" style="margin-bottom:10px;">' +
-                            '<div style="display:block;clear:both;width:100%;height:10px;"></div>'+
-                            '<div class="col-xs-3 no-padding-l">' +
-                            '<label class="main-grid-control-label">'+title+'</label>' +
-                            '</div>' +
-                            '<div class="col-xs-6">' +
-                            '<label style="display:block;overflow:hidden;" class="main-grid-control-label">URL: '+pls['URL']+'</label>' +
-                            '</div>' +
-                            '<div class="col-xs-3 no-padding-r">'+del_link+ sett_link +
-                            '</div>' +
-                            '</div>');
-                    }
-                    var htDesc = '';
-                    if(pls['PARAMS'].hasOwnProperty('hook') && pls['PARAMS']['hook'].hasOwnProperty('desc_admin')){
-                        htDesc = pls['PARAMS']['hook']['desc_admin'];
-                    }
-                    $('.row-placement-'+pls['ID']+' .desc').remove();
-                    $('.row-placement-'+pls['ID']).append('<div class="desc"></div>');
-                    if(htDesc){
-                        $('.row-placement-'+pls['ID']+' .desc').html('<div class="col-xs-12"><div class="row" style="border:none;">'+htDesc+'</div></div>');
-                    }
-
-                }
-            }catch (e) {
-                console.log(e);
-            }
-            //console.log('addpls',[allPlacements, hookExistsIds]);
         },
         parentPlacement: 0,
         loadHandledApp: function(parentPlacement){
@@ -2727,6 +3342,9 @@ $(document).ready(function (){
             if(plcInfo.hasOwnProperty('options') && plcInfo['options'].hasOwnProperty('HOOK')){
                 hideSett = true;
             }
+            if(parentPlacement){
+                hideSett = true;
+            }
 
             if(!BX24.isAdmin() || hideSett){
                 this.pagesManager.hidePages();
@@ -2738,11 +3356,14 @@ $(document).ready(function (){
 
             var placementManager = this.getPlacementManager();
             placementManager.show();
-            //this.replaceHandler();
 
             placementManager.appendFrom({
                 'value':'APP_LINK',
                 'title':'Приложение'
+            });
+            placementManager.appendFrom({
+                'value':'APP_EXLINK',
+                'title':'Стороннее приложение'
             });
             placementManager.appendTo({
                 'value':'APP_LINK',
@@ -2808,138 +3429,114 @@ $(document).ready(function (){
             }
             var types = placementManager.getPlacementNames();
 
-            var batch = [];
 
-            batch.push({
-                'method':'crm.type.list',
-                'params':{}
-            });
-            batch.push({
-                'method':'sonet_group.get',
-                'params':{
-                    'IS_ADMIN': 'Y',
-                    'FILTER ':{'ACTIVE':'Y'}
+            window.awz_nhelper.getEntityForPlacement().then((iters)=>{
+                console.log('iters', iters);
+                $('.rows-smarts').html('');
+                $('.rows-ext-smarts').html('');
+                var ext_hooks = [];
+
+                //список смартов
+                try {
+                    if(iters['crm_type']){
+                        var k;
+                        for (k in iters['crm_type']) {
+                            var item = iters['crm_type'][k];
+                            findIdsSmart.push(item.entityTypeId);
+                            item.title = 'Смарт: '+item.title;
+                            linksSmart[item.entityTypeId] = item;
+                            linksSmart['DYNAMIC_'+item.entityTypeId] = item;
+
+                            placementManager.appendFrom({
+                                'value':'DYNAMIC_'+item.entityTypeId,
+                                'title':item.title
+                            });
+                            placementManager.appendTo({
+                                'value':'DYNAMIC_'+item.entityTypeId,
+                                'title':item.title
+                            });
+
+                            placementManager.all_placements['CRM_'+'DYNAMIC_'+item.entityTypeId+'_DETAIL_TAB'] = 'Пункт в табе в карточке ('+item.title+')';
+                            placementManager.all_placements['CRM_'+'DYNAMIC_'+item.entityTypeId+'_DETAIL_ACTIVITY'] = 'Пункт в меню таймлайна ('+item.title+')';
+                            placementManager.all_placements['CRM_'+'DYNAMIC_'+item.entityTypeId+'_DETAIL_TOOLBAR'] = 'Пункт в списке приложений карточки ('+item.title+')';
+                            placementManager.all_placements['CRM_'+'DYNAMIC_'+item.entityTypeId+'_LIST_TOOLBAR'] = 'Кнопка около Роботов в списке ('+item.title+')';
+                            placementManager.all_placements['CRM_'+'DYNAMIC_'+item.entityTypeId+'_DOCUMENTGENERATOR_BUTTON'] = 'Кнопка в документах ('+item.title+')';
+                        }
+                    }
+                } catch (e) {
+                    console.log(e);
                 }
-            });
-            batch.push({
-                'method':'user.option.get'
-            });
 
-            window.AwzBx24Proxy.callBatch(
-                batch,
-                function(res)
-                {
-                    window.awz_helper.addBxTime(res);
+                //список групп
+                try {
+                    if(iters['sonet_group']){
+                        var k;
+                        for (k in iters['sonet_group']) {
+                            var item = iters['sonet_group'][k];
+                            item.title = 'Задачи в группе: '+item.NAME;
+                            item.entityTypeId = item.ID;
+                            linksSmart['group_'+item.entityTypeId] = item;
+                            linksSmart['TASK_GROUP_'+item.entityTypeId] = item;
 
-                    //console.log(res);
-                    $('.rows-smarts').html('');
-                    $('.rows-ext-smarts').html('');
-
-                    var items_smart_types = [];
-                    var items_groups = [];
-                    var items_ext = [];
-                    if(res.hasOwnProperty('length') && res.length>0 && res[0].hasOwnProperty('answer')){
-                        items_smart_types = res[0].answer.result['types'];
-                    }
-                    if(res.hasOwnProperty('length') && res.length>1 && res[1].hasOwnProperty('answer')){
-                        items_groups = res[1].answer.result;
-                    }
-                    if(res.hasOwnProperty('length') && res.length>1 && res[2].hasOwnProperty('answer')){
-                        items_ext = res[2].answer.result;
-                    }
-
-                    try {
-                        if(items_smart_types.length){
-                            var k;
-                            for (k in items_smart_types) {
-                                var item = items_smart_types[k];
-                                findIdsSmart.push(item.entityTypeId);
-                                item.title = 'Смарт: '+item.title;
-                                linksSmart[item.entityTypeId] = item;
-                                linksSmart['DYNAMIC_'+item.entityTypeId] = item;
-
-                                placementManager.appendFrom({
-                                    'value':'DYNAMIC_'+item.entityTypeId,
-                                    'title':item.title
-                                });
-                                placementManager.appendTo({
-                                    'value':'DYNAMIC_'+item.entityTypeId,
-                                    'title':item.title
-                                });
-                            }
+                            placementManager.appendFrom({
+                                'value':'TASK_GROUP_'+item.entityTypeId,
+                                'title':item.title
+                            });
                         }
-                    } catch (e) {
-                        console.log(e);
                     }
+                } catch (e) {
+                    console.log(e);
+                }
 
-                    try {
-                        if(items_groups.length){
-                            var k;
-                            for (k in items_groups) {
-                                var item = items_groups[k];
-                                //findIdsSmart.push(item.entityTypeId);
-                                item.title = 'Задачи в группе: '+item.NAME;
-                                item.entityTypeId = item.ID;
-                                linksSmart['group_'+item.entityTypeId] = item;
-                                linksSmart['TASK_GROUP_'+item.entityTypeId] = item;
+                placementManager.appendFrom({
+                    'value':'DOCS',
+                    'title':linksSmart['DOCS'].title
+                });
+                placementManager.appendFrom({
+                    'value':'WORKS',
+                    'title':linksSmart['WORKS'].title
+                });
+                placementManager.appendFrom({
+                    'value':'COMPANY',
+                    'title':linksSmart['COMPANY'].title
+                });
+                placementManager.appendFrom({
+                    'value':'CONTACT',
+                    'title':linksSmart['CONTACT'].title
+                });
+                placementManager.appendFrom({
+                    'value':'DEAL',
+                    'title':linksSmart['DEAL'].title
+                });
+                placementManager.appendFrom({
+                    'value':'DOCS_CRM',
+                    'title':linksSmart['DOCS_CRM'].title
+                });
+                placementManager.appendFrom({
+                    'value':'TASK_USER',
+                    'title':linksSmart['TASK_USER'].title
+                });
+                placementManager.appendFrom({
+                    'value':'TASK_GROUPS',
+                    'title':linksSmart['TASK_GROUPS'].title
+                });
+                placementManager.appendFrom({
+                    'value':'TASK_USER_CRM',
+                    'title':linksSmart['TASK_USER_CRM'].title
+                });
 
-                                placementManager.appendFrom({
-                                    'value':'TASK_GROUP_'+item.entityTypeId,
-                                    'title':item.title
-                                });
-                            }
-                        }
-                    } catch (e) {
-                        console.log(e);
-                    }
-
-                    placementManager.appendFrom({
-                        'value':'DOCS',
-                        'title':linksSmart['DOCS'].title
-                    });
-                    placementManager.appendFrom({
-                        'value':'WORKS',
-                        'title':linksSmart['WORKS'].title
-                    });
-                    placementManager.appendFrom({
-                        'value':'COMPANY',
-                        'title':linksSmart['COMPANY'].title
-                    });
-                    placementManager.appendFrom({
-                        'value':'CONTACT',
-                        'title':linksSmart['CONTACT'].title
-                    });
-                    placementManager.appendFrom({
-                        'value':'DEAL',
-                        'title':linksSmart['DEAL'].title
-                    });
-                    placementManager.appendFrom({
-                        'value':'DOCS_CRM',
-                        'title':linksSmart['DOCS_CRM'].title
-                    });
-                    placementManager.appendFrom({
-                        'value':'TASK_USER',
-                        'title':linksSmart['TASK_USER'].title
-                    });
-                    placementManager.appendFrom({
-                        'value':'TASK_GROUPS',
-                        'title':linksSmart['TASK_GROUPS'].title
-                    });
-                    placementManager.appendFrom({
-                        'value':'TASK_USER_CRM',
-                        'title':linksSmart['TASK_USER_CRM'].title
-                    });
-
-                    var k_ext;
-                    for(k_ext in items_ext){
-                        if((k_ext.indexOf('e_')>-1 || k_ext.indexOf('entity_')>-1) && items_ext[k_ext].indexOf('---')){
-                            var extItem = items_ext[k_ext].split('---');
-                            if(extItem.length<2) continue;
+                //внешние сущности
+                try {
+                    if(iters['user_option']){
+                        var k;
+                        for (k in iters['user_option']) {
+                            var item = iters['user_option'][k];
+                            var extItem = item.split('---');
+                            var k_ext = k;
                             var portal = extItem[1].replace(/.*\/(.*)\/rest\/[0-9]+\/[a-z0-9]{3}.*/g," - $1");
                             if(portal.indexOf('/bitrix/services/main/ajax.php')>-1){
                                 portal = extItem[1].replace(/.*\/(.*)\/bitrix\/.*/g," - $1");
                             }
-                            //console.log('portal '+portal);
 
                             var append = false;
                             var title = extItem[0];
@@ -2948,7 +3545,7 @@ $(document).ready(function (){
                                 placementManager.appendFrom({
                                     'value':'EXT_TASK_USER_'+k_ext,
                                     'title':linksSmart['EXT_TASK_USER'].title + portal,
-                                    'data-code':items_ext[k_ext]+'---'+k_ext
+                                    'data-code':item+'---'+k_ext
                                 });
                                 title = linksSmart['EXT_TASK_USER'].title + portal;
                                 append = true;
@@ -2956,7 +3553,7 @@ $(document).ready(function (){
                                 placementManager.appendFrom({
                                     'value':'EXT_COMPANY_'+k_ext,
                                     'title':linksSmart['EXT_COMPANY'].title + portal,
-                                    'data-code':items_ext[k_ext]+'---'+k_ext
+                                    'data-code':item+'---'+k_ext
                                 });
                                 title = linksSmart['EXT_COMPANY'].title + portal;
                                 append = true;
@@ -2964,7 +3561,7 @@ $(document).ready(function (){
                                 placementManager.appendFrom({
                                     'value':'EXT_CONTACT_'+k_ext,
                                     'title':linksSmart['EXT_CONTACT'].title + portal,
-                                    'data-code':items_ext[k_ext]+'---'+k_ext
+                                    'data-code':item+'---'+k_ext
                                 });
                                 title = linksSmart['EXT_CONTACT'].title + portal;
                                 append = true;
@@ -2972,418 +3569,35 @@ $(document).ready(function (){
                                 placementManager.appendFrom({
                                     'value':'EXT_DEAL_'+k_ext,
                                     'title':linksSmart['EXT_DEAL'].title + portal,
-                                    'data-code':items_ext[k_ext]+'---'+k_ext
+                                    'data-code':item+'---'+k_ext
                                 });
                                 title = linksSmart['EXT_DEAL'].title + portal;
                                 append = true;
                             }else if(extItem[0] === 'awzorm'){
 
-                                $.ajax({
-                                    url:  extItem[1].replace('api.hook.call', 'api.hook.methods'),
-                                    data: {},
-                                    dataType: "json",
-                                    type: "POST",
-                                    CORS: false,
-                                    crossDomain: true,
-                                    timeout: 180000,
-                                    async: false,
-                                    success: function (data, textStatus) {
-                                        try{
-                                            var kkl;
-                                            for(kkl in data['data']['methods']){
-                                                var methodItem = data['data']['methods'][kkl];
-                                                if(kkl.indexOf('.')===-1){
-                                                    placementManager.appendFrom({
-                                                        'value':'EXT_AWZORM_'+kkl+'_'+k_ext,
-                                                        'title':methodItem + portal,
-                                                        'data-code':items_ext[k_ext]+'---'+k_ext+'---'+kkl
-                                                    });
-                                                    title = methodItem + portal;
-                                                    linksSmart['EXT_AWZORM_'+kkl] = {'title':title};
-                                                }
-                                            }
-                                        }catch (e) {
 
-                                        }
-                                        console.log(data);
-                                    }
-                                });
-                                title = 'AWZ: ORM Api' + portal;
-                                url_title = extItem[1].replace(/.*\/(.*\/bitrix\/services\/main\/ajax.php.*&key=[0-9a-zA-Z]{3}).*/g,"$1...");
-                                url_title = url_title.replace('/bitrix/services/main/ajax.php?action=awz:bxorm.api.hook.','...');
                             }
 
-                            $('.rows-ext-smarts').append('<div class="row" style="margin-bottom:10px;">' +
-                                '<div class="col-xs-3 no-padding-l">' +
-                                '<label class="main-grid-control-label">'+k_ext+'</label>' +
-                                '</div>' +
-                                '<div class="col-xs-3">' +
-                                '<label class="main-grid-control-label">'+title+'</label>' +
-                                '</div>' +
-                                '<div class="col-xs-3">' +
-                                '<label class="main-grid-control-label">'+url_title+'</label>' +
-                                '</div>' +
-                                '<div class="col-xs-3 no-padding-r">' +
-                                '<a href="#" data-handler="'+k_ext+'" class="remove_ext_smart_handled ui-btn ui-btn-xs ui-btn-icon-alert">Удалить</a>' +
-                                '</div>' +
-                                '</div>');
+                            ext_hooks.push({
+                                'key':k_ext,
+                                'title':title,
+                                'url_title':url_title,
+                                'portal': portal
+                            });
 
                         }
-                        window.awz_helper.resize();
                     }
 
-                    var q_data_hook = {
-                        'domain':$('#signed_add_form').attr('data-domain'),
-                        'app':$('#signed_add_form').attr('data-app'),
-                        'signed':$('#signed_add_form').val()
-                    };
-
-
-                    $.ajax({
-                        url: '/bitrix/services/main/ajax.php?action=awz:bxapi.api.smartapp.listhook',
-                        data: q_data_hook,
-                        dataType: "json",
-                        type: "POST",
-                        CORS: false,
-                        crossDomain: true,
-                        timeout: 180000,
-                        async: false,
-                        success: function (hookList, textStatus) {
-                            //console.log(hookList);
-                            var hookExists = [];
-                            BX24.callMethod(
-                                'placement.get',
-                                {},
-                                function(res)
-                                {
-                                    window.awz_helper.addBxTime(res);
-                                    try {
-                                        var find = false;
-                                        var find_smarts_1 = [];
-                                        if(res.answer.result.length){
-                                            var k;
-                                            for (k in res.answer.result) {
-                                                var placement = res.answer.result[k];
-                                                placement['bx_handler'] = '';
-                                                placement['bx_handler_id'] = '';
-                                                try{
-                                                    if(placement['handler'].indexOf('ID=')>-1){
-                                                        var handlerId = placement['handler'].match(/ID=([0-9]+)/i);
-                                                        if(hookList['data'][handlerId[1]]['URL']){
-                                                            placement['bx_handler'] = placement['handler'];
-                                                            placement['handler'] = hookList['data'][handlerId[1]]['URL'];
-                                                            hookExists.push(handlerId[1]);
-                                                            placement['bx_handler_id'] = handlerId[1];
-                                                        }
-                                                    }
-                                                }catch (e) {
-
-                                                }
-
-                                                //placement['handler'] =
-                                                var candidate = placement['placement'].split('_');
-
-                                                var gridParams = window.awz_helper.getGridParamsFromUrl(placement['handler']);
-                                                //console.log([gridParams, candidate, placement]);
-
-                                                var code_type = '';
-                                                var code_to = '';
-                                                var code = '';
-
-                                                var old_version_handler = false;
-                                                if(gridParams.hasOwnProperty('awz')){
-                                                    if(gridParams.hasOwnProperty('plc') && gridParams['plc']){
-                                                        code_type = gridParams['plc'];
-                                                        if(code_type.indexOf('CRM_')>-1 && code_type.indexOf('_DETAIL_TAB')>-1){
-                                                            code_type = 'CRM_DETAIL_TAB';
-                                                        }
-                                                        if(code_type.indexOf('CRM_')>-1 && code_type.indexOf('_LIST_TOOLBAR')>-1){
-                                                            code_type = 'CRM_LIST_TOOLBAR';
-                                                        }
-                                                        if(code_type.indexOf('CRM_')>-1 && code_type.indexOf('_DETAIL_TOOLBAR')>-1){
-                                                            code_type = 'CRM_DETAIL_TOOLBAR';
-                                                        }
-                                                        if(!types.hasOwnProperty(code_type)){
-                                                            types[code_type] = code_type;
-                                                        }
-                                                    }
-                                                    if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'DOCS'){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }else{
-                                                            code_to = 'DOCS';
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'DOCS_CRM'){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'WORKS'){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'COMPANY'){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'CONTACT'){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'DEAL'){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'EXT_COMPANY'){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'EXT_CONTACT'){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'EXT_DEAL'){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'TASK_USER_CRM'){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'TASK_USER'){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }else{
-                                                            code_to = 'DOCS';
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'TASK_GROUPS'){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'] === 'EXT_TASK_USER'){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'].indexOf('EXT_AWZORM_')>-1){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'].indexOf('TASK_GROUP_')>-1){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }else{
-                                                            code_to = 'DOCS';
-                                                        }
-                                                    }else if(gridParams.hasOwnProperty('1') && gridParams['1'].indexOf('DYNAMIC_')>-1){
-                                                        code = gridParams['1'];
-                                                        if(gridParams.hasOwnProperty('2') && gridParams['2']){
-                                                            code_to = gridParams['2'];
-                                                        }else{
-                                                            code_to = 'DOCS';
-                                                        }
-                                                    }
-                                                }else if(['CRM','TASK','SONET','REST'].indexOf(candidate[0])>-1){
-                                                    old_version_handler = true;
-
-                                                    if(candidate[1] === 'DYNAMIC'){
-                                                        code_to = parseInt(candidate[2]);
-                                                        code_type = [candidate[0], candidate[3], candidate[4]].join("_");
-                                                    }else if(candidate[1] === 'USER'){
-                                                        code_to = candidate[0]+'_'+candidate[1];
-                                                        code_type = [candidate[0], candidate[1], candidate[2], candidate[3]].join("_");
-                                                    }else if(candidate[1] === 'GROUP'){
-                                                        code_to = candidate[0]+'_'+candidate[1];
-                                                        code_type = [candidate[0], candidate[1], candidate[2], candidate[3]].join("_");
-                                                        if(candidate[0] == 'SONET'){
-                                                            code_type = candidate.join("_");
-                                                            code_to = 'TASK_GROUP';
-                                                        }
-                                                    }else if(['LEAD','DEAL','CONTACT','COMPANY','INVOICE'].indexOf(candidate[1])>-1) {
-                                                        code_to = candidate[1];
-                                                        code_type = [candidate[0], candidate[2], candidate[3]].join("_");
-                                                        if (candidate[2] == 'DOCUMENTGENERATOR') {
-                                                            code_to = 'DOCS';
-                                                            code_type = [candidate[0], candidate[1], candidate[2], candidate[3]].join("_");
-                                                        }
-                                                    }
-                                                    if(placement['handler'].indexOf('smartId=TASK_USER_CRM')>-1){
-                                                        code = 'TASK_USER_CRM';
-                                                    }else if(placement['handler'].indexOf('smartId=TASK_USER')>-1){
-                                                        code = 'TASK_USER';
-                                                    }else if(placement['handler'].indexOf('smartId=EXT_TASK_USER')>-1){
-                                                        code = 'EXT_TASK_USER';
-                                                    }else if(placement['handler'].indexOf('smartId=EXT_COMPANY')>-1){
-                                                        code = 'EXT_COMPANY';
-                                                    }else if(placement['handler'].indexOf('smartId=EXT_CONTACT')>-1){
-                                                        code = 'EXT_CONTACT';
-                                                    }else if(placement['handler'].indexOf('smartId=EXT_DEAL')>-1){
-                                                        code = 'EXT_DEAL';
-                                                    }else if(placement['handler'].indexOf('smartId=DOCS')>-1){
-                                                        code = 'DOCS';
-                                                    }else if(placement['handler'].indexOf('smartId=WORKS')>-1){
-                                                        code = 'WORKS';
-                                                    }else if(placement['handler'].indexOf('smartId=TASK_GROUP_')>-1){
-                                                        code = 'group_'+placement['handler'].replace(/.*smartId=[A-Z]+_[A-Z]+_([0-9]+)(.*)/g, "$1");
-                                                    }else{
-                                                        code = placement['handler'].replace(/.*smartId=[A-Z]+_([0-9]+)(.*)/g, "$1");
-                                                    }
-                                                    if(candidate[0]==='REST'){
-                                                        code = 'APP_LINK';
-                                                        code_to = 'APP_LINK';
-                                                        code_type = [candidate[0], candidate[1], candidate[2]].join("_");
-                                                    }
-
-
-                                                    //find_smarts_1.push(parseInt(code));
-                                                }
-
-                                                if(placement['placement'] === 'REST_APP_URI'){
-                                                    if(placement['handler'].indexOf('index.php')>-1)
-                                                        old_version_handler = false;
-                                                    code = 'APP_LINK';
-                                                    code_to = 'APP_LINK';
-                                                }
-
-                                                var item = null;
-                                                var item_to = null;
-                                                if(code){
-                                                    item = linksSmart[code];
-                                                }
-                                                if(code_to){
-                                                    item_to = linksSmart[code_to];
-                                                }
-
-                                                if(candidate.length && candidate[0]==='REST'){
-                                                    item = {
-                                                        'title':'Приложение'
-                                                    };
-                                                    item_to = {
-                                                        'title':'Битрикс24'
-                                                    };
-                                                }
-                                                if(code === 'EXT_TASK_USER'){
-                                                    item = {
-                                                        'title':linksSmart['EXT_TASK_USER'].title+' - '+placement['handler'].replace(/.*ext=(.*)\/rest\/.*/g,"$1")
-                                                    };
-                                                }
-                                                if(code === 'EXT_COMPANY'){
-                                                    item = {
-                                                        'title':linksSmart['EXT_COMPANY'].title+' - '+placement['handler'].replace(/.*ext=(.*)\/rest\/.*/g,"$1")
-                                                    };
-                                                }
-                                                if(code === 'EXT_CONTACT'){
-                                                    item = {
-                                                        'title':linksSmart['EXT_CONTACT'].title+' - '+placement['handler'].replace(/.*ext=(.*)\/rest\/.*/g,"$1")
-                                                    };
-                                                }
-                                                if(code === 'EXT_DEAL'){
-                                                    item = {
-                                                        'title':linksSmart['EXT_DEAL'].title+' - '+placement['handler'].replace(/.*ext=(.*)\/rest\/.*/g,"$1")
-                                                    };
-                                                }
-                                                //if(code.indexOf('EXT_AWZORM_')>-1){
-                                                    //alert(code);
-                                                    //item = {
-                                                    //    'title':'AWZ ORM Api - '+placement['handler'].replace(/.*ext=(.*)\/bitrix\/.*/g,"$1")
-                                                    //};
-                                                //}
-                                                //console.log([code,code_to,item,item_to]);
-
-                                                var sett_link = '<a href="#" data-app="'+$('#signed_add_form').attr('data-app')+'" data-domain="'+$('#signed_add_form').attr('data-domain')+'" data-signed="'+$('#signed_add_form').val()+'" data-bxhandler="'+placement['bx_handler']+'" data-page="sett-handler" class="awz-handler-slide-content ui-btn ui-btn-xs ui-btn-icon-setting"></a>';
-                                                var plc_link = '<a href="#" data-bxhandler="'+placement['bx_handler']+'" data-handler="'+placement['handler']+'" data-placement="'+placement['placement']+'" class="remove_smart_handled ui-btn ui-btn-xs ui-btn-icon-alert">Деактивировать</a>';
-                                                var regenLink = '';//replaceHandler
-                                                if(!placement['bx_handler'] && placement['placement']!='REST_APP_URI'){
-                                                    regenLink = '<a href="#" data-handler="'+placement['handler']+'" data-placement="'+placement['placement']+'" class="update_smart_handled ui-btn ui-btn-xs ui-btn-danger ui-btn-icon-alert">обновить URL</a>'
-                                                    sett_link = '';
-                                                }
-                                                if(placement['placement']=='REST_APP_URI'){
-                                                    sett_link = '';
-                                                }
-
-                                                if(!placement.hasOwnProperty('bx_handler_id')){
-                                                    placement['bx_handler_id'] = '';
-                                                }
-                                                if(!item || !item_to){
-                                                    $('.rows-smarts').append('<div class="row row-placement-'+placement['bx_handler_id']+'" style="margin-bottom:10px;">' +
-                                                        '<div class="col-xs-9 no-padding-l">' +
-                                                        '<label class="main-grid-control-label">'+placement['handler']+'</label>' +
-                                                        '</div>' +
-                                                        '<div class="col-xs-3 no-padding-r">' +
-                                                        '<label class="main-grid-control-label">'+types[code_type]+'</label>' +
-                                                        '</div>' +
-                                                        '<div style="display:block;clear:both;width:100%;height:10px;"></div>'+
-                                                        '<div class="col-xs-3 no-padding-l">' +
-                                                        '<label class="main-grid-control-label">'+placement.title+'</label>' +
-                                                        '</div>' +
-                                                        '<div class="col-xs-3">' +
-                                                        '<label class="main-grid-control-label">'+placement.langAll.ru.GROUP_NAME+'</label>' +
-                                                        '</div>' +
-                                                        '<div class="col-xs-3">' +
-                                                        '<label class="main-grid-control-label">'+(placement.userId ? 'Для пользователя с ID '+placement.userId : 'Для всех пользователей')+'</label>' +
-                                                        '</div>' +
-                                                        '<div class="col-xs-3 no-padding-r">' +(old_version_handler ? '<b style="color:red;">Устарела! Пересоздайте!</b><br>' : '')+
-                                                        regenLink + plc_link + sett_link +
-                                                        '</div>' +
-                                                        '</div>');
-                                                }else{
-                                                    $('.rows-smarts').append('<div class="row row-placement-'+placement['bx_handler_id']+'" style="margin-bottom:10px;">' +
-                                                        '<div class="col-xs-3 no-padding-l">' +
-                                                        '<label class="main-grid-control-label">'+item.title+'</label>' +
-                                                        '</div>' +
-                                                        '<div class="col-xs-3">' +
-                                                        '<label class="main-grid-control-label">'+item_to.title+'</label>' +
-                                                        '</div>' +
-                                                        '<div class="col-xs-3 no-padding-r">' +
-                                                        '<label class="main-grid-control-label">'+types[code_type]+'</label>' +
-                                                        '</div>' +
-                                                        '<div style="display:block;clear:both;width:100%;height:10px;"></div>'+
-                                                        '<div class="col-xs-3 no-padding-l">' +
-                                                        '<label class="main-grid-control-label">'+placement.title+'</label>' +
-                                                        '</div>' +
-                                                        '<div class="col-xs-3">' +
-                                                        '<label class="main-grid-control-label">'+placement.langAll.ru.GROUP_NAME+'</label>' +
-                                                        '</div>' +
-                                                        '<div class="col-xs-3">' +
-                                                        '<label class="main-grid-control-label">'+(placement.userId ? 'Для пользователя с ID '+placement.userId : 'Для всех пользователей')+'</label>' +
-                                                        '</div>' +
-                                                        '<div class="col-xs-3 no-padding-r">' +(old_version_handler ? '<b style="color:red;">Устарела! Пересоздайте!</b><br>' : '')+
-                                                        regenLink + plc_link + sett_link +
-                                                        '</div>' +
-                                                        '</div>');
-                                                }
-                                            }
-                                        }
-
-                                    } catch (e) {
-                                        console.log(e);
-                                    }
-                                    window.awz_helper.appendNotHandledPlacement(hookList, hookExists);
-                                    window.awz_helper.resize();
-                                }
-                            );
-
-                        }
-                    });
-
-
-
+                } catch (e) {
+                    console.log(e);
                 }
-            );
 
+                //зарегистрированные встройки
+                window.awz_nhelper.appendHandlers(iters['awz_hook_list'], iters['placement_get']);
+                window.awz_nhelper.appendExtHook(ext_hooks);
+            }).catch((e) => {
+                console.log(e);
+            });
 
         },
         pagesize_total: 0,
@@ -4146,6 +4360,7 @@ $(document).ready(function (){
             $('#uiToolbarContainer').append('<div class="adm-toolbar-panel-container"><div class="adm-toolbar-panel-flexible-space"></div><a onclick="window.AwzBx24Proxy.openPath(\'/marketplace/detail/awz.smartbag/\');return false;" href="#" style="line-height:12px;" class="ui-btn ui-btn-sm ui-btn-icon-plan ui-btn-danger">Оставь бесплатный отзыв <br>для бесплатного приложения</a></div>');
         },
         showStat: function(){
+            //console.log('show-stats');
             var q_data_hook = {
                 'domain':$('#signed_add_form').attr('data-domain'),
                 'app':$('#signed_add_form').attr('data-app'),
@@ -4160,6 +4375,8 @@ $(document).ready(function (){
                 }else{
                     $('.main-grid').append('<div id="stat-app-moved">'+set_grid_button+$('#stat-app').html()+'</div>');
                 }
+            }else{
+                $('#stat-app-moved').html(set_grid_button);
             }
         },
         deleteRows: function(data, group_action, callbackDelete){
@@ -5552,7 +5769,6 @@ $(document).ready(function (){
     }
 
 
-    //$('#placement-sett #select-crm-entity-to')
     $(document).on('click', '.awz-open-addlink', function(e){
         e.preventDefault();
 
@@ -5672,11 +5888,15 @@ $(document).ready(function (){
                 'desc_user':$('#placement-desc-user').val(),
                 'desc_icon':$('#placement-icon-user').val(),
                 'desc_bg_hex':$('#placement-icon-hex').val(),
+                'main_menu':$('#main-menu-active').is(":checked") ? $('#main-menu-active').val() : 'N',
                 'placements':[]
             }
         };
         if($('#placements-list').val()){
             q_data['params']['placements'] = $('#placements-list').val().split(',');
+        }
+        if($('#placement-mlink').val()){
+            q_data['params']['mlink'] = $('#placement-mlink').val();
         }
         window.awz_helper.updateHookParams(q_data, function(data){
             console.log(data);
@@ -5753,7 +5973,6 @@ $(document).ready(function (){
             }
         );
     });
-
     $(document).on('click', '.open-smart', function(e){
         e.preventDefault();
         var id = $(this).attr('data-id');
@@ -5764,8 +5983,6 @@ $(document).ready(function (){
         var path = window.AwzBx24Proxy.createPath(ent, id);
         window.AwzBx24Proxy.openPath(path);
     });
-
-
     $(document).on('click', '.remove_ext_smart_handled', function(e){
         e.preventDefault();
         var handler = $(this).attr('data-handler');

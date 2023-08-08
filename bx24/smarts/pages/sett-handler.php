@@ -97,6 +97,12 @@ if($pageResult->isSuccess()){
                             <div class="row" style="margin:0;padding:15px 0 15px 0;">
                                 <div data-type="awz_placementlist" data-id="<?=$hookResult['ID']?>" class="awz-autoload-field awz-autoload-awz_placementlist-<?=$hookResult['ID']?>"><?=$hookResult['ID']?></div>
                             </div>
+                            <div class="ui-form-row ui-form-row-middle-input">
+                                <div class="ui-ctl ui-ctl-checkbox ui-ctl-w100">
+                                    <input type="checkbox" id="main-menu-active" value="Y" class="ui-ctl-element"<?=(!isset($hookResult['PARAMS']['hook']['main_menu']) || $hookResult['PARAMS']['hook']['main_menu']!='N' ? 'checked="checked"' : '')?>>
+                                    <div class="ui-ctl-label-text">Показывать в главном меню (главная сетка приложения)</div>
+                                </div>
+                            </div>
                             <div class="row"><div class="col-xs-12">
                                 <?
                                 $addStyle = '';
@@ -123,7 +129,7 @@ if($pageResult->isSuccess()){
                                 <?
                                 if(!empty($hookResult['PARAMS']['hook']['placements'])){
                                     ?>
-                                    <div class="container"><div class="row"><div class="col-xs-12">
+                                <div class="container"><div class="row"><div class="col-xs-12">
                                     <div class="container" style="margin-bottom:15px;">
                                         <div class="row"><h4>Встройки доступные во встройке: </h4></div>
                                         <div class="row"><div class="awz-save-hook-params-users">
@@ -149,6 +155,25 @@ if($pageResult->isSuccess()){
                                 </div>
                                 <a style="float:left;" onclick="window.awz_helper.openDialogAwzCrm('users-right-block','awz_user,awz_employee', 'Y');return false;" class="ui-btn ui-form-link" href="#">выбрать ...</a>
                             </div>
+
+                            <?if(isset($hookResult['PARAMS']['handler']['from']) && $hookResult['PARAMS']['handler']['from'] === 'APP_EXLINK'){?>
+                                <div class="ui-form-row ui-form-row-middle-input">
+                                    <div class="ui-form-label">
+                                        <div class="ui-ctl-label-text">Ссылка на встройку с параметрами приложения</div>
+                                    </div>
+                                    <div class="ui-ctl ui-ctl-textbox ui-ctl-w100">
+                                        <input type="text" id="placement-mlink" class="ui-ctl-element" value="<?=htmlspecialcharsEx($hookResult['PARAMS']['hook']['mlink'])?>" placeholder="Введите ссылку">
+                                    </div>
+                                </div>
+                                <div class="ui-alert ui-alert-info awz-save-hook-params-empty">
+                                        <span class="ui-alert-message">
+                                            Будет предпринята попытка открытия URL через BX24.openPath согласно документации
+                                            <a href="https://dev.1c-bitrix.ru/rest_help/js_library/additional/openPath.php" target="_blank">ссылка</a><br>
+                                            В случае ошибки открытия ссылки вернется диалог с предложением перейти на внешний ресурс.
+                                        </span>
+                                </div>
+                            <?}?>
+
                             <div class="ui-form-row ui-form-row-middle-input">
                                 <div class="ui-form-label">
                                     <div class="ui-ctl-label-text">Описание встройки для админа</div>
@@ -206,6 +231,76 @@ if($pageResult->isSuccess()){
                                     </div>
                                     <a style="float:left;" onclick="window.awz_helper.openDialogAwzCrm('placements-list-right-block','awz_placementlist', 'Y');return false;" class="ui-btn ui-form-link" href="#">выбрать ...</a>
                                 </div>
+                            <div class="ui-form-row ui-form-row-middle-input">
+                                <div class="ui-form-label">
+                                    <div class="ui-ctl-label-text">Добавить <a href="https://dev.1c-bitrix.ru/rest_help/application_embedding/index.php" target="_blank">встройку</a> данного пункта меню в Битрикс24</div>
+                                </div>
+                                <div class="ui-ctl ui-ctl-after-icon ui-ctl-dropdown">
+                                    <div class="ui-ctl-after ui-ctl-icon-angle"></div>
+                                    <select class="ui-ctl-element" id="awz-save-hook-params-handler"></select>
+                                </div>
+
+                            </div>
+                                <div class="ui-form-row-inline">
+                                <div class="ui-form-row ui-form-row-middle-input">
+                                    <div class="ui-ctl ui-ctl-textbox ui-ctl-w100">
+                                        <input type="text" class="ui-ctl-element" id="awz-save-hook-params-handler-name" placeholder="Имя">
+                                    </div>
+                                </div>
+                                <div class="ui-form-row ui-form-row-middle-input">
+                                    <div class="ui-ctl ui-ctl-textbox ui-ctl-w100">
+                                        <input type="text" class="ui-ctl-element" id="awz-save-hook-params-handler-group" placeholder="Группа">
+                                    </div>
+                                </div>
+                                <div class="ui-form-row ui-form-row-middle-input">
+                                    <div class="ui-ctl ui-ctl-textbox ui-ctl-w100">
+                                        <input type="text" class="ui-ctl-element" id="awz-save-hook-params-handler-user" placeholder="Ид пользователя">
+                                    </div>
+                                </div>
+                                <div class="ui-form-row ui-form-row-middle-input">
+                                    <a style="float:left;" onclick="window.awz_helper._registerPlacement();return false;" class="ui-btn ui-form-link" href="#">добавить</a>
+                                </div>
+                                </div>
+
+                                <script>
+                                    window.awz_helper.getPlacementManager().createAllPlacementsList('awz-save-hook-params-handler');
+                                    if(!window.awz_helper.hasOwnProperty('_registerPlacement')){
+                                        window.awz_helper._registerPlacement = function(){
+                                            var name = $('#awz-save-hook-params-handler-name').val();
+                                            if(!name){
+                                                name = 'CRM Сущности';
+                                            }
+                                            var userId = $('#awz-save-hook-params-handler-user').val();
+                                            var handler_url = window.awz_helper.APP_URL+'index.php?MENUID=<?=$hookResult['ID']?>&app='+window.awz_helper.APP_ID;
+                                            var md_hash_enique = md5(handler_url+'_'+name+'_'+userId);
+                                            handler_url += '&name='+md_hash_enique;
+                                            BX24.callMethod(
+                                                'placement.bind',
+                                                {
+                                                    'PLACEMENT': $('#awz-save-hook-params-handler').val(),
+                                                    'HANDLER': handler_url,
+                                                    'LANG_ALL': {
+                                                        ru : {
+                                                            'TITLE': name,
+                                                            'GROUP_NAME':$('#awz-save-hook-params-handler-group').val()
+                                                        }
+                                                    },
+                                                    'USER_ID': userId
+                                                },
+                                                function(res)
+                                                {
+                                                    window.awz_helper.addBxTime(res);
+                                                    if(res.answer.hasOwnProperty('error_description')){
+                                                        alert(res.answer.error_description);
+                                                    }else{
+                                                        BX.SidePanel.Instance.close();
+                                                    }
+                                                    window.awz_helper.loadHandledApp();
+                                                }
+                                            );
+                                        };
+                                    }
+                                </script>
                             <?}?>
 
 

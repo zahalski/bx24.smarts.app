@@ -318,3 +318,10 @@ font-size:12px;line-height:13px;padding:3px 0 0 0;text-transform: lowercase;
 .appWrapPlaceList .row-items-active .item:hover {background: #eef2f4;opacity:1;transition:0.5s;}
 .appWrapPlaceList .row-items-active .item:hover .name i {max-height:100%;}
 #grid-settings-button {float:left;}
+.row-placement-title-block .row-title {background: #f9faff;margin-bottom:10px;}
+.row-placement-title-block .row-title h4 {margin:0 15px;}
+
+.links-bx .row {padding-top:3px!important;padding-bottom:3px!important;}
+.links-bx .row .no-padding-l {line-height:26px;font-size:13px;}
+.links-bx .row .no-padding-l .ui-btn-icon-share {margin-right:5px;cursor: inherit;background:#eff0f6;
+border:none;}

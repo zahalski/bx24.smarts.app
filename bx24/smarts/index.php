@@ -24,18 +24,13 @@ if(!Loader::includeModule('awz.bxapi')){
     return;
 }
 
-$tracker = null;
-if(Loader::includeModule('awz.bxapistats')){
-    $tracker = \Awz\BxApiStats\Tracker::getInstance();
-    $tracker->addCount();
-}
-
 global $APPLICATION;
 $appId = 'app.63d6b637131902.97765356';
 $request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
 if($request->get('app')){
     $appId = $request->get('app');
 }
+
 $app = new App(array(
     'APP_ID'=>$appId,
     'APP_SECRET_CODE'=>Helper::getSecret($appId),
@@ -44,98 +39,149 @@ $app = new App(array(
 ));
 
 try{
-    if($request->get('PLACEMENT') == 'REST_APP_URI'){
+    //MENUID
+    $pStart = [];
+    if($request->get('MENUID')){
+        $pStart = [
+            'HOOK' => intval($request->get('MENUID'))
+        ];
+    }else if($request->get('PLACEMENT') == 'REST_APP_URI'){
         $pStart = Json::decode($request->get('PLACEMENT_OPTIONS'));
-        if($pStart['HOOK']){
-            $handlerData = \Awz\BxApi\HandlersTable::getList([
-                'select'=>['*'],
-                'filter'=>[
-                    '=ID'=>$pStart['HOOK'],
-                    '=PORTAL'=>$request->get('DOMAIN')
-                ]
-            ])->fetch();
-            if($handlerData &&
-                isset($handlerData['PARAMS']['handler']['app']) &&
-                $handlerData['PARAMS']['handler']['app'] &&
-                $handlerData['PARAMS']['handler']['app'] === $request->get('app')
-            ){
-                $tkn = array();
-                $tkn['access_token'] = htmlspecialchars($app->getRequest()->get('AUTH_ID'));
-                $tkn['client_endpoint'] = 'https://' .htmlspecialchars($app->getRequest()->get('DOMAIN')). '/rest/';
-                $app->setAuth($tkn);
+    }
 
-                $resOption = $app->getMethod('app.option.get');
-                $portalData = $app->getCurrentPortalData($request->get('DOMAIN'), 'Y');
-                if(!empty($portalData) && isset($portalData['PARAMS']['key']) &&
-                    $portalData['PARAMS']['key'] && $resOption->isSuccess())
-                {
-                    $resOptionData = $resOption->getData();
-                    $check = false;
-                    if($resOptionData['result']['result']['auth'] === $portalData['PARAMS']['key']){
-                        if(!isset($handlerData['PARAMS']['hook']['users'])){
-                            $check = true;
-                        }elseif(empty($handlerData['PARAMS']['hook']['users'])){
-                            $check = true;
-                        }elseif(!empty($handlerData['PARAMS']['hook']['users'])){
-                            $resUser = $app->getMethod('profile');
-                            if($resUser->isSuccess()){
-                                $resUserData = $resUser->getData();
-                                if(
-                                    isset($resUserData['result']['result']['ID']) &&
-                                    in_array($resUserData['result']['result']['ID'], $handlerData['PARAMS']['hook']['users'])
-                                ){
-                                    $check = true;
-                                }else{
-                                    $check = true;
-                                    //echo 'Встройка не доступна для Вас, администратор ограничил ее видимость.';
-                                }
+    //echo'<pre>';print_r($request->getPostList());echo'</pre>';
+    //die();
+
+    if(isset($pStart['HOOK'])){
+        $handlerData = \Awz\BxApi\HandlersTable::getList([
+            'select'=>['*'],
+            'filter'=>[
+                '=ID'=>$pStart['HOOK'],
+                '=PORTAL'=>$request->get('DOMAIN')
+            ]
+        ])->fetch();
+        if($handlerData &&
+            isset($handlerData['PARAMS']['handler']['app']) &&
+            $handlerData['PARAMS']['handler']['app'] &&
+            $handlerData['PARAMS']['handler']['app'] === $request->get('app')
+        ){
+
+            $tkn = array();
+            $tkn['access_token'] = htmlspecialchars($app->getRequest()->get('AUTH_ID'));
+            $tkn['client_endpoint'] = 'https://' .htmlspecialchars($app->getRequest()->get('DOMAIN')). '/rest/';
+            $app->setAuth($tkn);
+
+            /*$batch = [
+                'app.option.get'=>'app.option.get',
+                'profile'=>'profile',
+            ];
+            $batchResult = $app->getMethod('batch', ['cmd'=>$batch]);
+            if($batchResult->isSuccess()){
+                $batchResultData = $batchResult->getData();
+                if(is_array($batchResultData['result']['result']['result']['app.option.get'])){
+                    $key = md5(serialize(['app.option.get', $app->getAuth()]));
+                    $batchCachedResults[$key] = new \Bitrix\Main\Result();
+                    $batchCachedResults[$key]->setData(
+                         ['result'=>['result'=>$batchResultData['result']['result']['result']['app.option.get']]]
+                    );
+                }
+                if(is_array($batchResultData['result']['result']['result']['profile'])){
+                    $key = md5(serialize(['profile', $app->getAuth()]));
+                    $batchCachedResults[$key] = new \Bitrix\Main\Result();
+                    $batchCachedResults[$key]->setData(
+                         ['result'=>['result'=>$batchResultData['result']['result']['result']['profile']]]
+                    );
+                }
+            }
+            echo'<pre>';print_r($batchResultData);echo'</pre>';
+            die();
+            */
+
+            //$resOption = $app->getMethod('app.option.get');
+            $app->prepareBatchCached([
+                'app.option.get'=>'app.option.get',
+                'profile'=>'profile',
+            ]);
+            $resOption = $app->getBatchCached('app.option.get');
+            $portalData = $app->getCurrentPortalData($request->get('DOMAIN'), 'Y');
+            if(!empty($portalData) && isset($portalData['PARAMS']['key']) &&
+                $portalData['PARAMS']['key'] && $resOption->isSuccess())
+            {
+                $resOptionData = $resOption->getData();
+                $check = false;
+                if($resOptionData['result']['result']['auth'] === $portalData['PARAMS']['key']){
+                    if(!isset($handlerData['PARAMS']['hook']['users'])){
+                        $check = true;
+                    }elseif(empty($handlerData['PARAMS']['hook']['users'])){
+                        $check = true;
+                    }elseif(!empty($handlerData['PARAMS']['hook']['users'])){
+                        $resUser = $app->getBatchCached('profile');
+                        if($resUser->isSuccess()){
+                            $resUserData = $resUser->getData();
+                            if(
+                                isset($resUserData['result']['result']['ID']) &&
+                                in_array($resUserData['result']['result']['ID'], $handlerData['PARAMS']['hook']['users'])
+                            ){
+                                $check = true;
+                            }else{
+                                $check = true;
+                                //echo 'Встройка не доступна для Вас, администратор ограничил ее видимость.';
                             }
                         }
                     }
-
-                    $page = preg_replace('/.*\/([a-z]+)\.php.*/is',"$1",$handlerData['URL']);
-                    $page = preg_replace('/([^a-z])/is','',$page);
-
-
-                    if($check){
-                        if($page === 'indexn'){
-                            define('CURRENT_PARENT_PLACEMENT', $handlerData['ID']);
-                            $handledAr = explode('grid=',$handlerData['URL']);
-                            if(count($handledAr) == 2){
-                                $request->addFilter(new SetFilter('grid_id', $handledAr[1], 'get'));
-                            }
-                        }else{
-                            $filePath = __DIR__.'/'.$page.'.php';
-                            if(file_exists($filePath)){
-                                $server = \Bitrix\Main\Application::getInstance()->getContext()->getServer();
-                                $newReqUrl = str_replace('/smarts/index.php?','/smarts/'.$page.'.php?',$server->getRequestUri());
-                                $newReqUrl = str_replace('/smarts/?','/smarts/'.$page.'.php?',$newReqUrl);
-                                $server->rewriteUri($newReqUrl, $_SERVER['QUERY_STRING']);
-                                global $APPLICATION;
-                                $APPLICATION->setCurPage($newReqUrl);
-                                $request->addFilter(new SetFilter('ID', $handlerData['ID'], 'get'));
-                                $request->addFilter(new SetFilter('TOKEN', $handlerData['HASH'], 'get'));
-                                $request->addFilter(new SetFilter('DOMAIN', $handlerData['PORTAL'], 'get'));
-                                //echo'<pre>';print_r($request->getValues());echo'</pre>';
-                                define('CURRENT_CODE_PAGE', $page);
-                                require($filePath);
-                                die();
-                            }
-                        }
-                    }
-
-                    //echo'<pre>';print_r($request->get);echo'</pre>';
-                    //echo'<pre>';print_r($portalData);echo'</pre>';
-                    //echo'<pre>';print_r($handlerData);echo'</pre>';
-                    //echo'<pre>';print_r($resUserData['result']['result']['ID']);echo'</pre>';
                 }
 
+                $page = preg_replace('/.*\/([a-z]+)\.php.*/is',"$1",$handlerData['URL']);
+                $page = preg_replace('/([^a-z])/is','',$page);
+
+
+
+                if($check){
+                    if($page === 'indexn'){
+                        define('CURRENT_PARENT_PLACEMENT', $handlerData['ID']);
+                        $handledAr = explode('grid=',$handlerData['URL']);
+                        if(count($handledAr) == 2){
+                            $request->addFilter(new SetFilter('grid_id', $handledAr[1], 'get'));
+                        }
+                    }else{
+                        $filePath = __DIR__.'/'.$page.'.php';
+                        if(file_exists($filePath)){
+                            $server = \Bitrix\Main\Application::getInstance()->getContext()->getServer();
+                            $newReqUrl = str_replace('/smarts/index.php?','/smarts/'.$page.'.php?',$server->getRequestUri());
+                            $newReqUrl = str_replace('/smarts/?','/smarts/'.$page.'.php?',$newReqUrl);
+                            $server->rewriteUri($newReqUrl, $_SERVER['QUERY_STRING']);
+                            global $APPLICATION;
+                            $APPLICATION->setCurPage($newReqUrl);
+                            $request->addFilter(new SetFilter('ID', $handlerData['ID'], 'get'));
+                            $request->addFilter(new SetFilter('TOKEN', $handlerData['HASH'], 'get'));
+                            $request->addFilter(new SetFilter('DOMAIN', $handlerData['PORTAL'], 'get'));
+                            //echo'<pre>';print_r($request->getValues());echo'</pre>';
+                            define('CURRENT_CODE_PAGE', $page);
+                            require($filePath);
+                            die();
+                        }
+                    }
+                }
+
+                //echo'<pre>';print_r($request->get);echo'</pre>';
+                //echo'<pre>';print_r($portalData);echo'</pre>';
+                //echo'<pre>';print_r($handlerData);echo'</pre>';
+                //echo'<pre>';print_r($resUserData['result']['result']['ID']);echo'</pre>';
             }
+
         }
     }
+
 }catch (\Exception $e){
 
 }
+
+$tracker = null;
+if(Loader::includeModule('awz.bxapistats')){
+    $tracker = \Awz\BxApiStats\Tracker::getInstance();
+    $tracker->addCount();
+}
+
 if(!defined('CURRENT_PARENT_PLACEMENT')){
     $request->addFilter(new SetFilter('grid_id', 'awz_s__1_APP_LINK__2_APP_LINK__h_main', 'get'));
 }
@@ -166,6 +212,9 @@ if(!$fraimeType && $app->getRequest()->get('IFRAME_TYPE')){
 }
 if(!$fraimeType && $app->getRequest()->get('PLACEMENT')==='REST_APP_URI'){
     $fraimeType = 'slide_'.strtolower($app->getRequest()->get('PLACEMENT'));
+}
+if(!$fraimeType && $app->getRequest()->get('PLACEMENT')==='LEFT_MENU'){
+    $fraimeType = 'slide_rest_app_uri';
 }
 //echo'<pre>';print_r($request->getQueryList());echo'</pre>';
 //echo'<pre>';print_r($request->getPostList());echo'</pre>';
@@ -327,28 +376,23 @@ else
                 $tkn['access_token'] = htmlspecialchars($app->getRequest()->get('AUTH_ID'));
                 $tkn['client_endpoint'] = 'https://' .htmlspecialchars($app->getRequest()->get('DOMAIN')). '/rest/';
                 $app->setAuth($tkn);
-                $currentUser = $app->getMethod('profile');
+                $app->prepareBatchCached([
+                    'app.option.get'=>'app.option.get',
+                    'profile'=>'profile',
+                ]);
+                $currentUser = $app->getBatchCached('profile');
                 if($currentUser->isSuccess()){
                     $currentUserData = $currentUser->getData();
                     if($currentUserData['result']['result']['ADMIN']){
                         $isAdmin = 1;
                     }
                     $user_id = intval($currentUserData['result']['result']['ID']);
-
-
                 }
                 ?>
 
 
-    <?
-    $gridId = htmlspecialcharsEx((string) $app->getRequest()->get('grid_id') ?? "");
-    if(Loader::includeModule('awz.bxapistats')){
-        $tracker = \Awz\BxApiStats\Tracker::getInstance(htmlspecialchars($app->getRequest()->get('DOMAIN')), $app->getConfig('APP_ID'));
-        $addHtml = \Awz\BxApiStats\Helper::getHtmlStats($tracker, $gridId);
-        echo $addHtml;
-    }
-    ?>
-    <div class="container"><div class="row"><div class="ui-block-wrapper">
+
+    <div class="container"<?=(defined('CURRENT_PARENT_PLACEMENT') ? ' style="display:none;"' : '')?>><div class="row"><div class="ui-block-wrapper">
         <div class="ui-block-title">
             <div class="ui-block-title-text">Настройки синхронизации портала и сервиса api.zahalski.dev</div>
             <div class="ui-block-title-actions">
@@ -375,7 +419,14 @@ else
         <?
         }else{
 
+
+            //app.option.get
             $authResult = $app->checkCurrentPortalSignKey();
+
+            if($tracker){
+                $tracker->setPortal($app->getRequest()->get('DOMAIN'))
+                    ->setAppId($app->getConfig('APP_ID'));
+            }
 
             if($authResult->isSuccess()){
                 //C637F4BF62E470F6E053106C14AC66F0C637F4BF62E570F6E053106C14AC66F0
@@ -394,20 +445,20 @@ else
                 $hash = hash_hmac('sha256', $gridKey, $app->getConfig('APP_SECRET_CODE'));
                 $gridKey .= '|'.$hash;
                 $app->getRequest()->addFilter(new SetFilter('key', $gridKey));
-        //94p1ft6l3fdepblsgzmedhdb0vvb6h4r|zahalski.bitrix24.by|1|local.63d41ad5cb0013.65983794|6bb2fa465739b15e3bc164d7232d953f0e066f5b3801255d0a10f21268d577a6
-
-
-        if($tracker){
-                    $tracker->setPortal($app->getRequest()->get('DOMAIN'))
-                        ->setAppId($app->getConfig('APP_ID'));
+                ?>
+                <?
+                $gridId = htmlspecialcharsEx((string) $app->getRequest()->get('grid_id') ? (string) $app->getRequest()->get('grid_id') : "");
+                if(Loader::includeModule('awz.bxapistats')){
+                    $tracker = \Awz\BxApiStats\Tracker::getInstance();
+                    $addHtml = \Awz\BxApiStats\Helper::getHtmlStats($tracker, $gridId);
+                    echo $addHtml;
                 }
-
                 ?>
                 <div class="ui-alert ui-alert-success">Доступ к сервису активен.
                     После обновления приложения или блокировке API следует &nbsp;<a target="_blank" href="<?=$app->getAuthUrl($app->getCurrentPortalOption('auth'))?>">Обновить токен</a>
                 </div>
         </div></div></div></div>
-            <div class="container"><div class="row"><div class="ui-block-wrapper">
+            <div class="container"<?=(defined('CURRENT_PARENT_PLACEMENT') ? ' style="display:none;"' : '')?>><div class="row"><div class="ui-block-wrapper">
                         <div class="ui-block-title">
                             <div class="ui-block-title-text">Настройки встроек</div>
                             <div class="ui-block-title-actions">
@@ -553,7 +604,6 @@ else
     <?if($authResult && $authResult->isSuccess()){
 
     $signer = new Security\Sign\Signer();
-
     $signedParameters = $signer->sign(base64_encode(serialize(array(
           'domain'=>htmlspecialchars($app->getRequest()->get('DOMAIN')),
           'key'=>$app->getCurrentPortalOption('auth'),

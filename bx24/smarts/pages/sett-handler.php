@@ -35,12 +35,20 @@ $hookResult = $controller->run(
     'gethook',
     [new ParameterDictionary($request->getValues())]
 );
+$isGrid = false;
 if($hookResult){
     if(!isset($hookResult['PARAMS']['hook'])){
         $hookResult['PARAMS']['hook'] = [];
     }
     if(!isset($hookResult['PARAMS']['hook']['users'])){
         $hookResult['PARAMS']['hook']['users'] = [];
+    }
+    $isGrid = true;
+    if(isset($hookResult['PARAMS']['handler']['from']) && $hookResult['PARAMS']['handler']['from'] === 'APP_EXLINK'){
+        $isGrid = false;
+    }
+    if(isset($hookResult['PARAMS']['handler']['type']) && $hookResult['PARAMS']['handler']['type'] == 'REST_APP_WRAP'){
+        $isGrid = false;
     }
 }
 $checkAuth = $controller->getScopeCollection()->getByCode('user')->getStatus() === 'ok';
@@ -303,6 +311,16 @@ if($pageResult->isSuccess()){
                                 </script>
                             <?}?>
 
+                            <?if($isGrid){?>
+                                <div class="ui-form-row ui-form-row-middle-input">
+                                    <div class="ui-form-label">
+                                        <div class="ui-ctl-label-text">Предустановленный фильтр грида</div>
+                                    </div>
+                                    <div class="ui-ctl ui-ctl-textbox ui-ctl-w100">
+                                        <input type="text" id="placement-grid-filter" class="ui-ctl-element" value="<?=htmlspecialcharsEx($hookResult['PARAMS']['hook']['grid_filter'])?>" placeholder="json фильтра">
+                                    </div>
+                                </div>
+                            <?}?>
 
                             <div class="ui-form-row ui-form-row-middle-input">
                                 <div class="err-rows-sett"></div>

@@ -676,6 +676,7 @@ AwzBx24EntityLoader.prototype = {
                 'order':{"title": "ASC"},
                 'start':start
             }, function(res){
+            //console.log('loadDynamicCrm crm.type.list',res);
                 if(window.awz_helper && window.awz_helper.hasOwnProperty('addBxTime')){
                     window.awz_helper.addBxTime(res);
                 }
@@ -686,14 +687,14 @@ AwzBx24EntityLoader.prototype = {
                         parent.setDynamicEntity(type);
                     }
                 }catch (e) {
-
+                    console.log(e);
                 }
                 parent.dinamicLoaded = true;
             }
         );
     },
     setDynamicEntity: function(type, key){
-        //console.log(['setDynamicEntity', type, key]);
+        console.log(['setDynamicEntity', type, key]);
         if(key === 'bitrix_processes'){
             this.entKeys['bitrix_processes_'+type['ID']] = {
                 'caption': type['NAME'],'short':'',
@@ -1086,6 +1087,7 @@ AwzBx24EntityLoader.prototype = {
                             method_url ? [method_url, method] : method,
                             method_params[k2],
                             function(res){
+                                //console.log('getEntityParam',res);
                                 var k3;
                                 var listKey = parent.getEntityParam(ent_code, 'list_key');
                                 var itr = null;
@@ -1619,6 +1621,7 @@ window.AwzBx24Proxy = {
         if(ent === 'EXT_COMPANY') ent = 'company';
         if(ent === 'EXT_CONTACT') ent = 'contact';
         if(ent === 'EXT_DEAL') ent = 'deal';
+        if(ent === 'EXT_LEAD') ent = 'lead';
         if(ent === 'employee') ent = 'user';
         if(ent === 'awz_employee') ent = 'user';
         if(ent === 'awz_user') ent = 'user';
@@ -1627,6 +1630,8 @@ window.AwzBx24Proxy = {
             path = '/crm/catalog/section/'+id+'/?IBLOCK_ID='+ent.replace('s_catalog_','')+'&type=CRM_PRODUCT_CATALOG&lang=ru&ID='+id+'&find_section_section=0';
         }else if(ent.indexOf('catalog_')>-1){
             path = '/crm/catalog/'+ent.replace('catalog_','')+'/product/'+id+'/';
+        }else if(ent.indexOf('LISTS_LISTS_')>-1){
+            path = '/company/lists/'+ent.replace('LISTS_LISTS_','')+'/element/0/'+id+'/';
         }else if(ent.indexOf('bitrix_processes_')>-1){
             path = '/bizproc/processes/'+ent.replace('bitrix_processes_','')+'/element/0/'+id+'/';
         }else if(ent.indexOf('list_')>-1){
@@ -1705,6 +1710,10 @@ window.AwzBx24Proxy = {
             return item && typeof (item) == "object" && "nodeType" in item;
         },
         isObject: function(item) {
+            return item && (typeof (item) == "object" || item instanceof Object) ? true : false;
+        },
+        isObjectNoAr: function(item) {
+            if(this.isArray(item)) return false;
             return item && (typeof (item) == "object" || item instanceof Object) ? true : false;
         },
         isArray: function(item) {
@@ -1850,19 +1859,30 @@ window.AwzBx24Proxy = {
                 timeout: 180000,
                 async: false,
                 success: function (data, textStatus){
-                    //console.log(data);
-                    window.awz_helper.addBxTime(data);
-                    if(data['result'].hasOwnProperty('result')){
-                        callback(data['result']['result']);
-                    }else{
-                        callback(data['result']);
+                    try{
+                        //console.log(data);
+                        if(data.hasOwnProperty('data') && data.hasOwnProperty('status') && data['status'] === 'success'){
+                            data = data['data'];
+                        }
+                        if(data.hasOwnProperty('data') && data.hasOwnProperty('status') && data['status'] === 'error'){
+                            window.AwzBx24Proxy.checkRespError(data);
+                        }else{
+                            window.awz_helper.addBxTime(data);
+                            if(data['result'].hasOwnProperty('result')){
+                                callback(data['result']['result']);
+                            }else{
+                                callback(data['result']);
+                            }
+                        }
+
+                    }catch (e) {
+                        console.log(e);
+                        window.AwzBx24Proxy.checkRespError(e);
                     }
-                    //window.awz_helper.getSmartData();
-                    //console.log(data);
+
                 },
                 error: function (err){
-                    callback(err);
-                    //console.log(err);
+                    window.AwzBx24Proxy.checkRespError(err);
                 }
             });
         }else{
@@ -1920,8 +1940,61 @@ window.AwzBx24Proxy = {
         });
     }
 };
+if(!window['AwzFunc']){
+    window['AwzFunc'] = {};
+}
+window.AwzFunc['replace'] = function(fieldId, fields, itemData)
+{
+    var replVal = {'#ID#':ID};
+    var k;
+    for (k in fields){
+        if(window.AwzBx24Proxy.util_type.isString(fields[k])){
+            replVal['#'+k+'#'] = fields[k];
+        }else if(window.AwzBx24Proxy.util_type.isNumber(fields[k])){
+            replVal['#'+k+'#'] = fields[k].toString();
+        }
+    }
+    for(k in fields){
+        if(window.AwzBx24Proxy.util_type.isString(fields[k])){
+            if(fields[k].indexOf('#')>-1){
+                var k2;
+                for(k2 in replVal){
+                    fields[k] = fields[k].replace(k2, replVal[k2]);
+                }
+            }
+
+        }
+    }
+}
+window.AwzFunc['summ'] = function(value)
+{
+    var summ = 0;
+    if(window.AwzBx24Proxy.util_type.isArray(value)){
+
+    }
+}
 
 window.awz_nhelper = {
+    entityIdsLinkCodes: {
+        '1':'L_',
+        '2':'D_',
+        '3':'C_',
+        '4':'CO_',
+        '5':'I_',
+        '31':'SI_',
+        '7':'Q_',
+        '8':'RQ_'
+    },
+    entityIdsLinkId: {
+        'L_':'1',
+        'D_':'2',
+        'C_':'3',
+        'CO_':'4',
+        'I_':'5',
+        'SI_':'31',
+        'Q_':'7',
+        'RQ_':'8'
+    },
     status: {
         ok: 'success',
         err: 'error'
@@ -1935,6 +2008,8 @@ window.awz_nhelper = {
         'ALL':'Не определены или устаревшие',
         'ALL_BX': 'Не определены или устаревшие в Битрикс24'
     },
+    errors:[],
+    uTypes: window.AwzBx24Proxy.util_type,
     getHandGroupTitles: function(key){
         if(typeof key !== 'string') return 'Группа встроек';
         if(this.handGroupTitles.hasOwnProperty(key)){
@@ -1942,8 +2017,539 @@ window.awz_nhelper = {
         }
         return key;
     },
+    getAddData: function(data){
+        var parent = this;
+        return new Promise((resolve, reject) => {
+            try{
+                if(data.hasOwnProperty('smartId') && data['smartId']==='WORKS')
+                {
+                    var ids = [];
+                    var BINDINGS_value = {};
+                    var batch = {};
+                    if(data.hasOwnProperty('items')){
+                        var k;
+                        for(k in data['items']){
+                            ids.push(data['items'][k]['ID']);
+                            batch['item_'+data['items'][k]['ID']] =
+                                {'method':'crm.activity.binding.list', 'params':{'activityId':data['items'][k]['ID']}};
+                        }
+                    }
+                    if(ids.length){
+
+                        window.AwzBx24Proxy.callBatch(
+                            batch,
+                            function(res)
+                            {
+                                window.awz_helper.addBxTime(res);
+                                Object.keys(batch).forEach(function(itm){
+                                    if(res.hasOwnProperty(itm) && res[itm].hasOwnProperty('answer')){
+
+                                        //parent.entityIdsLinkCodes[res[itm]['answer']['result']['entityTypeId']]
+
+                                        BINDINGS_value[itm.replace('item_','')] = [];
+                                        res[itm]['answer']['result'].forEach(function(_itm){
+                                            BINDINGS_value[itm.replace('item_','')].push(
+                                                parent.entityIdsLinkCodes[_itm['entityTypeId']]+''+_itm['entityId']
+                                            );
+                                        });
+                                    }
+                                });
+
+                                var k;
+                                for(k in data['items']){
+                                    if(BINDINGS_value.hasOwnProperty(data['items'][k]['ID']))
+                                        data['items'][k]['BINDINGS'] = BINDINGS_value[data['items'][k]['ID']];
+                                }
+                                resolve(data);
+                            }
+                        );
+
+                    }else{
+                        resolve(data);
+                    }
+                }else{
+                    resolve(data);
+                }
+            }catch (e) {
+                console.log(e);
+                resolve(data);
+            }
+        });
+    },
+    getUpData: function(data, ob){
+
+        var parent = this;
+
+        var ids = [];
+
+        var k;
+        for(k in data['FIELDS']){
+            var itm = data['FIELDS'][k];
+            ids.push(k);
+            var k2;
+            for(k2 in itm){
+                //console.log(k2, itm[k2]);
+                if(k2.indexOf('_custom')>-1 && parent.uTypes.isObjectNoAr(itm[k2])){
+                    var key_raw;
+                    var raw_values = {};
+                    var raw_values_keys = [];
+                    var orig_field = k2.replace('_custom','');
+                    var raw_type = '';
+                    for(key_raw in itm[k2]){
+                        if(key_raw == 'type'){
+                            raw_type = itm[k2][key_raw];
+                        }else if(key_raw.indexOf('_currency')>-1){
+                            raw_values[key_raw] = itm[k2][key_raw];
+                        }else{
+                            if(itm[k2][key_raw]){
+                                raw_values[key_raw] = itm[k2][key_raw];
+                                raw_values_keys.push(key_raw);
+                            }
+                        }
+                    }
+                    if(raw_type == 'multiple_str'){
+                        if(!raw_values_keys.length){
+                            raw_values['0'] = '';
+                        }
+                        data['FIELDS'][k][orig_field] = raw_values;
+                    }else if(raw_type == 'multiple_currency'){
+                        var raw_values_new = {};
+                        if(!raw_values_keys.length){
+                            raw_values_new['0'] = '';
+                        }else{
+                            raw_values_keys.forEach(function(key){
+                                var split_res = raw_values[key].split('|');
+                                if(split_res.length>1){
+                                    raw_values_new[key] = split_res[0]+'|'+split_res[1];
+                                }else{
+                                    raw_values_new[key] = raw_values[key]+'|'+raw_values[key+'_currency'];
+                                }
+                            });
+                        }
+                        data['FIELDS'][k][orig_field] = raw_values_new;
+                    }else if(raw_type == 'one_currency'){
+                        var raw_values_new = '';
+                        if(raw_values_keys.length){
+                            raw_values_keys.forEach(function(key){
+                                var split_res = raw_values[key].split('|');
+                                if(split_res.length>1){
+                                    raw_values_new = split_res[0]+'|'+split_res[1];
+                                }else{
+                                    raw_values_new = raw_values[key]+'|'+raw_values[key+'_currency'];
+                                }
+                            });
+                        }
+                        data['FIELDS'][k][orig_field] = raw_values_new;
+                    }
+                }
+                if(parent.uTypes.isArray(itm[k2])){
+                    var newItems = [];
+                    var is_obj_sel = false;
+                    var k3;
+                    for(k3 in itm[k2]){
+                        //пробуем отыскать мультиселект
+                        if(parent.uTypes.isObjectNoAr(itm[k2][k3])){
+                            is_obj_sel = true;
+                            if(itm[k2][k3].hasOwnProperty('VALUE')){
+                                newItems.push(itm[k2][k3]['VALUE'])
+                            }
+                        }
+                    }
+                    if(is_obj_sel){
+                        data['FIELDS'][k][k2] = newItems;
+                    }
+                }
+            }
+
+        }
+
+
+        return new Promise((resolve, reject) => {
+            var k;
+            var next_step = function(){
+                console.log('getUpData',data);
+                try{
+                    if(ob.gridOptions.PARAM_1 === 'WORKS'){
+                        //console.log(data);
+                        var idsBind = [];
+                        var valBind = {};
+
+                        for(k in data['FIELDS']){
+                            if(data['FIELDS'][k].hasOwnProperty('BINDINGS')){
+                                idsBind.push(k);
+                                valBind[k] = [];
+                                if(data['FIELDS'][k]['BINDINGS']){
+                                    valBind[k] = data['FIELDS'][k]['BINDINGS'].split(',');
+                                }
+                                delete data['FIELDS'][k]['BINDINGS'];
+                                delete data['FIELDS'][k]['BINDINGS_custom'];
+                            }
+                        }
+                        if(idsBind.length){
+                            var counter = 0;
+                            var max_counter = 0;
+                            var batch = {};
+                            for(k in idsBind){
+                                batch['item_'+idsBind[k]] =
+                                    {'method':'crm.activity.binding.list', 'params':{'activityId':idsBind[k]}};
+                            }
+                            var return_resolve = function(){
+                                counter += 1;
+                                if(counter>=max_counter) {
+                                    resolve(data);
+                                }
+                            };
+                            window.AwzBx24Proxy.callBatch(
+                                batch,
+                                function(res)
+                                {
+                                    window.awz_helper.addBxTime(res);
+                                    var BINDINGS_values = {};
+                                    Object.keys(batch).forEach(function(itm){
+                                        if(res.hasOwnProperty(itm) && res[itm].hasOwnProperty('answer')){
+
+                                            //parent.entityIdsLinkCodes[res[itm]['answer']['result']['entityTypeId']]
+
+                                            BINDINGS_values[itm.replace('item_','')] = [];
+                                            res[itm]['answer']['result'].forEach(function(_itm){
+                                                BINDINGS_values[itm.replace('item_','')].push(
+                                                    parent.entityIdsLinkCodes[_itm['entityTypeId']]+''+_itm['entityId']
+                                                );
+                                            });
+                                        }
+                                    });
+                                    //console.log(BINDINGS_values);
+
+                                    var all_diffs = [];
+                                    var key = 0;
+                                    var max_bath = 50;
+                                    //valBind - новые значения
+                                    //BINDINGS_values - старые значения
+                                    for(k in valBind){
+                                        var k2;
+                                        for(k2 in valBind[k]){
+                                            if(BINDINGS_values[k].indexOf(valBind[k][k2])===-1){
+                                                //добавить связь
+                                                var _tmp = valBind[k][k2].split('_');
+                                                _tmp[0] = _tmp[0]+'_';
+                                                if(!all_diffs.length) all_diffs[key] = [];
+                                                if(all_diffs[key].length>=max_bath){
+                                                    key += 1;
+                                                    all_diffs[key] = [];
+                                                }
+                                                all_diffs[key].push(
+                                                    {
+                                                        'method':'crm.activity.binding.add',
+                                                        'params':{
+                                                            'activityId':k,
+                                                            'entityTypeId':parent.entityIdsLinkId[_tmp[0]],
+                                                            'entityId':_tmp[1]
+                                                        }
+                                                    });
+                                            }
+                                        }
+                                    }
+                                    for(k in BINDINGS_values){
+                                        var k2;
+                                        for(k2 in BINDINGS_values[k]){
+                                            if(valBind[k].indexOf(BINDINGS_values[k][k2])===-1){
+                                                //удалить связь
+                                                var _tmp = BINDINGS_values[k][k2].split('_');
+                                                _tmp[0] = _tmp[0]+'_';
+                                                if(!all_diffs.length) all_diffs[key] = [];
+                                                if(all_diffs[key].length>=max_bath){
+                                                    key += 1;
+                                                    all_diffs[key] = [];
+                                                }
+                                                all_diffs[key].push(
+                                                    {
+                                                        'method':'crm.activity.binding.delete',
+                                                        'params':{
+                                                            'activityId':k,
+                                                            'entityTypeId':parent.entityIdsLinkId[_tmp[0]],
+                                                            'entityId':_tmp[1]
+                                                        }
+                                                    });
+                                            }
+                                        }
+                                    }
+                                    if(all_diffs.length){
+                                        max_counter += all_diffs.length;
+                                        all_diffs.forEach(function(_batch){
+                                            setTimeout(function(){
+                                                window.AwzBx24Proxy.callBatch(
+                                                    _batch,
+                                                    function(res)
+                                                    {
+                                                        window.awz_helper.addBxTime(res);
+                                                        return_resolve();
+                                                    }
+                                                );
+                                            },3000);
+                                        });
+                                    }else{
+                                        resolve(data);
+                                    }
+                                }
+                            );
+
+                        }else{
+                            resolve(data);
+                        }
+                        //console.log(idsBind);
+                        //console.log(valBind);
+                    }else if(ob.gridOptions.PARAM_1.indexOf('LISTS_LISTS_')>-1){
+                        try{
+                            var idsValues = {};
+                            window.awz_helper.callApi('lists.element.get',{
+                                'IBLOCK_TYPE_ID':'lists',
+                                'IBLOCK_ID':ob.smartId,
+                                'FILTER':{'=ID':Object.keys(data['FIELDS'])}
+                            },function(itemsRes){
+                                window.awz_helper.addBxTime(itemsRes);
+                                if(itemsRes.hasOwnProperty('result')){
+                                    itemsRes['result'].forEach(function(itm){
+                                        var tmpId = itm['ID'];
+                                        idsValues[tmpId] = itm;
+                                        delete idsValues[tmpId]['ID'];
+                                        //изменения полей
+                                        var k5; //ид элемента
+                                        for(k5 in data['FIELDS']){
+                                            if(k5 != tmpId) continue;
+                                            var itmNew = data['FIELDS'][k5];
+                                            var k6;//код поля
+                                            for(k6 in itmNew){
+                                                if(k6.indexOf('_custom')>-1){
+
+                                                }else if(k6.indexOf('PROPERTY_')>-1){
+                                                    var tmp_ar = [itmNew[k6]];
+                                                    var k7;
+                                                    for(k7 in tmp_ar){
+                                                        var search_key = '';
+                                                        if(idsValues[k5].hasOwnProperty(k6)){
+                                                            var k8;
+                                                            //поиск существующего значения
+                                                            for(k8 in idsValues[k5][k6]){
+                                                                search_key = k8;
+                                                            }
+                                                        }else{
+                                                            idsValues[k5][k6] = {};
+                                                        }
+                                                        if(!search_key) search_key = 'n0';
+                                                        if(search_key){
+                                                            idsValues[k5][k6][search_key] = tmp_ar[k7];
+                                                        }
+                                                    }
+                                                }else{
+                                                    //console.log(idsValues);
+                                                    idsValues[k5][k6] = itmNew[k6];
+                                                }
+                                            }
+                                        }
+                                    });
+                                    data['FIELDS'] = idsValues;
+                                    resolve(data);
+                                }else{
+                                    throw new Error('Не удалось получить элементы списка');
+                                }
+                                //console.log(itemsRes);
+                            });
+                        }catch (e) {
+                            console.log(e);
+                            reject(data);
+                            return;
+                        }
+                    }else{
+                        resolve(data);
+                    }
+                }catch (e) {
+                    console.log(e);
+                    resolve(data);
+                }
+            };
+
+            var FIELD_ID = $('#awz_field_name_control').val();
+            var FIELD_MULTIPLE = $('#awz_field_name_multiple_control').val();
+            if(!FIELD_ID){
+                return next_step();
+            }
+
+            var FIELD_UP_TYPE = $('#value_entry_type_control').attr('data-value');
+            var FIELD_UP_FUNC = $('#value_entry_func_control').val();
+            if(FIELD_UP_FUNC || (FIELD_UP_TYPE && ['add','remove'].indexOf(FIELD_UP_TYPE)>-1)){
+
+                if(FIELD_UP_FUNC && FIELD_UP_FUNC.indexOf('(')===-1 && !window.AwzFunc.hasOwnProperty(FIELD_UP_FUNC)){
+                    throw new Error('window.AwzFunc.'+FIELD_UP_FUNC+' - не найдена');
+                }
+                var params_get_data = {
+                    'filter': {'id': ids}
+                };
+                if(window.awz_helper.hasOwnProperty('fields_select')){
+                    params_get_data['select'] = window.awz_helper.fields_select;
+                }
+                parent.getItemsData(params_get_data).then(function(res){
+                    var primary_key = 'id';
+                    console.log('getItemsData res', res);
+                    var itemsData = {};
+                    if(parent.uTypes.isObject(res)){
+                        for(k in res){
+                            var itm = res[k];
+                            if(itm.hasOwnProperty('ID')){
+                                primary_key = 'ID';
+                            }
+                            itemsData[itm[primary_key]] = itm;
+                        }
+                    }
+
+                    for(k in data['FIELDS']){
+                        var itemData = itemsData[k];
+                        console.log('itemData', itemData);
+                        var fieldId = FIELD_ID;
+                        if(FIELD_UP_FUNC){
+                            try{
+                                if(FIELD_UP_FUNC.indexOf('(')){
+                                    eval(FIELD_UP_FUNC);
+                                }else{
+                                    window.AwzFunc[FIELD_UP_FUNC].call(window.awz_helper, fieldId, data['FIELDS'][k], itemData);
+                                }
+                            }catch (e) {
+                                throw e;
+                                return;
+                            }
+                        }
+                        var fieldData = itemData[fieldId];
+                        var k2;
+                        for(k2 in fieldData){
+                            if(parent.uTypes.isNumber(fieldData[k2])){
+                                fieldData[k2] = fieldData[k2].toString();
+                            }
+                        }
+                        console.log('fieldData', fieldData, fieldId);
+                        var currentData = $('#value_entry_control').val();
+                        if(FIELD_MULTIPLE === 'Y'){
+                            if(currentData.indexOf(',')>-1){
+                                var tmp = currentData.split(',');
+                                currentData = [];
+                                tmp.forEach(function(itm){
+                                    if(parent.uTypes.isString(itm)){
+                                        currentData.push(itm.trim());
+                                    }else{
+                                        currentData.push(itm);
+                                    }
+                                });
+                            }else if(currentData){
+                                currentData = [currentData];
+                            }else{
+                                currentData = [];
+                            }
+                            console.log('currentData', currentData);
+                            var replacedData = [];
+                            if(FIELD_UP_TYPE === 'remove'){
+                                if(parent.uTypes.isArray(fieldData)){
+                                    fieldData.forEach(function(itm){
+                                        if(parent.uTypes.isString(itm)){
+                                            itm = itm.trim();
+                                        }
+                                        if(currentData.indexOf(itm)===-1){
+                                            replacedData.push(itm);
+                                        }
+                                    });
+                                }
+                                data['FIELDS'][k][fieldId] = replacedData;
+                            }else if(FIELD_UP_TYPE === 'add'){
+                                replacedData = fieldData;
+                                if(parent.uTypes.isArray(fieldData)){
+                                    currentData.forEach(function(itm){
+                                        if(parent.uTypes.isString(itm)){
+                                            itm = itm.trim();
+                                        }
+                                        if(replacedData.indexOf(itm)===-1){
+                                            replacedData.push(itm);
+                                        }
+                                    });
+                                }
+                                data['FIELDS'][k][fieldId] = replacedData;
+                            }
+                            console.log('replacedData', replacedData);
+                        }
+                    }
+                    next_step();
+                }).catch(function(e){
+                    reject(e);
+                    return;
+                });
+
+                //throw new Error(up_type_value+'('+$('#value_entry_type_control').text()+')'+' - не поддерживается');
+                //reject(data);
+                //return;
+            }else{
+                next_step();
+            }
+
+
+        });
+    },
+    getItemsData: function(params){
+        var prepare_params = params;
+        return new Promise((resolve, reject) => {
+            var list_params = window.awz_helper.getMethodListParams(
+                prepare_params,false, 'list'
+            );
+            if(!list_params){
+                throw Error('неизвестная приложению сущность '+window.awz_helper.smartId);
+            }else{
+                var method = list_params['method'];
+                var check_order_upper = list_params['check_order_upper'];
+                var check_add_upper = list_params['check_add_upper'];
+                var params = list_params['params'];
+                if(check_order_upper){
+                    params['filter']['ID'] = params['filter']['id'];
+                    delete params['filter']['id'];
+                }
+                console.log('params getItemsData',params)
+            }
+
+            window.awz_helper.callApi(method, params, function(res){
+                try{
+                    console.log('call_api_prepared', res);
+                    window.AwzBx24Proxy.checkRespError(res);
+                    if(typeof res == 'object'){
+                        if(res.hasOwnProperty('total')){
+                            window.awz_helper.pagesize_total = res.total;
+                        }
+                        var items_key = 'items';
+                        if(window.awz_helper.hasOwnProperty('gridOptions')){
+                            items_key = window.awz_helper.gridOptions['result_key'];
+                        }
+                        if(items_key === '-'){
+                            var tmp = Object.assign({}, res.result);
+                            delete res.result;
+                            res = Object.assign({}, res);
+                            res['result'] = {'items': tmp};
+                            items_key = 'items';
+                        }
+                        console.log('items_key_prepared', [items_key, res]);
+                        if(res.hasOwnProperty('result')){
+                            resolve(res.result[items_key]);
+                            return;
+                        }
+                    }
+                }catch (e) {
+                    console.log(e);
+                    var msg = '';
+                    try{
+                        msg = e.message;
+                    }catch (e) {
+
+                    }
+                    throw new Error('Не удалось получить данные элементов. '+msg);
+                }
+                throw new Error('Не удалось получить данные элементов');
+            });
+        });
+    },
     getAwzHookMethods: function(urls){
-        console.log('hooks',urls);
+        //console.log('hooks',urls);
         return new Promise((resolve, reject) => {
             var k;
             var max_counter = urls.length;
@@ -1968,12 +2574,13 @@ window.awz_nhelper = {
                     timeout: 6000,
                     async: true,
                     success: function (data) {
-                        console.log('awz_hook methods',data);
+                        //console.log('awz_hook methods',data);
                         try{
                             if(data['status']===window.awz_nhelper.status.err){
                                 iterators.push(data)
                                 return_resolve();
                             }else if(typeof data['data']['methods'] === 'object'){
+                                data['data']['methods']['url'] = this.url.replace('api.hook.methods', 'api.hook.call');
                                 iterators.push(data['data']['methods']);
                                 return_resolve();
                             }
@@ -1999,6 +2606,8 @@ window.awz_nhelper = {
             },15000);
             var batch = {
                 'crm_type':{'method':'crm.type.list', 'params':{}},
+                'lists_lists':{'method':'lists.get', 'params':{'IBLOCK_TYPE_ID':'lists'}},
+                //'lists_socnet':{'method':'lists.get', 'params':{'IBLOCK_TYPE_ID':'lists_socnet','SOCNET_GROUP_ID':10}},
                 'sonet_group':{'method':'sonet_group.get',
                     'params':{'IS_ADMIN': 'Y', 'FILTER ':{'ACTIVE':'Y'}}
                 },
@@ -2255,6 +2864,7 @@ window.awz_nhelper = {
         formatedItem['plc_handler'] = ''; //код встройки в битрикс24
         formatedItem['plc_handler_url'] = ''; //урл в битрикс24
         formatedItem['app_type'] = ''; //тип удаления обработчика
+        formatedItem['desc_admin'] = '';
 
         var hashHandler = this.getHandlerFromHash(handler);
         if(type === 'ALL' && hashHandler.hasOwnProperty('awz') && hashHandler.hasOwnProperty('bx')){
@@ -2308,6 +2918,14 @@ window.awz_nhelper = {
                 hashHandler['awz']['PARAMS']['handler'].hasOwnProperty('name')
             ){
                 formatedItem['name'] = hashHandler['awz']['PARAMS']['handler']['name'];
+            }
+
+            if(hashHandler['awz'].hasOwnProperty('PARAMS') &&
+                hashHandler['awz']['PARAMS'].hasOwnProperty('hook') &&
+                hashHandler['awz']['PARAMS']['hook'].hasOwnProperty('main_menu') &&
+                hashHandler['awz']['PARAMS']['hook']['main_menu'] === 'N'
+            ){
+                formatedItem['desc_admin'] = 'Скрыто с главного меню. '+formatedItem['desc_admin'];
             }
 
 
@@ -2462,17 +3080,338 @@ window.awz_nhelper = {
             '</div>';
         ht += '<div class="col-xs-3 no-padding-r">';
             //regenLink + plc_link + sett_link;
-        ht += '</div>';
         formatedItem['buttons'].forEach(function(btn_code){
             ht += buttons[btn_code];
         });
+        ht += '</div>';
+
+        if(formatedItem['desc_admin']){
+            ht += '<div style="display:block;clear:both;width:100%;height:10px;"></div>';
+            ht += '<div class="col-xs-12">';
+            ht += formatedItem['desc_admin'];
+            ht += '</div>';
+        }
+
         ht += '</div>';
         $('.rows-smarts .'+check_class).append(ht);
         if(hashHandler && hashHandler.hasOwnProperty('bx')){
             hashHandler['bx']['exists'] = 1;
         }
         //console.log(formatedItem, hashHandler, handler);
-    }
+    },
+    createInputRow: function(id){
+        var next = $('#'+id).attr('data-nextraw');
+        var html = $('#'+id).next().html();
+        html = html.replace('name=""', 'name="'+next+'"');
+        html = html.replace('name="_currency"', 'name="'+next+'_currency"');
+        html = '<div class="wrp_awz_add_input">'+html+'</div>';
+        $('#'+id).attr('data-nextraw', parseInt(next)+1);
+        $('#'+id).parent('.main-grid-editor-custom').find('.wrp_awz_add_input_block').append(html);
+    },
+    setMultiselectItems: function(targetNode){
+        try{
+            var items = this.dialog_openMultiselect.getSelectedItems();
+        }catch (e) {
+            console.log(e);
+        }
+        var values = [];
+        items.forEach(function(itm){
+            values.push(itm.id);
+        });
+        $('#value_entry_control').val(values.join(','));
+        //console.log(items, targetNode);
+    },
+    openMultiselect: function(btn){
+        if(!this.hasOwnProperty('dialog_openMultiselect')){
+            this.dialog_openMultiselect = null;
+        }
+        if(this.dialog_openMultiselect) {
+            try{
+                this.dialog_openMultiselect.destroy();
+            }catch (e) {
+
+            }
+            this.dialog_openMultiselect = null;
+        }
+        var node = $('#'+btn);
+        var params = node.attr('data-onchange');
+        eval("var data = "+params+';');
+        //console.log(data);
+        var parent = this;
+        try{
+            this.dialog_openMultiselect = new BX.UI.EntitySelector.Dialog({
+                targetNode: document.getElementById('value_entry'),
+                cacheable: false,
+                enableSearch: false,
+                dropdownMode: true,
+                multiple: true,
+                focusOnFirst: false,
+                compactView: true,
+                items: data[0]['VALUES'],
+                tabs: data[0]['TAB'],
+                events: {
+                    'Item:onSelect':function(e){
+                        parent.setMultiselectItems(e.getTarget());
+                    },
+                    'Item:onDeselect':function(e){
+                        parent.setMultiselectItems(e.getTarget());
+                    },
+                    onFirstShow: function(e){
+                        /*try{
+                            var dialog = e.getTarget();
+                            data[0]['VALUES'].forEach(function(itm){
+                                console.log(itm);
+                                dialog.addItem(itm);
+                            });
+                        }catch (e) {
+                            console.log(e);
+                        }*/
+                    }
+                }
+            });
+            this.dialog_openMultiselect.show();
+        }catch (e) {
+            console.log(e);
+        }
+
+        /*
+        * this.dialog = new BX.UI.EntitySelector.Dialog({
+            targetNode: document.getElementById(nodeId),
+            tabs:tabs,
+            cacheable: false,
+            enableSearch: true,
+            dropdownMode: true,
+            clearSearchOnSelect: false,
+            focusOnFirst: false,
+            selectedItems: startSelected,
+            multiple: multiple,
+            tagSelectorOptions: {
+                placeholder: 'текст + Enter',
+                events: {
+                    onEnter: function(e){
+                        e.preventDefault();
+                        window.AwzBx24EntityLoader_ob.search();
+                    },
+                }
+            },
+            events: {
+                'Item:onSelect':function(e){
+                    parent.setInputValuesFromItems();
+                },
+                'Item:onDeselect':function(e){
+                    parent.setInputValuesFromItems();
+                },
+                'ItemNode:onLinkClick': function(e){
+                    var dt = e.getData();
+                    var item = dt['node']['item'];
+                    dt['event'].preventDefault();
+                    var link = item.getLink();
+                    //console.log(link);
+                    if(link.indexOf('#')>-1 && link.indexOf('||')>-1){
+                        try{
+                            var parce_href = link.replace('#','');
+                            var parce_href_ob = parce_href.split('||');
+                            var path = window.AwzBx24Proxy.createPath(parce_href_ob[0], parce_href_ob[1]);
+                            window.AwzBx24Proxy.openPath(path);
+                        }catch (e) {
+                            console.log(e);
+                        }
+                    }else{
+                        window.AwzBx24Proxy.openPath(link);
+                    }
+                    //var path = window.AwzBx24Proxy.createPath(item.getEntityId(), item.getId());
+                    //window.AwzBx24Proxy.openPath(path);
+                },
+                'Tab:onSelect': function(e){
+
+                    if(parent.searchTimeouts){
+                        clearInterval(parent.searchTimeouts);
+                        parent.searchTimeouts = null;
+                    }
+
+                    var tab = e.getData();
+                    parent.lastTab = tab['tab'].getId();
+                    if(parent.lastQuery){
+                        parent.search(entries);
+                    }
+                },
+                onDestroy: function(){
+                    parent.reloadDialog();
+                },
+                onBeforeSearch: function(e){
+                    e.preventDefault();
+                },
+                onFirstShow: function(e){
+                    try{
+                        var dialog = e.getTarget();
+                        var selItems = dialog.getSelectedItems();
+                        parent.loadPreSelectedItems(selItems);
+                    }catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
+        });
+        * */
+    },
+    getGrid: function(){
+        if(!this.hasOwnProperty('grid_ob')){
+            this.grid_ob = null;
+        }
+        if(this.grid_ob) return this.grid_ob;
+        try{
+            this.grid_ob = window.awz_helper.grid_ob.getParent();
+        }catch (e) {
+            try{
+                this.grid_ob = BX.Main.gridManager.getById(window.awz_helper.gridId).instance;
+            }catch (e) {
+                console.log(e);
+            }
+        }
+        return this.grid_ob;
+    },
+    showPreloaderGrid: function(){
+        //console.log('showPreloaderGrid', this.getGrid().getLoader());
+        this.getGrid().getLoader().show();
+        this.getGrid().tableFade();
+    },
+    hidePreloaderGrid: function(){
+        //console.log('hidePreloaderGrid', this.getGrid().getLoader());
+        this.getGrid().getLoader().hide();
+        this.getGrid().tableUnfade();
+    },
+    addErrorB: function(p_err){
+        var title = '';
+        var text = '';
+        if(p_err.hasOwnProperty('error') &&
+            window.AwzBx24Proxy.util_type.isString(p_err['error'])
+        ){
+            title = p_err['error'];
+        }
+        if(p_err.hasOwnProperty('error_description') &&
+            window.AwzBx24Proxy.util_type.isString(p_err['error_description'])
+        ){
+            text = p_err['error_description'];
+        }
+        return this.addError(title, text);
+    },
+    addError: function(title, errorText, err){
+        if(err){
+            console.log(err);
+            try{
+                errorText += err.message;
+            }catch (e) {
+
+            }
+        }else{
+            console.log([title, errorText]);
+        }
+        this.errors.push({
+            'TYPE': 'ERROR',
+            'TITLE': title,
+            'TEXT': errorText
+        });
+        return true;
+    },
+    showError: function(){
+        if(!this.errors.length) return;
+        try{
+            this.hidePreloaderGrid();
+            this.getGrid().arParams['MESSAGES'] = this.errors;
+            this.getGrid().messages.show();
+            this.errors = [];
+        }catch (e) {
+            console.log(e);
+        }
+    },
+    checkRespError:function(data){
+        var k;
+        var title = '';
+        var text = '';
+        var parent = this;
+
+        try{
+            if(window.AwzBx24Proxy.util_type.isArray(data)){
+                res_err = false;
+                data.forEach(function(row){
+                    if(window.AwzBx24Proxy.util_type.isObjectNoAr(row) &&
+                        row.hasOwnProperty('answer')
+                    ){
+                        if(window.AwzBx24Proxy.util_type.isObjectNoAr(row['answer']) &&
+                            row['answer'].hasOwnProperty('error') &&
+                            window.AwzBx24Proxy.util_type.isObjectNoAr(row['answer']['error'])
+                        ){
+                            res_err = parent.addErrorB(row['answer']['error']);
+                        }
+                    }
+                });
+                return res_err;
+            }else if(window.AwzBx24Proxy.util_type.isObjectNoAr(data)){
+                if(data.hasOwnProperty('statusText')){
+                    title = data.statusText;
+                    if(data.hasOwnProperty('status')){
+                        if(!title) title += ' ';
+                        title += data.status;
+                    }
+                    if(data.hasOwnProperty('responseText')){
+                        text = data.responseText;
+                        try{
+                            var jsn = JSON.parse(data.responseText);
+                            if(parent.uTypes.isObjectNoAr(jsn)){
+                                if(jsn.hasOwnProperty('error')){
+                                    title = jsn['error'];
+                                }
+                                if(jsn.hasOwnProperty('error_description')){
+                                    text = jsn['error_description'];
+                                }
+                            }
+                        }catch (e) {
+
+                        }
+                    }
+                    return this.addError(title, text);
+                }else if(data.hasOwnProperty('status') && data['status'] === 'error'){
+                    if(data.hasOwnProperty('errors')){
+                        for(k in data['errors']){
+                            var err = data['errors'][k];
+                            if(window.AwzBx24Proxy.util_type.isObjectNoAr(err)){
+                                if(err.hasOwnProperty('code')){
+                                    title += err.code;
+                                }
+                                if(err.hasOwnProperty('status')){
+                                    if(!title) title += ' ';
+                                    title += err.status;
+                                }
+                                if(err.hasOwnProperty('message')){
+                                    text += err.message;
+                                }
+                            }
+                        }
+                    }
+                    return this.addError(title, text);
+                }
+                if(data.hasOwnProperty('result') &&
+                    window.AwzBx24Proxy.util_type.isObjectNoAr(data['result'])
+                ){
+                    if(data['result'].hasOwnProperty('result_error') &&
+                        window.AwzBx24Proxy.util_type.isObjectNoAr(data['result']['result_error'])
+                    ){
+                        var res_err = false;
+                        for(k in data['result']['result_error']){
+                            var p_err = data['result']['result_error'][k];
+                            if(window.AwzBx24Proxy.util_type.isObjectNoAr(p_err)){
+                                res_err = parent.addErrorB(p_err);
+                            }
+                        }
+                        return res_err;
+                    }
+                }
+            }
+        }catch (e) {
+            console.log(e);
+        }
+        return false;
+    },
 };
 
 $(document).ready(function (){
@@ -2681,6 +3620,11 @@ $(document).ready(function (){
                             'data-code':'CRM_COMPANY_DOCUMENTGENERATOR_BUTTON'
                         },
                         {
+                            'value':'TASK_VIEW_TAB',
+                            'title':'Вкладка в форме просмотра задачи',
+                            'data-code':'TASK_VIEW_TAB'
+                        },
+                        {
                             'value':'REST_APP_URI',
                             'title':'Ссылка на приложение с параметрами',
                             'data-code':'REST_APP_URI'
@@ -2761,7 +3705,7 @@ $(document).ready(function (){
                             }
                         }
                         if(['TASK_USER'].indexOf(to)>-1){
-                            if(['TASK_USER_LIST_TOOLBAR'].indexOf(option.value)>-1) {
+                            if(['TASK_VIEW_TAB','TASK_USER_LIST_TOOLBAR'].indexOf(option.value)>-1) {
                                 return true;
                             }
                         }
@@ -2795,6 +3739,7 @@ $(document).ready(function (){
                             if($(this).attr('value') && $(this).attr('value')==='EXT_COMPANY') $(this).remove();
                             if($(this).attr('value') && $(this).attr('value')==='EXT_CONTACT') $(this).remove();
                             if($(this).attr('value') && $(this).attr('value')==='EXT_DEAL') $(this).remove();
+                            if($(this).attr('value') && $(this).attr('value')==='EXT_LEAD') $(this).remove();
                             if($(this).attr('value') && $(this).attr('value')==='DOCS_CRM') $(this).remove();
                             if($(this).attr('value') && $(this).attr('value')==='TASK_GROUPS') $(this).remove();
                         });
@@ -2890,6 +3835,8 @@ $(document).ready(function (){
                                 url_code = 'cont';
                             }else if(smart === 'DEAL'){
                                 url_code = 'deal';
+                            }else if(smart === 'LEAD'){
+                                url_code = 'lead';
                             }else if(smart === 'TASK_USER'){
                                 url_code = 'task';
                             }else if(smart === 'TASK_USER_CRM'){
@@ -2898,6 +3845,8 @@ $(document).ready(function (){
                                 url_code = 'task';
                             }else if(smart.indexOf('TASK_GROUP_')>-1){
                                 url_code = 'task';
+                            }else if(smart.indexOf('LISTS_LISTS_')>-1){
+                                url_code = 'lists';
                             }else if(smart.indexOf('EXT_TASK_USER_')>-1){
                                 url_code = 'task';
                             }else if(smart.indexOf('EXT_COMPANY_')>-1){
@@ -2906,6 +3855,8 @@ $(document).ready(function (){
                                 url_code = 'cont';
                             }else if(smart.indexOf('EXT_DEAL_')>-1){
                                 url_code = 'deal';
+                            }else if(smart.indexOf('EXT_LEAD_')>-1){
+                                url_code = 'lead';
                             }else if(smart.indexOf('EXT_AWZORM_')>-1){
                                 url_code = 'orm';
                             }
@@ -2928,6 +3879,8 @@ $(document).ready(function (){
                                 grid_key += '1_EXT_CONTACT__2_'+smart_to;
                             }else if(smart.indexOf('EXT_DEAL_')>-1){
                                 grid_key += '1_EXT_DEAL__2_'+smart_to;
+                            }else if(smart.indexOf('EXT_LEAD_')>-1){
+                                grid_key += '1_EXT_LEAD__2_'+smart_to;
                             }else if(smart.indexOf('EXT_AWZORM_')>-1){
                                 grid_key += '1_'+smart.replace(/_e_.*/g,"")+'__2_'+smart_to;
                             }else{
@@ -2952,6 +3905,7 @@ $(document).ready(function (){
                                 smart.indexOf('EXT_COMPANY_')>-1 ||
                                 smart.indexOf('EXT_CONTACT_')>-1 ||
                                 smart.indexOf('EXT_DEAL_')>-1 ||
+                                smart.indexOf('EXT_LEAD_')>-1 ||
                                 smart.indexOf('EXT_AWZORM_')>-1
                             ){
                                 $('#placement-sett-manager-from').find('option').each(function(){
@@ -3394,6 +4348,9 @@ $(document).ready(function (){
                 'EXT_DEAL':{
                     'title': 'Сделки (внешние)'
                 },
+                'EXT_LEAD':{
+                    'title': 'Лиды (внешние)'
+                },
                 'TASK_USER':{
                     'title': 'Задачи'
                 },
@@ -3488,6 +4445,27 @@ $(document).ready(function (){
                     console.log(e);
                 }
 
+                //список групп
+                try {
+                    if(iters['lists_lists']){
+                        var k;
+                        for (k in iters['lists_lists']) {
+                            var item = iters['lists_lists'][k];
+                            console.log(item);
+                            item.title = 'УС: '+item.NAME;
+                            item.entityTypeId = item.ID;
+                            linksSmart['lists_lists_'+item.entityTypeId] = item;
+                            linksSmart['LISTS_LISTS_'+item.entityTypeId] = item;
+                            placementManager.appendFrom({
+                                'value':'LISTS_LISTS_'+item.entityTypeId,
+                                'title':item.title
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.log(e);
+                }
+
                 placementManager.appendFrom({
                     'value':'DOCS',
                     'title':linksSmart['DOCS'].title
@@ -3509,6 +4487,10 @@ $(document).ready(function (){
                     'title':linksSmart['DEAL'].title
                 });
                 placementManager.appendFrom({
+                    'value':'LEAD',
+                    'title':linksSmart['LEAD'].title
+                });
+                placementManager.appendFrom({
                     'value':'DOCS_CRM',
                     'title':linksSmart['DOCS_CRM'].title
                 });
@@ -3524,6 +4506,8 @@ $(document).ready(function (){
                     'value':'TASK_USER_CRM',
                     'title':linksSmart['TASK_USER_CRM'].title
                 });
+
+
 
                 //внешние сущности
                 try {
@@ -3573,9 +4557,18 @@ $(document).ready(function (){
                                 });
                                 title = linksSmart['EXT_DEAL'].title + portal;
                                 append = true;
+                            }else if(extItem[0] === 'lead'){
+                                placementManager.appendFrom({
+                                    'value':'EXT_LEAD_'+k_ext,
+                                    'title':linksSmart['EXT_LEAD'].title + portal,
+                                    'data-code':item+'---'+k_ext
+                                });
+                                title = linksSmart['EXT_LEAD'].title + portal;
+                                append = true;
                             }else if(extItem[0] === 'awzorm'){
-
-
+                                title = 'AWZ: ORM Api' + portal;
+                                url_title = extItem[1].replace(/.*\/(.*\/bitrix\/services\/main\/ajax.php.*&key=[0-9a-zA-Z]{3}).*/g,"$1...");
+                                url_title = url_title.replace('/bitrix/services/main/ajax.php?action=awz:bxorm.api.hook.','...');
                             }
 
                             ext_hooks.push({
@@ -3592,6 +4585,53 @@ $(document).ready(function (){
                     console.log(e);
                 }
 
+                //awz orm
+                try {
+                    var awz_methods = [];
+                    if(iters['awz_orm']){
+                        var k;
+                        var k2;
+                        for (k in iters['awz_orm']) {
+                            if(!iters['awz_orm'][k].hasOwnProperty('url')) continue;
+                            var row_url = iters['awz_orm'][k]['url'];
+                            var portal = row_url.replace(/.*\/(.*)\/rest\/[0-9]+\/[a-z0-9]{3}.*/g," - $1");
+                            if(portal.indexOf('/bitrix/services/main/ajax.php')>-1){
+                                portal = row_url.replace(/.*\/(.*)\/bitrix\/.*/g," - $1");
+                            }
+                            for (k2 in iters['awz_orm'][k]) {
+                                if(k2.indexOf('.fields')>-1){
+                                    var tmp = k2.split('.');
+                                    if(iters['awz_orm'][k].hasOwnProperty(tmp[0])){
+                                        awz_methods.push({
+                                            'url':row_url,
+                                            'method':tmp[0],
+                                            'title': iters['awz_orm'][k][tmp[0]],
+                                            'portal':portal
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    var k;
+                    for(k in awz_methods){
+                        var item = awz_methods[k];
+
+                        var serialize_param = 'awzorm---'+item['url'];
+                        var hash = md5(serialize_param);
+                        placementManager.appendFrom({
+                            'value':'EXT_AWZORM_'+item['method']+'_e_'+hash,
+                            'title':item['title'] + item['portal'],
+                            'data-code':'awzorm---'+item['url']+'---e_'+hash+'---'+item['method']
+                        });
+
+                    }
+                    console.log('awz_methods',awz_methods);
+                } catch (e) {
+                    console.log(e);
+                }
+
+
                 //зарегистрированные встройки
                 window.awz_nhelper.appendHandlers(iters['awz_hook_list'], iters['placement_get']);
                 window.awz_nhelper.appendExtHook(ext_hooks);
@@ -3605,7 +4645,7 @@ $(document).ready(function (){
         page_size: 10,
         autoLoadEntity: null,
         postData: function(data){
-            console.log('postData',data);
+            //console.log(data);
             data['smartId'] = this.smartId;
             data['gridId'] = this.gridId;
             data['total'] = this.pagesize_total;
@@ -3661,28 +4701,32 @@ $(document).ready(function (){
                             }
                         }
                     }
-                    //console.log(['active_keys',active_keys]);
                 }
             }catch (e) {
                 console.log(e);
             }
 
-            //window.location.pathname + window.location.search;
-            //window.location.pathname = window.location.pathname.replace('/smarts/index.php');
-            //console.log([window.location.pathname, window.location.search]);
+            var parent = this;
+            window.awz_nhelper.getAddData(data).then(function(data){
+                //window.location.pathname + window.location.search;
+                //window.location.pathname = window.location.pathname.replace('/smarts/index.php');
+                //console.log([window.location.pathname, window.location.search]);
 
-            //var urlGrid = window.location.pathname + window.location.search;
+                //var urlGrid = window.location.pathname + window.location.search;
 
-            BX.Main.gridManager.getById(this.gridId).instance.
-            reloadTable('POST', {'bx_result':data, key: window.awz_helper.key, PLACEMENT_OPTIONS: JSON.stringify(PLACEMENT_OPTIONS)},function(){
-                window.awz_helper.autoLoadEntity.load();
-                window.awz_helper.preventSortableClick = false;
+                //BX.Main.gridManager.getById(parent.gridId).instance.
+                window.awz_nhelper.getGrid().
+                reloadTable('POST', {'bx_result':data, key: window.awz_helper.key, PLACEMENT_OPTIONS: JSON.stringify(PLACEMENT_OPTIONS)},function(){
+                    window.awz_helper.preventSortableClick = false;
+                    window.awz_helper.resize();
+                    window.awz_nhelper.hidePreloaderGrid();
+                    window.awz_helper.autoLoadEntity.load();
+                }, window.awz_helper.gridUrl);
+            }).catch(function(err){
+                console.log(err);
                 window.awz_helper.resize();
-                var loader_tmp = BX.Main.gridManager.getById(window.awz_helper.gridId).instance.getLoader();
-                setTimeout(function(){
-                    loader_tmp.hide();
-                },1000);
-            }, window.awz_helper.gridUrl);
+                window.awz_nhelper.hidePreloaderGrid();
+            });
         },
         getSmartDataFiltered: function(filter, only_filter){
             var format_filter = {};
@@ -3802,13 +4846,199 @@ $(document).ready(function (){
                 if(typeof filter[k] === 'object'){
                     format_filter[k] = [8,10];
                 }
-                format_filter[k] = filter[k];
+                if(typeof filter[k] === 'string' && filter[k].substring(0, 1) === '%'){
+                    format_filter['%'+k] = filter[k].substring(1);
+                }else{
+                    format_filter[k] = filter[k];
+                }
             }
             console.log('filtered',format_filter);
             if(only_filter) return format_filter;
             return this.getSmartData(null, format_filter);
         },
+        getMethodListParams: function(params, plc_info, type){
+            if(!plc_info) plc_info = BX24.placement.info();
+            var method = '';
+            var check_order_upper = false;
+            var check_add_upper = false;
+            if(this.gridOptions.PARAM_1 === 'TASK_USER_CRM')
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                check_add_upper = true;
+                if(plc_info.placement){
+                    var entity_code_id = plc_info.placement.replace(/CRM_(.*)_DETAIL_TAB/g, "$1");
+                    if(entity_code_id === 'DEAL'){
+                        params['filter']['UF_CRM_TASK'] = 'D_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'LEAD'){
+                        params['filter']['UF_CRM_TASK'] = 'L_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'CONTACT'){
+                        params['filter']['UF_CRM_TASK'] = 'C_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id === 'COMPANY'){
+                        params['filter']['UF_CRM_TASK'] = 'CO_'+plc_info.options.ID;
+                    }
+                    if(entity_code_id.indexOf('DYNAMIC_')>-1){
+                        var tmp = entity_code_id.replace(/([^0-9])/g, "");
+                        params['filter']['UF_CRM_TASK'] = "T"+parseInt(tmp).toString(16)+'_'+plc_info.options.ID;
+                    }
+                }
+                if(type == 'group'){
+                    params['select'] = ['ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1 === 'TASK_USER')
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                check_add_upper = true;
+                if(type == 'group'){
+                    params['select'] = ['ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1 === 'EXT_TASK_USER')
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                check_add_upper = true;
+            }
+            else if(this.gridOptions.PARAM_1 === 'DOCS')
+            {
+                method = this.gridOptions.method_list;
+            }
+            else if(this.gridOptions.PARAM_1 === 'COMPANY')
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                if(type == 'group'){
+                    params['select'] = ['ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1 === 'CONTACT')
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                if(type == 'group'){
+                    params['select'] = ['ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1 === 'DEAL')
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                if(type == 'group'){
+                    params['select'] = ['ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1 === 'LEAD')
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                if(type == 'group'){
+                    params['select'] = ['ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1 === 'EXT_COMPANY')
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                if(type == 'group'){
+                    params['select'] = ['ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1 === 'EXT_CONTACT')
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                if(type == 'group'){
+                    params['select'] = ['ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1 === 'EXT_DEAL')
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                if(type == 'group'){
+                    params['select'] = ['ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1 === 'EXT_LEAD')
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                if(type == 'group'){
+                    params['select'] = ['ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1.indexOf('EXT_AWZORM_')>-1)
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                if(type == 'group'){
+                    params['select'] = ['ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1 === 'WORKS')
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                if(type == 'group'){
+                    params['select'] = ['ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1 === 'DOCS_CRM')
+            {
+                method = this.gridOptions.method_list;
+                if(['DEAL','LEAD','CONTACT','COMPANY'].indexOf(this.gridOptions.PARAM_2)>-1 && plc_info.placement){
+                    params['filter']['entityId'] = plc_info.options.ID;
+                }
+            }
+            else if(this.gridOptions.PARAM_1.indexOf('TASK_GROUP_')>-1)
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                check_add_upper = true;
+                if(type == 'group'){
+                    params['select'] = ['ID', 'GROUP_ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1 === 'TASK_GROUPS')
+            {
+                method = this.gridOptions.method_list;
+                check_order_upper = true;
+                check_add_upper = true;
+                params['filter']['GROUP_ID'] = plc_info.options.GROUP_ID;
+                if(type == 'group'){
+                    params['select'] = ['ID', 'GROUP_ID'];
+                }
+            }
+            else if(this.gridOptions.PARAM_1.indexOf('DYNAMIC_')>-1)
+            {
+                method = this.gridOptions.method_list;
+                params['entityTypeId'] = this.smartId;
+            }
+            else if(this.gridOptions.PARAM_1.indexOf('LISTS_LISTS_')>-1)
+            {
+                method = this.gridOptions.method_list;
+                params['IBLOCK_TYPE_ID'] = 'lists';
+                params['IBLOCK_ID'] = this.smartId;
+                //params['ELEMENT_ORDER'] = params['order'];
+            }
+            else{
+                return false;
+            }
+
+            return {
+                'method':method,
+                'check_order_upper':check_order_upper,
+                'check_add_upper':check_add_upper,
+                'params':params
+            };
+        },
         getSmartData: function(order, filter){
+            window.awz_nhelper.showError();
             this.clearTimeoutsVariables();
             var params = {
             };
@@ -3881,74 +5111,15 @@ $(document).ready(function (){
             }
 
             var plc_info = BX24.placement.info();
-
             //var method = 'crm.item.list';
-            var method = '';
-            var check_order_upper = false;
-            if(this.gridOptions.PARAM_1 === 'TASK_USER_CRM'){
-                method = this.gridOptions.method_list;
-                check_order_upper = true;
-                if(plc_info.placement){
-                    var entity_code_id = plc_info.placement.replace(/CRM_(.*)_DETAIL_TAB/g, "$1");
-                    if(entity_code_id === 'DEAL'){
-                        params['filter']['UF_CRM_TASK'] = 'D_'+plc_info.options.ID;
-                    }
-                    if(entity_code_id === 'LEAD'){
-                        params['filter']['UF_CRM_TASK'] = 'L_'+plc_info.options.ID;
-                    }
-                    if(entity_code_id === 'CONTACT'){
-                        params['filter']['UF_CRM_TASK'] = 'C_'+plc_info.options.ID;
-                    }
-                    if(entity_code_id === 'COMPANY'){
-                        params['filter']['UF_CRM_TASK'] = 'CO_'+plc_info.options.ID;
-                    }
-                    if(entity_code_id.indexOf('DYNAMIC_')>-1){
-                        var tmp = entity_code_id.replace(/([^0-9])/g, "");
-                        params['filter']['UF_CRM_TASK'] = "T"+parseInt(tmp).toString(16)+'_'+plc_info.options.ID;
-                    }
-                }
-            }else if(this.gridOptions.PARAM_1 === 'TASK_USER'){
-                method = this.gridOptions.method_list;
-                check_order_upper = true;
-            }else if(this.gridOptions.PARAM_1 === 'EXT_TASK_USER'){
-                method = this.gridOptions.method_list;
-                check_order_upper = true;
-            }else if(this.gridOptions.PARAM_1 === 'DOCS'){
-                method = this.gridOptions.method_list;
-            }else if(this.gridOptions.PARAM_1 === 'COMPANY'){
-                method = this.gridOptions.method_list;
-            }else if(this.gridOptions.PARAM_1 === 'CONTACT'){
-                method = this.gridOptions.method_list;
-            }else if(this.gridOptions.PARAM_1 === 'DEAL'){
-                method = this.gridOptions.method_list;
-            }else if(this.gridOptions.PARAM_1 === 'EXT_COMPANY'){
-                method = this.gridOptions.method_list;
-            }else if(this.gridOptions.PARAM_1 === 'EXT_CONTACT'){
-                method = this.gridOptions.method_list;
-            }else if(this.gridOptions.PARAM_1 === 'EXT_DEAL'){
-                method = this.gridOptions.method_list;
-            }else if(this.gridOptions.PARAM_1.indexOf('EXT_AWZORM_')>-1){
-                method = this.gridOptions.method_list;
-            }else if(this.gridOptions.PARAM_1 === 'WORKS'){
-                method = this.gridOptions.method_list;
-            }else if(this.gridOptions.PARAM_1 === 'DOCS_CRM'){
-                method = this.gridOptions.method_list;
-                if(['DEAL','LEAD','CONTACT','COMPANY'].indexOf(this.gridOptions.PARAM_2)>-1 && plc_info.placement){
-                    params['filter']['entityId'] = plc_info.options.ID;
-                }
-            }else if(this.gridOptions.PARAM_1.indexOf('TASK_GROUP_')>-1){
-                method = this.gridOptions.method_list;
-                check_order_upper = true;
-            }else if(this.gridOptions.PARAM_1 === 'TASK_GROUPS'){
-                method = this.gridOptions.method_list;
-                check_order_upper = true;
-                params['filter']['GROUP_ID'] = plc_info.options.GROUP_ID;
-            }else if(this.gridOptions.PARAM_1.indexOf('DYNAMIC_')>-1){
-                method = this.gridOptions.method_list;
-                params['entityTypeId'] = this.smartId;
-            }else{
+            var list_params = this.getMethodListParams(params, plc_info, 'list');
+            if(!list_params){
                 alert('неизвестная приложению сущность '+this.smartId);
                 return;
+            }else{
+                var method = list_params['method'];
+                var check_order_upper = list_params['check_order_upper'];
+                params = list_params['params'];
             }
             if(this.hasOwnProperty('fields_select')){
                 params['select'] = this.fields_select;
@@ -4018,78 +5189,9 @@ $(document).ready(function (){
                     console.log('items_key', [items_key, res]);
                     if(res.hasOwnProperty('result')){
 
-                        if(!window.awz_helper.users)
-                            window.awz_helper.users = {};
-                        var users_get = [];
-                        var users_data = {};
-                        var user_fields = [];
-                        var k;
-                        for(k in window.awz_helper.fields){
-                            if(window.awz_helper.fields[k]['type']==='user'){
-                                user_fields.push(k);
-                            }
-                        }
-                        //console.log(user_fields);
-                        try{
-
-                            var items = [];
-                            items = res.result[items_key];
-
-                            for(k in items){
-                                var item = items[k];
-                                var k2;
-                                for(k2 in user_fields){
-                                    if(item.hasOwnProperty(user_fields[k2]) && item[user_fields[k2]]){
-                                        if(!window.awz_helper.users.hasOwnProperty(item[user_fields[k2]])){
-                                            if(users_get.indexOf(item[user_fields[k2]])===-1)
-                                                users_get.push(item[user_fields[k2]]);
-                                        }else{
-                                            users_data[item[user_fields[k2]]] = {
-                                                'ID': window.awz_helper.users[item[user_fields[k2]]].ID,
-                                                'NAME': window.awz_helper.users[item[user_fields[k2]]].NAME,
-                                                'LAST_NAME': window.awz_helper.users[item[user_fields[k2]]].LAST_NAME,
-                                                'PERSONAL_PHOTO': window.awz_helper.users[item[user_fields[k2]]].PERSONAL_PHOTO,
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }catch (e){
-
-                        }
-                        res.result['users'] = users_data;
-                        if(users_get.length){
-                            BX24.callMethod(
-                                'user.get',
-                                {
-                                    'FILTER': {'ID':users_get}
-                                },
-                                function(res2)
-                                {
-                                    window.awz_helper.addBxTime(res2);
-                                    var k;
-                                    for(k in res2['answer']['result']) {
-                                        var id_usr = res2['answer']['result'][k]['ID'];
-                                        window.awz_helper.users[id_usr] = res2['answer']['result'][k];
-                                        //console.log(window.awz_helper.users[id_usr]);
-                                        users_data[id_usr] = {
-                                            'ID': window.awz_helper.users[id_usr].ID,
-                                            'NAME': window.awz_helper.users[id_usr].NAME,
-                                            'LAST_NAME': window.awz_helper.users[id_usr].LAST_NAME,
-                                            'PERSONAL_PHOTO': window.awz_helper.users[id_usr].PERSONAL_PHOTO,
-                                        }
-                                    }
-                                    res.result['users'] = users_data;
-                                    window.awz_helper.postData(
-                                        res.result
-                                    );
-                                }
-                            );
-                        }else{
-                            window.awz_helper.postData(
-                                res.result
-                            );
-                        }
+                        window.awz_helper.postData(
+                            res.result
+                        );
 
                     }
                 }
@@ -4148,6 +5250,17 @@ $(document).ready(function (){
                             });
                         return;
                     }
+                    method = '';
+                    if(plc_info.placement === 'TASK_VIEW_TAB'){
+                        window.awz_helper.callApi(
+                            'tasks.task.get',
+                            {taskId: plc_info.options.taskId},
+                            function(res){
+                                window.awz_helper.placement_el_cache = res.result['task'];
+                                return window.awz_helper.init_after(key, smartId, gridId, startSize, gridOptions);
+                            });
+                        return;
+                    }
                     if(plc_info.placement.indexOf('CRM_DYNAMIC_')>-1 && plc_info.placement.indexOf('_DETAIL_TAB')>-1){
                         var entId = plc_info.placement.replace('CRM_DYNAMIC_','').replace('_DETAIL_TAB','');
                         window.awz_helper.callApi(
@@ -4192,12 +5305,7 @@ $(document).ready(function (){
                     }
                 }
             }
-            if(!window.awz_helper.grid_ob){
-                var Grid = BX.Main.gridManager.getById(window.awz_helper.gridId);
-                if(Grid){
-                    Grid.instance.getLoader().show();
-                }
-            }
+            window.awz_nhelper.showPreloaderGrid();
 
             /*BX.Event.EventEmitter.emit = (e,t,r) =>{
                 if(t != 'oniframebeforegetvalue')
@@ -4293,8 +5401,7 @@ $(document).ready(function (){
                             data[1]['data']['action_button_'+window.awz_helper.gridId] == 'edit_row'
                         ){
                             data[1].cancelRequest = true;
-                            data[0].parent.getLoader().hide();
-                            data[0].parent.tableUnfade();
+                            window.awz_nhelper.hidePreloaderGrid();
                             window.AwzBx24Proxy.openPath('/crm/type/'+window.awz_helper.smartId+'/details/'+data[1]['data']['ID']+'/?init_mode=edit');
                         }else if(data[1].hasOwnProperty('data') &&
                             typeof data[1]['data'] == 'object'
@@ -4302,8 +5409,7 @@ $(document).ready(function (){
                             data[1]['data']['action_button_'+window.awz_helper.gridId] == 'copy_row'
                         ){
                             data[1].cancelRequest = true;
-                            data[0].parent.getLoader().hide();
-                            data[0].parent.tableUnfade();
+                            window.awz_nhelper.hidePreloaderGrid();
                             window.AwzBx24Proxy.openPath('/crm/type/'+window.awz_helper.smartId+'/details/'+data[1]['data']['ID']+'/?copy=1');
                         }else if(data[1].hasOwnProperty('data') &&
                             typeof data[1]['data'] == 'object'
@@ -4357,7 +5463,8 @@ $(document).ready(function (){
             ht += '<a href="#" class="ui-btn ui-btn-sm ui-btn-icon-add awz-open-addlink"></a>';
             ht += '</div></div>';
             $('#uiToolbarContainer').append(ht);
-            $('#uiToolbarContainer').append('<div class="adm-toolbar-panel-container"><div class="adm-toolbar-panel-flexible-space"></div><a onclick="window.AwzBx24Proxy.openPath(\'/marketplace/detail/awz.smartbag/\');return false;" href="#" style="line-height:12px;" class="ui-btn ui-btn-sm ui-btn-icon-plan ui-btn-danger">Оставь бесплатный отзыв <br>для бесплатного приложения</a></div>');
+            //$('#uiToolbarContainer').append('<div class="adm-toolbar-panel-container"><div class="adm-toolbar-panel-flexible-space"></div><a onclick="window.AwzBx24Proxy.openPath(\'/marketplace/detail/awz.smartbag/\');return false;" href="#" style="line-height:12px;" class="ui-btn ui-btn-sm ui-btn-icon-plan ui-btn-danger">Оставь бесплатный отзыв <br>для бесплатного приложения</a></div>');
+            $('.ui-toolbar-filter-box').append('<a style="margin-left:5px;" href="#" class="ui-btn ui-btn-sm ui-btn-icon-info awz-open-filter"></a>');
         },
         showStat: function(){
             //console.log('show-stats');
@@ -4373,7 +5480,7 @@ $(document).ready(function (){
                 if($('#stat-app-moved').length){
                     $('#stat-app-moved').html(set_grid_button+$('#stat-app').html());
                 }else{
-                    $('.main-grid').append('<div id="stat-app-moved">'+set_grid_button+$('#stat-app').html()+'</div>');
+                    $('.main-grid').prepend('<div id="stat-app-moved">'+set_grid_button+$('#stat-app').html()+'</div><div class="clear-fix"></div>');
                 }
             }else{
                 $('#stat-app-moved').html(set_grid_button);
@@ -4408,7 +5515,7 @@ $(document).ready(function (){
                             'taskId':data['ID'][k]
                         }
                     });
-                }else if(['DOCS','COMPANY','CONTACT','DEAL','EXT_COMPANY','EXT_CONTACT','EXT_DEAL','DOCS_CRM','WORKS'].indexOf(this.gridOptions.PARAM_1)>-1){
+                }else if(['DOCS','COMPANY','CONTACT','DEAL','LEAD','EXT_COMPANY','EXT_CONTACT','EXT_DEAL','EXT_LEAD','DOCS_CRM','WORKS'].indexOf(this.gridOptions.PARAM_1)>-1){
                     batch.push({
                         'method':this.gridOptions.method_delete,
                         'params':{
@@ -4442,6 +5549,15 @@ $(document).ready(function (){
                         'params':{
                             'entityTypeId':this.smartId,
                             'id':data['ID'][k]
+                        }
+                    });
+                }else if(this.gridOptions.PARAM_1.indexOf('LISTS_LISTS_')>-1){
+                    batch.push({
+                        'method':this.gridOptions.method_delete,
+                        'params':{
+                            'IBLOCK_TYPE_ID':'lists',
+                            'IBLOCK_ID':this.smartId,
+                            'ELEMENT_ID':data['ID'][k]
                         }
                     });
                 }
@@ -4484,7 +5600,9 @@ $(document).ready(function (){
         editRows: function(data, group_action, callbackUp){
             var batch = [];
             var k;
+            var k2;
             if(!callbackUp) callbackUp = function(){};
+            window.awz_nhelper.showPreloaderGrid();
 
             var check_delete = false;
             var delete_ob = {'ID':[]};
@@ -4494,6 +5612,9 @@ $(document).ready(function (){
                         check_delete = true;
                         delete_ob['ID'].push(k);
                     }
+                    /*if(this.gridOptions.PARAM_1.indexOf('LISTS_LISTS_')>-1){
+                        data['FIELDS'][k][k2] = data['FIELDS'][k][k2][0];
+                    }*/
                 }
             }
             if(check_delete){
@@ -4501,171 +5622,204 @@ $(document).ready(function (){
                 return this.deleteRows(delete_ob, group_action, callbackUp);
             }
 
-            var formatFields = {};
-            /*for(k in data['FIELDS']){
-                if(this.fields[k])
-            }*/
-            for(k in data['FIELDS']){
-                for(k2 in data['FIELDS'][k]) {
-                    //console.log(k2);
-                    //console.log(data['FIELDS'][k]);
-                    if(k2.indexOf('_custom')>-1) {
-                        delete data['FIELDS'][k][k2];
-                        continue;
-                    }
-                    if(!this.fields[k2]) continue;
-                    //console.log(this.fields[k2]);
-                    if (this.fields[k2].hasOwnProperty('isMultiple') && this.fields[k2]['isMultiple']) {
-                        if (typeof data['FIELDS'][k][k2] !== 'object') {
-                            var delimeter = ',';
-                            data['FIELDS'][k][k2] = data['FIELDS'][k][k2].split(delimeter);
+            var parent = this;
+            window.awz_nhelper.getUpData(data, parent).then(function(data){
+                var formatFields = {};
+                /*for(k in data['FIELDS']){
+                    if(parent.fields[k])
+                }*/
+                for(k in data['FIELDS']){
+                    if(k === 'template_0') continue;
+                    for(k2 in data['FIELDS'][k]) {
+                        //console.log(k2);
+                        //console.log(data['FIELDS'][k]);
+                        if(k2.indexOf('_custom')>-1) {
+                            delete data['FIELDS'][k][k2];
+                            continue;
                         }
-                    }
-                }
-
-                if(this.gridOptions.PARAM_1 === 'TASK_USER_CRM'){
-                    var itm = {};
-                    var k2;
-                    for(k2 in data['FIELDS'][k]){
-                        if(!this.fields[k2]) continue;
-                        itm[this.fields[k2]['upperCase']] = data['FIELDS'][k][k2];
-                    }
-                    batch.push({
-                        'method':this.gridOptions.method_update,
-                        'params':{
-                            'taskId':k,
-                            'fields':itm
-                        }
-                    });
-                }else if(this.gridOptions.PARAM_1 === 'TASK_USER'){
-                    var itm = {};
-                    var k2;
-                    for(k2 in data['FIELDS'][k]){
-                        if(!this.fields[k2]) continue;
-                        itm[this.fields[k2]['upperCase']] = data['FIELDS'][k][k2];
-                    }
-                    batch.push({
-                        'method':this.gridOptions.method_update,
-                        'params':{
-                            'taskId':k,
-                            'fields':itm
-                        }
-                    });
-                }else if(this.gridOptions.PARAM_1 === 'EXT_TASK_USER'){
-                    var itm = {};
-                    var k2;
-                    for(k2 in data['FIELDS'][k]){
-                        if(!this.fields[k2]) continue;
-                        itm[this.fields[k2]['upperCase']] = data['FIELDS'][k][k2];
-                    }
-                    batch.push({
-                        'method':'tasks.task.update',
-                        'params':{
-                            'taskId':k,
-                            'fields':itm
-                        }
-                    });
-                }else if(['WORKS','COMPANY','EXT_COMPANY','CONTACT','EXT_CONTACT','DEAL','EXT_DEAL'].indexOf(this.gridOptions.PARAM_1)>-1){
-                    batch.push({
-                        'method':this.gridOptions.method_update,
-                        'params':{
-                            'id':k,
-                            'fields':data['FIELDS'][k]
-                        }
-                    });
-                }else if(this.gridOptions.PARAM_1.indexOf('EXT_AWZORM_')>-1){
-                    batch.push({
-                        'method':this.gridOptions.method_update,
-                        'params':{
-                            'id':k,
-                            'fields':data['FIELDS'][k]
-                        }
-                    });
-                }else if(['DOCS','DOCS_CRM'].indexOf(this.gridOptions.PARAM_1)>-1){
-                    batch.push({
-                        'method':this.gridOptions.method_update,
-                        'params':{
-                            'id':k,
-                            'values':data['FIELDS'][k]
-                        }
-                    });
-                }else if(this.gridOptions.PARAM_1.indexOf('TASK_GROUP_')>-1){
-                    var itm = {};
-                    var k2;
-                    for(k2 in data['FIELDS'][k]){
-                        if(!this.fields[k2]) continue;
-                        itm[this.fields[k2]['upperCase']] = data['FIELDS'][k][k2];
-                    }
-                    batch.push({
-                        'method':this.gridOptions.method_update,
-                        'params':{
-                            'taskId':k,
-                            'fields':itm
-                        }
-                    });
-                }else if(this.gridOptions.PARAM_1 === 'TASK_GROUPS'){
-                    var itm = {};
-                    var k2;
-                    for(k2 in data['FIELDS'][k]){
-                        if(!this.fields[k2]) continue;
-                        itm[this.fields[k2]['upperCase']] = data['FIELDS'][k][k2];
-                    }
-                    batch.push({
-                        'method':this.gridOptions.method_update,
-                        'params':{
-                            'taskId':k,
-                            'fields':itm
-                        }
-                    });
-                }else if(this.gridOptions.PARAM_1.indexOf('DYNAMIC_')>-1){
-                    batch.push({
-                        'method':this.gridOptions.method_update,
-                        'params':{
-                            'entityTypeId':this.smartId,
-                            'id':k,
-                            'fields':data['FIELDS'][k]
-                        }
-                    });
-                    //console.log(['edit', data['FIELDS'][k]]);
-                }
-
-            }
-            if(batch.length){
-                if(group_action){
-                    var last = null;
-                    if(batch.length>0)
-                        last = batch.pop();
-                    var tmp_ = function(last, batch, callbackUp){
-                        if(batch.length){
-                            window.AwzBx24Proxy.callBatch(batch, function(result)
-                                {
-                                    callbackUp.call(window.awz_helper, result, last ? 'first' : 'end');
-                                    if(last){
-                                        window.awz_helper.callApi(last['method'], last['params'], function(res){
-                                            callbackUp.call(window.awz_helper, res, 'end');
-                                        });
-                                    }
-
+                        if(!parent.fields[k2]) continue;
+                        //console.log(parent.fields[k2]);
+                        if (parent.fields[k2].hasOwnProperty('isMultiple') && parent.fields[k2]['isMultiple']) {
+                            if (window.awz_nhelper.uTypes.isString(data['FIELDS'][k][k2])) {
+                                var delimeter = ',';
+                                if(!data['FIELDS'][k][k2]){
+                                    data['FIELDS'][k][k2] = [];
+                                }else{
+                                    data['FIELDS'][k][k2] = data['FIELDS'][k][k2].split(delimeter);
                                 }
-                            );
-                        }else if(last){
-                            window.awz_helper.callApi(last['method'], last['params'], function(res){
-                                callbackUp.call(window.awz_helper, res, 'end');
-                            });
+                            }else if(window.awz_nhelper.uTypes.isNumber(data['FIELDS'][k][k2])){
+                                if(!data['FIELDS'][k][k2]){
+                                    data['FIELDS'][k][k2] = [];
+                                }
+                                data['FIELDS'][k][k2] = [data['FIELDS'][k][k2]];
+                            }
                         }
-                    };
-                    tmp_(last, batch, callbackUp);
-                }else{
-                    window.AwzBx24Proxy.callBatch(batch, function(result)
-                        {
-                            window.awz_helper.addBxTime(result);
-                            window.awz_helper.getSmartData();
+                    }
+
+                    if(parent.gridOptions.PARAM_1 === 'TASK_USER_CRM'){
+                        var itm = {};
+                        var k2;
+                        for(k2 in data['FIELDS'][k]){
+                            if(!parent.fields[k2]) continue;
+                            itm[parent.fields[k2]['upperCase']] = data['FIELDS'][k][k2];
                         }
-                    );
+                        batch.push({
+                            'method':parent.gridOptions.method_update,
+                            'params':{
+                                'taskId':k,
+                                'fields':itm
+                            }
+                        });
+                    }else if(parent.gridOptions.PARAM_1 === 'TASK_USER'){
+                        var itm = {};
+                        var k2;
+                        for(k2 in data['FIELDS'][k]){
+                            if(!parent.fields[k2]) continue;
+                            itm[parent.fields[k2]['upperCase']] = data['FIELDS'][k][k2];
+                        }
+                        batch.push({
+                            'method':parent.gridOptions.method_update,
+                            'params':{
+                                'taskId':k,
+                                'fields':itm
+                            }
+                        });
+                    }else if(parent.gridOptions.PARAM_1 === 'EXT_TASK_USER'){
+                        var itm = {};
+                        var k2;
+                        for(k2 in data['FIELDS'][k]){
+                            if(!parent.fields[k2]) continue;
+                            itm[parent.fields[k2]['upperCase']] = data['FIELDS'][k][k2];
+                        }
+                        batch.push({
+                            'method':'tasks.task.update',
+                            'params':{
+                                'taskId':k,
+                                'fields':itm
+                            }
+                        });
+                    }else if(['WORKS','COMPANY','EXT_COMPANY','CONTACT','EXT_CONTACT','DEAL','EXT_DEAL','LEAD','EXT_LEAD'].indexOf(parent.gridOptions.PARAM_1)>-1){
+                        batch.push({
+                            'method':parent.gridOptions.method_update,
+                            'params':{
+                                'id':k,
+                                'fields':data['FIELDS'][k]
+                            }
+                        });
+                    }else if(parent.gridOptions.PARAM_1.indexOf('EXT_AWZORM_')>-1){
+                        batch.push({
+                            'method':parent.gridOptions.method_update,
+                            'params':{
+                                'id':k,
+                                'fields':data['FIELDS'][k]
+                            }
+                        });
+                    }else if(['DOCS','DOCS_CRM'].indexOf(parent.gridOptions.PARAM_1)>-1){
+                        batch.push({
+                            'method':parent.gridOptions.method_update,
+                            'params':{
+                                'id':k,
+                                'values':data['FIELDS'][k]
+                            }
+                        });
+                    }else if(parent.gridOptions.PARAM_1.indexOf('TASK_GROUP_')>-1){
+                        var itm = {};
+                        var k2;
+                        for(k2 in data['FIELDS'][k]){
+                            if(!parent.fields[k2]) continue;
+                            itm[parent.fields[k2]['upperCase']] = data['FIELDS'][k][k2];
+                        }
+                        batch.push({
+                            'method':parent.gridOptions.method_update,
+                            'params':{
+                                'taskId':k,
+                                'fields':itm
+                            }
+                        });
+                    }else if(parent.gridOptions.PARAM_1 === 'TASK_GROUPS'){
+                        var itm = {};
+                        var k2;
+                        for(k2 in data['FIELDS'][k]){
+                            if(!parent.fields[k2]) continue;
+                            itm[parent.fields[k2]['upperCase']] = data['FIELDS'][k][k2];
+                        }
+                        batch.push({
+                            'method':parent.gridOptions.method_update,
+                            'params':{
+                                'taskId':k,
+                                'fields':itm
+                            }
+                        });
+                    }else if(parent.gridOptions.PARAM_1.indexOf('DYNAMIC_')>-1){
+                        batch.push({
+                            'method':parent.gridOptions.method_update,
+                            'params':{
+                                'entityTypeId':parent.smartId,
+                                'id':k,
+                                'fields':data['FIELDS'][k]
+                            }
+                        });
+                        //console.log(['edit', data['FIELDS'][k]]);
+                    }else if(parent.gridOptions.PARAM_1.indexOf('LISTS_LISTS_')>-1){
+                        batch.push({
+                            'method':parent.gridOptions.method_update,
+                            'params':{
+                                'IBLOCK_TYPE_ID':'lists',
+                                'IBLOCK_ID':parent.smartId,
+                                'ELEMENT_ID':k,
+                                'FIELDS':data['FIELDS'][k]
+                            }
+                        });
+                        //console.log(['edit', data['FIELDS'][k], k]);
+                    }
+
                 }
+                if(batch.length){
+                    if(group_action){
+                        var last = null;
+                        if(batch.length>0)
+                            last = batch.pop();
+                        var tmp_ = function(last, batch, callbackUp){
+                            if(batch.length){
+                                window.AwzBx24Proxy.callBatch(batch, function(result)
+                                    {
+                                        window.awz_nhelper.checkRespError(result);
+                                        callbackUp.call(window.awz_helper, result, last ? 'first' : 'end');
+                                        if(last){
+                                            window.awz_helper.callApi(last['method'], last['params'], function(res){
+                                                window.awz_nhelper.checkRespError(res);
+                                                callbackUp.call(window.awz_helper, res, 'end');
+                                            });
+                                        }
 
-            }
+                                    }
+                                );
+                            }else if(last){
+                                window.awz_helper.callApi(last['method'], last['params'], function(res){
+                                    window.awz_nhelper.checkRespError(res);
+                                    callbackUp.call(window.awz_helper, res, 'end');
+                                });
+                            }
+                        };
+                        tmp_(last, batch, callbackUp);
+                    }else{
+                        //console.log('batch',batch);
+                        window.AwzBx24Proxy.callBatch(batch, function(result)
+                            {
+                                window.awz_nhelper.checkRespError(result);
+                                window.awz_helper.addBxTime(result);
+                                window.awz_helper.getSmartData();
+                            }
+                        );
+                    }
 
+                }
+            }).catch(function(err){
+                window.awz_nhelper.addError(
+                    'Ошибка обработки данных при обновлении элементов','', err
+                );
+                window.awz_nhelper.showError();
+            });
         },
         PARAMS: {
             DOMAIN: '',
@@ -4684,7 +5838,11 @@ $(document).ready(function (){
             PLACEMENT_OPTIONS: null
         },
         callApi: function(method, data, cbAjax){
-
+            if(method === 'lists.element.get'){
+                if(data.hasOwnProperty('order')){
+                    data['ELEMENT_ORDER'] = data['order'];
+                }
+            }
             if(!!window.name)
             {
                 var q = window.name.split('|');
@@ -4697,7 +5855,7 @@ $(document).ready(function (){
                 var PARAMS = window.awz_helper.PARAMS;
                 var url = '';
                 if(typeof method == 'string'){
-                    url = 'http'+(PARAMS.PROTOCOL?'s':'')+'://' + PARAMS.DOMAIN + PARAMS.PATH + '/' + encodeURIComponent(method) + '.json';
+                    url = 'http'+(PARAMS.PROTOCOL?'s':'')+'://' + PARAMS.DOMAIN + PARAMS.PATH + '/' + encodeURIComponent(method) + '';
                 }else if(typeof method == 'object' && method.hasOwnProperty('length')){
                     url = method[0]+method[1];
                 }
@@ -4711,6 +5869,7 @@ $(document).ready(function (){
                         url = url.replace(/(.*\/rest\/)(.*)/g, window.awz_helper.extUrl+"$2");
                         query_data = query_data.replace(/auth=[a-z0-9]+\&(.*?)/g, "$1");
                     }
+                    //console.log('window.AwzBx24Proxy.prepareData', url, query_data);
 
                     $.ajax({
                         url: url,
@@ -4798,12 +5957,18 @@ $(document).ready(function (){
                 window.AwzBx24Proxy.openPath('/crm/contact/details/0/');
             }else if(this.gridOptions.PARAM_1 === 'DEAL'){
                 window.AwzBx24Proxy.openPath('/crm/deal/details/0/');
+            }else if(this.gridOptions.PARAM_1 === 'LEAD'){
+                window.AwzBx24Proxy.openPath('/crm/lead/details/0/');
             }else if(this.gridOptions.PARAM_1 === 'EXT_COMPANY'){
                 window.AwzBx24Proxy.openPath('/crm/company/details/0/');
             }else if(this.gridOptions.PARAM_1 === 'EXT_CONTACT'){
                 window.AwzBx24Proxy.openPath('/crm/contact/details/0/');
             }else if(this.gridOptions.PARAM_1 === 'EXT_DEAL'){
                 window.AwzBx24Proxy.openPath('/crm/deal/details/0/');
+            }else if(this.gridOptions.PARAM_1 === 'EXT_LEAD'){
+                window.AwzBx24Proxy.openPath('/crm/lead/details/0/');
+            }else if(this.gridOptions.PARAM_1.indexOf('LISTS_LISTS_')>-1){
+                window.AwzBx24Proxy.openPath('/company/lists/'+this.smartId+'/element/0/0/?list_section_id=');
             }
         },
         rmCache: function(){
@@ -4848,6 +6013,7 @@ $(document).ready(function (){
             return new_filter;
         },
         applyGroupButton: function(action){
+            window.awz_nhelper.showPreloaderGrid();
             var actionId = $('#base_action_select_control').attr('data-value');
             var field_up_id = actionId.replace("control_ef_","");
             var field_type = 'update';
@@ -4938,6 +6104,7 @@ $(document).ready(function (){
                 var max_operation = 300;
                 if(field_type === 'copy'){
                     var params_copy = Object.assign({},params);
+                    //console.log('copy', method, params_copy, ob_tmp);
                     var ob_tmp = {'cnt': parseInt(value)};
                     window.awz_helper.intervals_turn.push([
                         method, params_copy, ob_tmp
@@ -5024,6 +6191,7 @@ $(document).ready(function (){
                     var prm = el[1];
                     var up_object = el[2];
                     if(up_object.hasOwnProperty('add')){
+                        //console.log('add',window.awz_helper.temp_items[up_object['add']][k]);
                         if(check_add_upper){
                             var converted = {};
                             for(k in window.awz_helper.temp_items[up_object['add']]){
@@ -5037,6 +6205,24 @@ $(document).ready(function (){
                             if(params.hasOwnProperty('entityTypeId')){
                                 prm['entityTypeId'] = params['entityTypeId'];
                             }
+                            if(params.hasOwnProperty('IBLOCK_ID')){
+                                prm['IBLOCK_ID'] = params['IBLOCK_ID'];
+                            }
+                            if(params.hasOwnProperty('IBLOCK_TYPE_ID')){
+                                prm['IBLOCK_TYPE_ID'] = params['IBLOCK_TYPE_ID'];
+                                prm['ELEMENT_CODE'] = '';
+                            }
+                            /*
+                            * {
+                            'method':parent.gridOptions.method_update,
+                            'params':{
+                                'IBLOCK_TYPE_ID':'lists',
+                                'IBLOCK_ID':parent.smartId,
+                                'ELEMENT_ID':k,
+                                'FIELDS':data['FIELDS'][k]
+                            }
+                        }
+                            * */
                         }
                         if(prm.fields.hasOwnProperty('id')){
                             delete prm.fields['id'];
@@ -5044,6 +6230,7 @@ $(document).ready(function (){
                         if(prm.fields.hasOwnProperty('ID')){
                             delete prm.fields['ID'];
                         }
+                        //console.log('prm',prm,params);
                     }
                     if(prm.hasOwnProperty('f_key')){
                         prm['filter'][prm['f_key']] = window.awz_helper.last_turn_id;
@@ -5055,6 +6242,11 @@ $(document).ready(function (){
                     if(up_object.hasOwnProperty('add')){
 
                         window.awz_helper.tmp_func = function(method, prm){
+
+                            if(method === 'lists.element.add'){
+                                prm['ELEMENT_CODE'] = new Date().getTime()+'_'+Math.floor(Math.random() * 8)+'_00';
+                            }
+
                             window.awz_helper.callApi(method, prm, function(bres){
                                 window.AwzBx24Proxy.checkRespError(bres);
                                 window.awz_helper.intervals_lock_last_res2 = bres;
@@ -5085,10 +6277,18 @@ $(document).ready(function (){
                             var bach_tmp = [];
                             var k3;
                             for(k3=0; k3<up_object['batch']; k3++){
-                                bach_tmp.push({
-                                    'method': method,
-                                    'params': prm
-                                });
+                                if(method === 'lists.element.add'){
+                                    prm['ELEMENT_CODE'] = new Date().getTime()+'_'+Math.floor(Math.random() * 8)+'_'+k3;
+                                    bach_tmp.push({
+                                        'method': method,
+                                        'params': Object.assign({},prm)
+                                    });
+                                }else{
+                                    bach_tmp.push({
+                                        'method': method,
+                                        'params': prm
+                                    });
+                                }
                             }
                             var tmp = function(batch, cnt, method, prm){
                                 window.AwzBx24Proxy.callBatch(batch, function(){
@@ -5487,7 +6687,7 @@ $(document).ready(function (){
 
             //params['filter'] = window.awz_helper.replaceFilter(params['filter']);
 
-            var method = 'crm.item.list';
+            var method = '';
             var params = {};
             var check_order_upper = false;
             var check_add_upper = false;
@@ -5496,98 +6696,18 @@ $(document).ready(function (){
             params['order'] = this.lastOrder;
             var plc_info = BX24.placement.info();
 
-            if(this.gridOptions.PARAM_1 === 'TASK_USER_CRM'){
-                method = this.gridOptions.method_list;
-                params['select'] = ['ID'];
-                check_order_upper = true;
-                check_add_upper = true;
-                if(plc_info.placement){
-                    var entity_code_id = plc_info.placement.replace(/CRM_(.*)_DETAIL_TAB/g, "$1");
-                    if(entity_code_id === 'DEAL'){
-                        params['filter']['UF_CRM_TASK'] = 'D_'+plc_info.options.ID;
-                    }
-                    if(entity_code_id === 'LEAD'){
-                        params['filter']['UF_CRM_TASK'] = 'L_'+plc_info.options.ID;
-                    }
-                    if(entity_code_id === 'CONTACT'){
-                        params['filter']['UF_CRM_TASK'] = 'C_'+plc_info.options.ID;
-                    }
-                    if(entity_code_id === 'COMPANY'){
-                        params['filter']['UF_CRM_TASK'] = 'CO_'+plc_info.options.ID;
-                    }
-                    if(entity_code_id.indexOf('DYNAMIC_')>-1){
-                        var tmp = entity_code_id.replace(/([^0-9])/g, "");
-                        params['filter']['UF_CRM_TASK'] = "T"+parseInt(tmp).toString(16)+'_'+plc_info.options.ID;
-                    }
-                }
-            }else if(this.gridOptions.PARAM_1 === 'TASK_USER'){
-                method = this.gridOptions.method_list;
-                params['select'] = ['ID'];
-                check_order_upper = true;
-                check_add_upper = true;
-            }else if(this.gridOptions.PARAM_1 === 'WORKS'){
-                method = this.gridOptions.method_list;
-                params['select'] = ['ID'];
-                check_order_upper = true;
-            }else if(this.gridOptions.PARAM_1 === 'COMPANY'){
-                method = this.gridOptions.method_list;
-                params['select'] = ['ID'];
-                check_order_upper = true;
-            }else if(this.gridOptions.PARAM_1 === 'CONTACT'){
-                method = this.gridOptions.method_list;
-                params['select'] = ['ID'];
-                check_order_upper = true;
-            }else if(this.gridOptions.PARAM_1 === 'DEAL'){
-                method = this.gridOptions.method_list;
-                params['select'] = ['ID'];
-                check_order_upper = true;
-            }else if(this.gridOptions.PARAM_1 === 'EXT_COMPANY'){
-                method = this.gridOptions.method_list;
-                params['select'] = ['ID'];
-                check_order_upper = true;
-            }else if(this.gridOptions.PARAM_1 === 'EXT_CONTACT'){
-                method = this.gridOptions.method_list;
-                params['select'] = ['ID'];
-                check_order_upper = true;
-            }else if(this.gridOptions.PARAM_1 === 'EXT_DEAL'){
-                method = this.gridOptions.method_list;
-                params['select'] = ['ID'];
-                check_order_upper = true;
-            }else if(this.gridOptions.PARAM_1.indexOf('EXT_AWZORM_')>-1){
-                method = this.gridOptions.method_list;
-                params['select'] = ['ID'];
-                check_order_upper = true;
-            }else if(this.gridOptions.PARAM_1 === 'EXT_TASK_USER'){
-                method = this.gridOptions.method_list;
-                check_order_upper = true;
-                check_add_upper = true;
-            }else if(this.gridOptions.PARAM_1 === 'DOCS'){
-                method = this.gridOptions.method_list;
-            }else if(this.gridOptions.PARAM_1 === 'DOCS_CRM'){
-                method = this.gridOptions.method_list;
-                if(['DEAL','LEAD','CONTACT','COMPANY'].indexOf(this.gridOptions.PARAM_2)>-1 && plc_info.placement){
-                    params['filter']['entityId'] = plc_info.options.ID;
-                }
-            }else if(this.gridOptions.PARAM_1.indexOf('TASK_GROUP_')>-1){
-                method = this.gridOptions.method_list;
-                params['select'] = ['ID', 'GROUP_ID'];
-                check_order_upper = true;
-                check_add_upper = true;
-            }else if(this.gridOptions.PARAM_1 === 'TASK_GROUPS'){
-                method = this.gridOptions.method_list;
-                params['select'] = ['ID', 'GROUP_ID'];
-                params['filter']['GROUP_ID'] = plc_info.options.GROUP_ID;
-                check_order_upper = true;
-                check_add_upper = true;
-            }else if(this.gridOptions.PARAM_1.indexOf('DYNAMIC_')>-1){
-                method = this.gridOptions.method_list;
-                params['entityTypeId'] = this.smartId;
-            }else{
+            //var method = 'crm.item.list';
+            var list_params = this.getMethodListParams(params, plc_info, 'group');
+            if(!list_params){
                 alert('неизвестная приложению сущность '+this.smartId);
                 return;
+            }else{
+                method = list_params['method'];
+                check_order_upper = list_params['check_order_upper'];
+                check_add_upper = list_params['check_add_upper'];
+                params = list_params['params'];
             }
 
-            //TODO не хватает сущностей для выборки всех
             if(window.awz_helper.hasOwnProperty('addFilter') && typeof window.awz_helper.addFilter === 'object'){
                 var fl_key;
                 for(fl_key in window.awz_helper.addFilter){
@@ -5769,6 +6889,16 @@ $(document).ready(function (){
     }
 
 
+    $(document).on('click', '.awz-open-filter', function(e){
+        e.preventDefault();
+
+        var ht = '<h4>текущий фильтр</h4>';
+        ht += '<textarea class="filter-info-textarea">'+JSON.stringify(window.awz_helper.lastFilter)+'</textarea>';
+
+        var popup = window.awz_helper.getPopupFields('settings-wrap-filter', 'Текущий фильтр');
+        popup.setContent('<div class="fields-wrap">'+ht+'</div>');
+        popup.show();
+    });
     $(document).on('click', '.awz-open-addlink', function(e){
         e.preventDefault();
 
@@ -5819,10 +6949,11 @@ $(document).ready(function (){
         //var c_val = $(this).val();
         window.awz_helper.getPlacementsList();
     });
-    $(document).on('click', '.open-dialog-deal, .open-dialog-company, .open-dialog-contact', function(e){
+    $(document).on('click', '.open-dialog-deal, .open-dialog-lead, .open-dialog-company, .open-dialog-contact', function(e){
         e.preventDefault();
         var type = '';
         if($(this).hasClass('open-dialog-deal')) type = 'deal';
+        if($(this).hasClass('open-dialog-lead')) type = 'lead';
         if($(this).hasClass('open-dialog-company')) type = 'company';
         if($(this).hasClass('open-dialog-contact')) type = 'contact';
         var inputField = $(this).parents('.field-wrap').find('input, a').eq(0);
@@ -5894,9 +7025,18 @@ $(document).ready(function (){
         };
         if($('#placements-list').val()){
             q_data['params']['placements'] = $('#placements-list').val().split(',');
+        }else{
+            q_data['params']['placements'] = [];
         }
         if($('#placement-mlink').val()){
             q_data['params']['mlink'] = $('#placement-mlink').val();
+        }else{
+            q_data['params']['mlink'] = '';
+        }
+        if($('#placement-grid-filter').val()){
+            q_data['params']['grid_filter'] = $('#placement-grid-filter').val();
+        }else{
+            q_data['params']['grid_filter'] = '';
         }
         window.awz_helper.updateHookParams(q_data, function(data){
             console.log(data);

@@ -15,9 +15,9 @@ use Awz\BxApi\App;
 use Bitrix\Main\Web\Json;
 include_once(__DIR__.'/include/load_modules.php');
 $eventManager = \Bitrix\Main\EventManager::getInstance();
-$eventManager->addEventHandlerCompatible('main', 'OnEndBufferContent', array('DealList', 'OnEndBufferContent'), false, 999);
+$eventManager->addEventHandlerCompatible('main', 'OnEndBufferContent', array('LeadList', 'OnEndBufferContent'), false, 999);
 
-class DealList extends IList implements IParams {
+class LeadList extends IList implements IParams {
 
     public static $smartId;
 
@@ -33,7 +33,7 @@ class DealList extends IList implements IParams {
     public function __construct($params, $publicMode=false){
 
         if(!empty($params['SMART_FIELDS'])){
-            \Awz\Admin\DealTable::$fields = $params['SMART_FIELDS'];
+            \Awz\Admin\LeadTable::$fields = $params['SMART_FIELDS'];
         }
         $params['TABLEID'] = $params['GRID_ID'];
         $params = \Awz\Admin\Helper::addCustomPanelButton($params);
@@ -91,7 +91,7 @@ class DealList extends IList implements IParams {
     {
         $arParams = [
             "PRIMARY"=>"ID",
-            "ENTITY" => "\\Awz\\Admin\\DealTable",
+            "ENTITY" => "\\Awz\\Admin\\LeadTable",
             "BUTTON_CONTEXTS"=>[
                 [
                     'add'=> [
@@ -267,7 +267,7 @@ class DealList extends IList implements IParams {
     }
 }
 
-use DealList as PageList;
+use LeadList as PageList;
 
 $arParams = PageList::getParams();
 
@@ -299,10 +299,10 @@ if(!$checkAuth){
         $gridOptions = $loadParamsEntityData['options'];
 
         $arParams['GRID_OPTIONS'] = $gridOptions;
-        $arParams['GRID_OPTIONS']['method_list'] = 'crm.deal.list';
-        $arParams['GRID_OPTIONS']['method_delete'] = 'crm.deal.delete';
-        $arParams['GRID_OPTIONS']['method_update'] = 'crm.deal.update';
-        $arParams['GRID_OPTIONS']['method_add'] = 'crm.deal.add';
+        $arParams['GRID_OPTIONS']['method_list'] = 'crm.lead.list';
+        $arParams['GRID_OPTIONS']['method_delete'] = 'crm.lead.delete';
+        $arParams['GRID_OPTIONS']['method_update'] = 'crm.lead.update';
+        $arParams['GRID_OPTIONS']['method_add'] = 'crm.lead.add';
         $arParams['GRID_OPTIONS']['result_key'] = '-';
         $arParams['SMART_ID'] = $gridOptions['PARAM_1'] ?? "";
         //Для всех документов типа сущности
@@ -328,9 +328,9 @@ if(!$checkAuth){
             $app->setCacheParams($cacheId);
 
             if(!empty($arParams['EXT_PARAMS'])){
-                $bxRowsResFields = $app->postMethod($arParams['EXT_PARAMS'][1].'crm.deal.fields');
+                $bxRowsResFields = $app->postMethod($arParams['EXT_PARAMS'][1].'crm.lead.fields');
             }else{
-                $bxRowsResFields = $app->postMethod('crm.deal.fields');
+                $bxRowsResFields = $app->postMethod('crm.lead.fields');
             }
 
             //echo'<pre>';print_r($bxRowsResFields);echo'</pre>';
@@ -363,11 +363,13 @@ if(!$checkAuth){
                 $finFields = [];
                 foreach($allFields as $key=>&$field){
                     $field['sort'] = $key;
+
                     $field = \Awz\Admin\Helper::preformatField($field);
                     if(!in_array($key, $deActiveFields)){
                         $finFields[$key] = $field;
                         $selectFormatFields[] = $key;
                     }
+
                 }
                 $allFields = $finFields;
                 unset($field);
@@ -390,7 +392,7 @@ if(!$checkAuth){
         PageList::$smartId = $arParams['SMART_ID'];
         $adminCustom = new PageList($arParams, true);
 
-        $fields = \Awz\Admin\DealTable::getMap();
+        $fields = \Awz\Admin\LeadTable::getMap();
         //echo'<pre>';print_r($allFields);echo'</pre>';
         //$fields = $arParams['SMART_FIELDS'];
         $addFilters = [];

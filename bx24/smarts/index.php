@@ -301,7 +301,7 @@ elseif($app->getRequest()->get('server_domain') == 'oauth.bitrix.info')
                 $authKey = $app->getRequest()->get('app_key');
             }
 
-            $resKeyAdd = $app->postMethod('app.option.set.json',
+            $resKeyAdd = $app->postMethod('app.option.set',
                                           array(
                                               'options'=>array(
                                                   'auth'=>$authKey
@@ -359,6 +359,7 @@ else
     UIExt::load('ui.entity-selector');
     Asset::getInstance()->addJs("/bx24/smarts/md5.min.js");
     Asset::getInstance()->addJs("/bx24/smarts/scriptn.js");
+    //Asset::getInstance()->addJs("/bx24/smarts/script_old.js");
     $portalData = $app->getCurrentPortalData();
     $portalOldKey = '';
     if(!$portalData){
@@ -545,6 +546,7 @@ else
                                         <option value="company">Компании</option>
                                         <option value="contact">Контакты</option>
                                         <option value="deal">Сделки</option>
+                                        <option value="lead">Лиды</option>
                                         <option value="awzorm">AWZ: ORM Api</option>
                                     </select>
                                 </div>

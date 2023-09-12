@@ -3,22 +3,22 @@ define("NOT_CHECK_PERMISSIONS", true);
 define("STOP_STATISTICS", true);
 define("BX_SENDPULL_COUNTER_QUEUE_DISABLE", true);
 define('BX_SECURITY_SESSION_VIRTUAL', true);
-require($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_before.php");
-require($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/interface/admin_list.php');
-require($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/interface/admin_lib.php');
+require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/modules/main/include/prolog_before.php");
 //header("Access-Control-Allow-Origin: *");
+require($_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/interface/admin_list.php');
+require($_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/interface/admin_lib.php');
 use Awz\Admin\Grid\Option as GridOptions;
 use Awz\Admin\IList;
 use Awz\Admin\IParams;
-use Bitrix\Main\Data\Cache;
 use Bitrix\Main\Localization\Loc;
 use Awz\BxApi\App;
+use Awz\BxApi\Helper;
 use Bitrix\Main\Web\Json;
 include_once(__DIR__.'/include/load_modules.php');
 $eventManager = \Bitrix\Main\EventManager::getInstance();
-$eventManager->addEventHandlerCompatible('main', 'OnEndBufferContent', array('WorksList', 'OnEndBufferContent'), false, 999);
+$eventManager->addEventHandlerCompatible('main', 'OnEndBufferContent', array('ListsList', 'OnEndBufferContent'), false, 999);
 
-class WorksList extends IList implements IParams {
+class ListsList extends IList implements IParams {
 
     public static $smartId;
     public static $usersCache = [];
@@ -30,50 +30,22 @@ class WorksList extends IList implements IParams {
     public function __construct($params, $publicMode=false){
 
         if(!empty($params['SMART_FIELDS'])){
-            \Awz\Admin\WorksTable::$fields = $params['SMART_FIELDS'];
+            \Awz\Admin\ListsTable::$fields = $params['SMART_FIELDS'];
         }
         $params['TABLEID'] = $params['GRID_ID'];
+
         $params = \Awz\Admin\Helper::addCustomPanelButton($params);
+
         parent::__construct($params, $publicMode);
-    }
-
-    public static function getFromCacheSt($key, $keyapi){
-        $addKey = explode('|',$keyapi);
-        $cacheDir = '/awz/bxapi/'.$addKey[3];
-
-        $obCache = Cache::createInstance();
-        if($obCache->initCache(86400000,md5(implode([$addKey,$key])),$cacheDir)){
-            $res = $obCache->getVars();
-            if(!empty($res)) return $res;
-        }
-        return array();
-    }
-    public function getFromCache($key){
-        return self::getFromCacheSt($key, $this->getParam('ADD_REQUEST_KEY'));
-    }
-
-    public function setCache($key, $data){
-
-        $addKey = explode('|',$this->getParam('ADD_REQUEST_KEY'));
-        $cacheDir = '/awz/bxapi/'.$addKey[3];
-
-        $obCache = Cache::createInstance();
-        $obCache->clean(md5(implode([$addKey,$key])), $cacheDir);
-        if($obCache->initCache(86400000,md5(implode([$addKey,$key])),$cacheDir)){
-        }else if($obCache->startDataCache()){
-            $obCache->endDataCache($data);
-        }
-        return $data;
-
     }
 
     public function addUsersFromAdminResult(array $items = []){
         foreach($items as $uid=>$item){
             self::$usersCache[$uid] = [
-                'id'=>$uid,
-                'name'=>$item['NAME'].' '.$item['LAST_NAME'],
-                'link'=>'/company/personal/user/'.$uid.'/',
-                'icon'=>$item['PERSONAL_PHOTO'] ?? '/bitrix/js/ui/icons/b24/images/ui-user.svg?v2',
+                    'id'=>$uid,
+                    'name'=>$item['NAME'].' '.$item['LAST_NAME'],
+                    'link'=>'/company/personal/user/'.$uid.'/',
+                    'icon'=>$item['PERSONAL_PHOTO'] ?? '/bitrix/js/ui/icons/b24/images/ui-user.svg?v2',
             ];
         }
     }
@@ -100,51 +72,56 @@ class WorksList extends IList implements IParams {
         return $users[$id] ?? array();
     }
 
-    public function getGroup(int $id = 0)
+    public function getEntityCodeFromId(int $id, array $avalible = [1,2,3,4]): array
     {
-        static $groups = array();
-
-        if(empty($groups)){
-            $request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
-            if($bx_result = $request->getPost('bx_result')){
-                if(isset($bx_result['groups'][$id])) {
-                    $groups = $this->setCache('groups',$bx_result['groups']);
-                }
+        if(!in_array($id, $avalible)) return [];
+        static $codesEntity = [];
+        if(empty($codesEntity))
+            $codesEntity = Helper::entityCodes();
+        foreach($codesEntity as $ent){
+            if($ent['ID'] == $id){
+                return $ent;
             }
         }
-        if(empty($groups)){
-            $groups = $this->getFromCache('groups');
-        }
-
-        return $groups[$id] ?? array();
+        return [];
     }
 
-    public function trigerGetRowListAdmin(&$row){
-        /* @var $row CAdminUiListRow */
+    public function getEntityIdFromCode(string $code)
+    {
+        static $codesEntity = [];
+        if(empty($codesEntity))
+            $codesEntity = Helper::entityCodes();
+        foreach($codesEntity as $ent){
+            if($ent['CODE'] == $code){
+                return (int) $ent['ID'];
+            }
+        }
+    }
 
+    public function trigerGetRowListAdmin($row){
         \Awz\Admin\Helper::defTrigerList($row, $this);
-
         $entity = $this->getParam('ENTITY');
         $fields = $entity::$fields;
-
-        $codesEntity = \Awz\BxApi\Helper::entityCodes();
-        $codesLink = [];
-        foreach($codesEntity as $ent){
-            $codesLink[(string)$ent['ID']] = $ent['CODE'];
+        $primaryCode = $this->getParam('PRIMARY', 'ID');
+        foreach($fields as $fieldCode=>$fieldData){
+            $addHtml = '';
+            if($fieldCode === 'ID'){
+                if(\Bitrix\Main\Loader::includeModule('awz.bxapistats')){
+                    static $setStat = false;
+                    if(!$setStat){
+                        $setStat = true;
+                        $tracker = \Awz\BxApiStats\Tracker::getInstance();
+                        $addHtml = \Awz\BxApiStats\Helper::getHtmlStats($tracker, $this->getParam('TABLEID'));
+                    }
+                }
+                $codeEnt = $this->getParam('SMART_ID');
+                $row->AddViewField($fieldCode, $addHtml.'<a class="open-smart" data-ent="LISTS_LISTS_'.$codeEnt.'" data-id="'.$row->arRes[$this->getParam('PRIMARY')].'" href="#">'.$row->arRes[$fieldCode].'</a>');
+            }
+            if(in_array($fieldCode, ['NAME','ID'])){
+                $codeEnt = $this->getParam('SMART_ID');
+                $row->AddViewField($fieldCode, $addHtml.'<a class="open-smart" data-ent="LISTS_LISTS_'.$codeEnt.'" data-id="'.$row->arRes[$this->getParam('PRIMARY')].'" href="#">'.$row->arRes[$fieldCode].'</a>');
+            }
         }
-        $allSmarts = $this->getParam('ALL_SMARTS',[]);
-        foreach($allSmarts as $v){
-            $codesLink[(string)$v['entityTypeId']] = mb_strtoupper($v['id']);
-        }
-
-        $code = 'OWNER_TYPE_ID';
-        if($row->arRes[$code] && isset($codesLink[(string)$row->arRes[$code]])){
-            $fieldHtml = '<div data-type="'.$codesLink[(string)$row->arRes[$code]].'" data-id="'.$row->arRes['OWNER_ID'].'" class="awz-autoload-field awz-autoload-'.$codesLink[(string)$row->arRes[$code]].'-'.$row->arRes['OWNER_ID'].'">'.$row->arRes['OWNER_ID'].'</div>';
-            $row->AddViewField('OWNER_ID', $fieldHtml);
-        }
-
-        //\Awz\Admin\Helper::defTrigerList($row, $this);
-
     }
 
     public function trigerInitFilter(){
@@ -165,16 +142,16 @@ class WorksList extends IList implements IParams {
     {
         $arParams = [
             "PRIMARY"=>"ID",
-            "ENTITY" => "\\Awz\\Admin\\WorksTable",
+            "ENTITY" => "\\Awz\\Admin\\ListsTable",
             "BUTTON_CONTEXTS"=>[
-                /*[
+                [
                     'add'=> [
                         'TEXT' => 'Добавить',
                         'ICON' => '',
                         'LINK' => '',
                         'ONCLICK' => 'window.awz_helper.menuNewEl();return false;',
                     ]
-                ],*/
+                ],
                 [
                     'reload'=> [
                         'TEXT' => 'Обновить',
@@ -193,26 +170,24 @@ class WorksList extends IList implements IParams {
             /*"ADD_GROUP_ACTIONS"=> [
                 "edit",
                 "delete"
-                "summ"=>[
-                     'key'=>"summ","title"=>"Посчитать сумму"
-                ]
             ],*/
+            "ACTION_PANEL"=>[],
             "ADD_LIST_ACTIONS"=> [
                 "delete",
-                /*"edit_row"=> [
+                "edit_row"=> [
                     "ICON"=>"edit",
                     "DEFAULT"=>true,
                     "TEXT"=>Loc::getMessage("MAIN_ADMIN_MENU_EDIT"),
                     "TITLE"=>Loc::getMessage("MAIN_ADMIN_MENU_EDIT"),
                     "ACTION"=>'#PRIMARY#'
-                ],*/
-                /*"copy_row"=> [
+                ],
+                "copy_row"=> [
                     "ICON"=>"edit",
                     "DEFAULT"=>true,
                     "TEXT"=>Loc::getMessage("MAIN_ADMIN_MENU_COPY"),
                     "TITLE"=>Loc::getMessage("MAIN_ADMIN_MENU_COPY"),
                     "ACTION"=>'#PRIMARY#'
-                ]*/
+                ]
             ],
             "FIND"=> []
         ];
@@ -255,10 +230,27 @@ class WorksList extends IList implements IParams {
             $ost = fmod($res['next'],50);
             if($ost == 50) $ost = 0;
         }
+        //echo'<pre>';print_r($ost);echo'</pre>';
+        //die();
+        $entity = $this->getParam('ENTITY');
+        $fields = $entity::$fields;
         if(isset($res['items'])){
             foreach ($res['items'] as $row){
                 if(empty($row)) continue;
                 //$row['id'] = 'n: '.$n.', ost: '.$ost.', pageSize: '.$pageSize;
+                foreach($row as $code=>&$rowItem){
+                    if(is_array($rowItem)){
+                        if(isset($fields[$code]['isMultiple']) && $fields[$code]['isMultiple']){
+
+                        }else{
+                            if(!empty($rowItem)){
+                                $rowItem = $rowItem[array_keys($rowItem)[0]];
+                            }else{
+                                $rowItem = '';
+                            }
+                        }
+                    }
+                }
                 //echo'<pre>';print_r($row);echo'</pre>';
                 $n++;
                 if($ost && ($ost>$n)) continue;
@@ -280,8 +272,6 @@ class WorksList extends IList implements IParams {
         $this->getAdminList()->setNavigation($nav, Loc::getMessage($this->getParam("LANG_CODE")."NAV_TEXT"), false);
 
     }
-
-
 
     public function defaultPublicInterface(){
 
@@ -305,10 +295,9 @@ class WorksList extends IList implements IParams {
         if($this->getParam('ADD_REQUEST_KEY')){
             $defPrm['ADD_REQUEST_KEY'] = $this->getParam('ADD_REQUEST_KEY');
         }
-        if($this->getParam('ACTION_PANEL')){
+        if($this->getParam('ACTION_PANEL', [])){
             $defPrm['ACTION_PANEL'] = $this->getParam('ACTION_PANEL');
         }
-
         if($this->getParam('FIND')){
             $this->getAdminList()->DisplayFilter($this->getParam('FIND', array()));
         }
@@ -316,8 +305,11 @@ class WorksList extends IList implements IParams {
         $this->getAdminList()->DisplayList($defPrm);
 
         if($this->getParam('SMART_ID')){
+            $gridOptions = new GridOptions($this->getParam('TABLEID'));
+            $sort = $gridOptions->getSorting(['sort'=>['id'=>'desc']]);
             ?>
             <script type="text/javascript">
+
                 $(document).ready(function(){
                     BX24.ready(function() {
                         BX24.init(function () {
@@ -329,11 +321,6 @@ class WorksList extends IList implements IParams {
                             window.awz_helper.gridUrl = window.awz_helper.gridUrl.replace('/smarts/index.php?','/smarts/?');
                             window.awz_helper.gridUrl = window.awz_helper.gridUrl.replace('/smarts/?','/smarts/<?=CURRENT_CODE_PAGE?>.php?');
                             <?}?>
-                            <?
-                            $gridOptions = new GridOptions($this->getParam('TABLEID'));
-                            $sort = $gridOptions->getSorting(['sort'=>[$this->getParam('PRIMARY') =>'desc']]);
-                            ?>
-
                             window.awz_helper.currentUserId = '<?=$this->getParam('CURRENT_USER')?>';
                             window.awz_helper.lastOrder = <?=\CUtil::PhpToJSObject($sort['sort'])?>;
                             window.awz_helper.fields = <?=\CUtil::PhpToJSObject($this->getParam('SMART_FIELDS'))?>;
@@ -345,26 +332,17 @@ class WorksList extends IList implements IParams {
                                 <?=$this->getAdminList()->getNavSize()?>,
                                 <?=\CUtil::PhpToJSObject($this->getParam('GRID_OPTIONS'))?>
                             );
-                            <?if(!empty($this->getParam('ALL_SMARTS'))){?>
-                            <?foreach($this->getParam('ALL_SMARTS') as $smart){?>
-                            window.awz_nhelper.entityIdsLinkCodes['<?=$smart['entityTypeId']?>'] = '<?=$smart['code']?>_';
-                            window.awz_nhelper.entityIdsLinkId['<?=$smart['code']?>_'] = '<?=$smart['entityTypeId']?>';
-                            <?}?>
-                            <?}?>
-                            console.log(window.awz_nhelper.entityIdsLinkId);
-                            console.log(window.awz_nhelper.entityIdsLinkCodes);
                         });
                     });
                 });
             </script>
             <?php
-            //die();
         }
 
     }
 }
 
-use WorksList as PageList;
+use ListsList as PageList;
 
 $arParams = PageList::getParams();
 
@@ -396,17 +374,15 @@ if(!$checkAuth){
         $gridOptions = $loadParamsEntityData['options'];
 
         $arParams['GRID_OPTIONS'] = $gridOptions;
-        $arParams['GRID_OPTIONS']['method_list'] = 'crm.activity.list';
-        $arParams['GRID_OPTIONS']['method_delete'] = 'crm.activity.delete';
-        $arParams['GRID_OPTIONS']['method_update'] = 'crm.activity.update';
-        $arParams['GRID_OPTIONS']['method_add'] = 'crm.activity.add';
+        $arParams['GRID_OPTIONS']['method_list'] = 'lists.element.get';
+        $arParams['GRID_OPTIONS']['method_delete'] = 'lists.element.delete';
+        $arParams['GRID_OPTIONS']['method_update'] = 'lists.element.update';
+        $arParams['GRID_OPTIONS']['method_add'] = 'lists.element.add';
         $arParams['GRID_OPTIONS']['result_key'] = '-';
+        //$arParams['GRID_OPTIONS']['cache'] = time();
         $arParams['SMART_ID'] = $gridOptions['PARAM_1'] ?? "";
-        //Для всех документов типа сущности
-        //$arParams['GRID_OPTIONS']['key'] = '1';
+        if($arParams['SMART_ID']) $arParams['SMART_ID'] = str_replace('LISTS_LISTS_','',$arParams['SMART_ID']);
     }
-
-    //TASK_GROUP_
     if($arParams['SMART_ID'] && $loadParamsEntity->isSuccess()){
         /* @var string $cacheId */
         /* @var int $cacheKey */
@@ -416,145 +392,139 @@ if(!$checkAuth){
         if($loadParamsEntity->isSuccess()){
 
             $app->setCacheParams($cacheId);
-            $bxRowsResFields = $app->postMethod('crm.activity.fields');
-            //die();
-
-            //$entCodes = Helper::entityCodes();
-
-            if($bxRowsResFields->isSuccess()){
-
+            $bxRowsResFields = $app->postMethod('lists.field.get', array(
+                'IBLOCK_TYPE_ID'=>'lists',
+                'IBLOCK_ID'=>$arParams['SMART_ID']
+            ));
+            //echo'<pre>';print_r($bxRowsResFields);echo'</pre>';
+            if($bxRowsResFields->isSuccess()) {
                 $bxFields = $bxRowsResFields->getData();
-                $allFields = $bxFields['result']['result'];
+                $allFields = ['ID'=>[],'IBLOCK_SECTION_ID'=>[]]+$bxFields['result']['result'];
+                //echo'<pre>';print_r($allFields);echo'</pre>';
 
                 $batchAr = [];
+                $batchAr['lists_section_get'] = ['method'=>'lists.section.get', 'params'=> [
+                    'IBLOCK_TYPE_ID'=>'lists',
+                    'IBLOCK_ID'=>$arParams['SMART_ID']
+                ]];
+
+                foreach($allFields as $code=>&$field){
+                    if(in_array($field['TYPE'], ['DETAIL_TEXT','NAME','S','PREVIEW_TEXT'])){
+                        $field['type'] = 'string';
+                    }
+                    if(in_array($field['TYPE'], ['SORT','N'])){
+                        $field['type'] = 'integer';
+                    }
+                    if(in_array($field['TYPE'], ['ACTIVE_FROM','S:DateTime'])){
+                        $field['type'] = 'datetime';
+                    }
+                    if(in_array($field['TYPE'], ['S:Date'])){
+                        $field['type'] = 'date';
+                    }
+                    if(in_array($field['TYPE'], ['CREATED_BY'])){
+                        $field['type'] = 'user';
+                    }
+                    if(in_array($field['TYPE'], ['S:employee'])){
+                        $field['type'] = 'employee';
+                    }
+                    if(in_array($field['TYPE'], ['S:ECrm'])){
+                        $field['type'] = 'crm';
+                        $field['settings'] = [];
+                        foreach($field['USER_TYPE_SETTINGS'] as $c=>$v){
+                            if(in_array($c, ['LEAD','CONTACT','COMPANY','DEAL','SMART_INVOICE'])
+                            || strpos($c, 'DYNAMIC_')!==false
+                            ){
+                                $field['settings'][$c] = $v;
+                            }
+                        }
+                        //echo'<pre>';print_r($field);echo'</pre>';
+                    }
+                    if(in_array($field['TYPE'], ['L','E:EList'])){
+                        $field['type'] = 'enumeration';
+                        $field['values'] = $field['DISPLAY_VALUES_FORM'];
+                        foreach($field['values'] as &$vall){
+                            if(mb_strlen($vall)>120) $vall = mb_substr($vall,0,120).'...';
+                            $vall = str_replace("\n"," ",$vall);
+                        }
+                        unset($vall);
+                    }
+                    if(!isset($field['type'])) $field['type'] = 'string';
+                    $field['title'] = $field['NAME'];
+                    $field['isRequired'] = $field['IS_REQUIRED'] == 'Y' ? 1 : 0;
+                    $field['isMultiple'] = $field['MULTIPLE'] == 'Y' ? 1 : 0;
+                    $field['sort'] = $code;
+                    if($field['isMultiple']) {
+                        $field['isReadOnly'] = 1;
+                    }
+                    if(in_array($field['TYPE'], ['S:ECrm'])){
+                        //$field['isReadOnly'] = 0;
+                    }
+
+                    /*
+                     * Не поддерживается сортировка всех множественных свойств,
+                     * а так же свойств: S:Money, PREVIEW_TEXT, DETAIL_TEXT,
+                     * S:ECrm, S:map_yandex, PREVIEW_PICTURE, DETAIL_PICTURE,
+                     * S:DiskFile, IBLOCK_SECTION_ID, BIZPROC, COMMENTS.
+                     * */
+                    if($field['isMultiple']) {
+                        $field['sort'] = 0;
+                    }
+                    if(in_array($field['TYPE'], ['S:Money'])){
+                        $field['type'] = 'money';
+                    }
+                    if(in_array($field['TYPE'], ['S:Money','PREVIEW_TEXT','DETAIL_TEXT','S:ECrm','S:map_yandex', 'PREVIEW_PICTURE', 'DETAIL_PICTURE', 'S:DiskFile', 'IBLOCK_SECTION_ID', 'BIZPROC', 'COMMENTS'])){
+                        $field['sort'] = 0;
+                    }
+                    if(in_array($field['TYPE'], ['S:DiskFile','F'])) $field['type'] = 'unknown';
+                }
+                unset($field);
+
                 include_once(__DIR__.'/include/batch_fields_params.php');
                 /* @var array $batchResData */
                 //echo'<pre>';print_r($batchResData);echo'</pre>';
 
-                $allSmarts = [];
-                $smartsRes = $app->postMethod('crm.type.list');
-                $keyBatch = 'workslist_crm_type_list';
-                if(isset($batchResData[$keyBatch]['types']) &&
-                    !empty($batchResData[$keyBatch]['types'])
-                ){
-                    foreach($batchResData[$keyBatch]['types'] as $smartItem){
-                        //print_r($smartItem);
-                        $allSmarts[] = [
-                            'entityTypeId'=>$smartItem['entityTypeId'],
-                            'id'=>'dynamic_'.$smartItem['entityTypeId'],
-                            'code'=>'T'.dechex($smartItem['entityTypeId'])
-                        ];
+                $sectionIds = [''=>'не установлено'];
+                if(isset($batchResData['lists_section_get']) && !empty($batchResData['lists_section_get'])) {
+                    foreach($batchResData['lists_section_get'] as $section){
+                        $sectionIds[$section['ID']] = $section['NAME'];
                     }
                 }
-                $arParams['ALL_SMARTS'] = $allSmarts;
-                //echo'<pre>';print_r($allFields);echo'</pre>';
+                //echo'<pre>';print_r($scategoryData);echo'</pre>';
 
-                $activeFields = [
-                        'ID',
-                        'OWNER_ID',
-                        'OWNER_TYPE_ID',
-                        'TYPE_ID',
-                        'PROVIDER_ID',
-                        'PROVIDER_TYPE_ID',
-                        'PROVIDER_GROUP_ID',
-                        'ASSOCIATED_ENTITY_ID',
-                        'SUBJECT',
-                        'START_TIME',
-                        'END_TIME',
-                        'DEADLINE',
-                        'COMPLETED',
-                        'STATUS',
-                        'RESPONSIBLE_ID',
-                        'PRIORITY',
-                        //'NOTIFY_TYPE',
-                        //'NOTIFY_VALUE',
-                        //'DESCRIPTION',
-                        //'DESCRIPTION_TYPE',
-                        'DIRECTION',
-                        //'LOCATION',
-                        'CREATED',
-                        'AUTHOR_ID',
-                        'LAST_UPDATED',
-                        'EDITOR_ID',
-                        //'SETTINGS',
-                        'ORIGIN_ID',
-                        'ORIGINATOR_ID',
-                        //'RESULT_STATUS',
-                        //'RESULT_STREAM',
-                        //'RESULT_SOURCE_ID',
-                        //'PROVIDER_PARAMS',
-                        //'PROVIDER_DATA',
-                        //'RESULT_MARK',
-                        //'RESULT_VALUE',
-                        //'RESULT_SUM',
-                        //'RESULT_CURRENCY_ID',
-                        //'AUTOCOMPLETE_RULE',
-                        'BINDINGS',
-                        //'COMMUNICATIONS',
-                        'FILES',
-                        'WEBDAV_ELEMENTS',
-                        'IS_INCOMING_CHANNEL'
+                $allFields['ID'] = [
+                    'type'=>'integer',
+                    'isRequired'=>1,
+                    'isPrimary'=>1,
+                    'title'=>'ID',
+                    'noLink'=>1,
+                    'sort'=>'ID'
                 ];
-                $finFields = [];
-                foreach($allFields as $key=>&$field){
-                    if($field['type'] == 'char') $field['type'] = 'string';
-                    if($key == 'BINDINGS'){
-                        $field['type'] = 'crm';
-                        $field['isReadOnly'] = '0';
-                        $field['settings'] = [
-                            'deal'=>'Y',
-                            'lead'=>'Y',
-                            'company'=>'Y',
-                            'contact'=>'Y'
-                        ];
-                        foreach($allSmarts as $row){
-                            $field['settings'][$row['id']] = 'Y';
-                        }
-                    }
-                    if($key == 'COMMUNICATIONS'){
-                        $field['type'] = 'string';
-                    }
-                    if($key == 'OWNER_ID'){
-                        $field['type'] = 'string';
-                    }
-                    if($key == 'COMPLETED'){
-                        $field['type'] = 'enum';
-                        $field['values'] = ['Y'=>'да','N'=>'нет'];
-                    }
-                    if($key == 'IS_INCOMING_CHANNEL'){
-                        $field['type'] = 'enum';
-                        $field['values'] = ['Y'=>'да','N'=>'нет'];
-                    }
-                    if($key == 'ID'){
-                        $field['noLink'] = true;
-                    }
-                    $field['sort'] = $key;
-                    $field = \Awz\Admin\Helper::preformatField($field);
-                    if(in_array($key, $activeFields))
-                        $finFields[$key] = $field;
-                }
-                $allFields = $finFields;
-                unset($field);
-                //echo'<pre>';print_r($allFields);echo'</pre>';
+                $allFields['IBLOCK_SECTION_ID'] = [
+                    'type'=>'enumeration',
+                    'title'=>'Раздел',
+                    'values'=>$sectionIds,
+                ];
+
 
                 $arParams['SMART_FIELDS'] = $allFields;
+
+                //echo'<pre>';print_r($arParams['SMART_FIELDS']);echo'</pre>';
+                //die();
 
                 include(__DIR__.'/include/clever_smart.php');
             }else{
                 $app->cleanCache($cacheId);
                 $loadParamsEntity->addErrors($bxRowsResFields->getErrors());
             }
-
         }
-        //echo'<pre>';print_r($bxRowsResFields);echo'</pre>';
     }
     if($arParams['SMART_ID'] && !$customPrint && $loadParamsEntity->isSuccess()){
         PageList::$smartId = $arParams['SMART_ID'];
         $adminCustom = new PageList($arParams, true);
 
-        $fields = \Awz\Admin\WorksTable::getMap();
-        //$fields = $arParams['SMART_FIELDS'];
+        $fields = \Awz\Admin\ListsTable::getMap();
         $addFilters = [];
+
         foreach($fields as $obField){
             if(\Awz\Admin\Helper::checkDissabledFilter($arParams, $obField)) continue;
             \Awz\Admin\Helper::addFilter($arParams, $obField);
@@ -567,18 +537,8 @@ if(!$checkAuth){
                 ];
             }
         }
-
         foreach($arParams['FIND'] as &$field){
-            if($field['id'] == 'STATUS'){
-                $field['params']['multiple'] = 'Y';
-            }
-            if($field['id'] == 'OWNER_TYPE_ID'){
-                $field['params']['multiple'] = 'Y';
-            }
-            if($field['id'] == 'TYPE_ID'){
-                $field['params']['multiple'] = 'Y';
-            }
-            if($field['id'] == 'PRIORITY'){
+            if($field['id'] == 'stageId'){
                 $field['params']['multiple'] = 'Y';
             }
         }

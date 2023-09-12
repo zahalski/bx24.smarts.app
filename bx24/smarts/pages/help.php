@@ -104,6 +104,25 @@ if($pageResult->isSuccess()){
         </div>
 
     </div>
+    <div class="row">
+        <div class="col-xs-12">
+        <h2>Документация</h2>
+        </div>
+        <div class="col-xs-12">
+        <p>
+            <a target="_blank" href="https://zahalski.dev/modules/awz.smartbag/menu_actions/">Свои страницы с пунктами меню для быстрого перехода</a>
+        </p>
+        <p>
+            <a target="_blank" href="https://zahalski.dev/modules/awz.smartbag/group_actions/">Свои групповые действия в гридах (списках)</a>
+        </p>
+        </div>
+    </div>
+    <script>
+        if(!window.AwzBx24PageManager_ob){
+            var pagesManager = new AwzBx24PageManager();
+            pagesManager.init();
+        }
+    </script>
     <?
 }else{
     echo \Awz\BxApi\Helper::errorsHtml($pageResult, 'Ошибка');

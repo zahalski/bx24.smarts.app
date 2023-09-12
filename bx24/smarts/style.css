@@ -325,3 +325,25 @@ font-size:12px;line-height:13px;padding:3px 0 0 0;text-transform: lowercase;
 .links-bx .row .no-padding-l {line-height:26px;font-size:13px;}
 .links-bx .row .no-padding-l .ui-btn-icon-share {margin-right:5px;cursor: inherit;background:#eff0f6;
 border:none;}
+
+.filter-info-textarea {width:100%;resize:none;height:120px;}
+.wrp_awz_add_input_block {display:block;}
+.wrp_awz_add_input_block .wrp_awz_add_input {margin-bottom:2px;overflow:hidden;display:block;}
+.wrp_awz_add_input_block .wrp_awz_add_input select {float:left;}
+.wrp_awz_add_input_block .wrp_awz_add_input input {float:left;}
+.wrp_awz_add_input_block .wrp_awz_add_input input {
+    border: 1px solid #c6cdd3;
+    border-radius: var(--ui-field-border-radius,2px);
+    background: #fff;
+}
+.main-grid-fixed-bottom {position:static!important;}
+#uiToolbarContainer {min-height: 53px;}
+#uiToolbarContainer .adm-toolbar-panel-container {margin:5px 0;}
+#uiToolbarContainer .main-ui-filter-search {margin:5px 0;}
+.left-minus-10 {margin-left:-20px;}
+#stat-app-moved {width:100%;}
+#uiToolbarContainer {width:100%;clear:both;}
+.clear-fix {display:block;width:100%;height:3px;clear:both;}
+#stat-app-moved .main-grid-panel-content {margin-top:0;}
+#stat-app-moved .main-grid-panel-content {margin-right:5px;margin-left:5px;}
+#grid-settings-button {margin-right:5px;}

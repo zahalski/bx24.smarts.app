@@ -20,7 +20,7 @@ if(isset($arParams['GRID_OPTIONS']['g'])){
     $arParams['GRID_OPTIONS_g'] = $arParams['GRID_OPTIONS']['g'];
 }
 //print_r($arParams['GRID_OPTIONS']);
-$cacheId = $app->getRequest()->get('DOMAIN').'fields_bagsmart_'.md5(serialize($arParams['GRID_OPTIONS']));
+$cacheId = $app->getRequest()->get('DOMAIN').'fields_bagsmart_'.md5(serialize([$arParams['GRID_OPTIONS'],$arParams['GRID_OPTIONS_PREFILTER']]));
 $cacheKey = 0;
 $auth = TokensTable::getList(array(
     'select'=>array('*'),
@@ -36,6 +36,7 @@ if($loadParamsEntity->isSuccess()){
     $checkResult = $app->getRequest()->get('bx_result');
     if($checkResult['cache_action'] == 'remove'){
         $app->cleanCache($cacheId);
+        $app->cleanCache($cacheId.'_bp');
         for($i=0;$i<10;$i++){
             $app->cleanCache($cacheId.'_'.$i);
         }
@@ -43,4 +44,5 @@ if($loadParamsEntity->isSuccess()){
     if($checkResult['bxTime'] && $tracker){
         $tracker->addBxTime($checkResult['bxTime']);
     }
+
 }

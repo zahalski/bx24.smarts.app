@@ -18,7 +18,7 @@ $eventManager = \Bitrix\Main\EventManager::getInstance();
 $eventManager->addEventHandlerCompatible('main', 'OnEndBufferContent', array('DealList', 'OnEndBufferContent'), false, 999);
 
 class DealList extends IList implements IParams {
-
+    public static $TABLEID;
     public static $smartId;
 
     public static function getTitle(): string
@@ -27,7 +27,21 @@ class DealList extends IList implements IParams {
     }
 
     public static function OnEndBufferContent(&$content){
+        if(!self::$TABLEID) return;
         $content = str_replace('parent.BX.ajax.','window.awz_ajax_proxy.', $content);
+        if(\Bitrix\Main\Loader::includeModule('awz.bxapistats')){
+            $tracker = \Awz\BxApiStats\Tracker::getInstance();
+            $trackData = \Awz\BxApiStats\Helper::getHtmlStats($tracker, self::$TABLEID);
+            $addHtml = $trackData[0];
+            $searchNode = '<div class="main-grid-nav-panel">';
+            if(mb_strpos($content, $searchNode)!==false){
+                $content .= $trackData[1].$addHtml;
+            }elseif(mb_strpos($content, '</body>')!==false){
+                $content = str_replace('</body>',$addHtml.'</body>', $content);
+            }else{
+                $content .= $addHtml;
+            }
+        }
     }
 
     public function __construct($params, $publicMode=false){
@@ -36,6 +50,7 @@ class DealList extends IList implements IParams {
             \Awz\Admin\DealTable::$fields = $params['SMART_FIELDS'];
         }
         $params['TABLEID'] = $params['GRID_ID'];
+        self::$TABLEID = $params['TABLEID'];
         $params = \Awz\Admin\Helper::addCustomPanelButton($params);
         parent::__construct($params, $publicMode);
     }
@@ -55,36 +70,6 @@ class DealList extends IList implements IParams {
     public function trigerGetRowListActions(array $actions): array
     {
         return $actions;
-    }
-
-    public function getUserData(int $id = 0){
-        //print_r(self::$usersCache);
-        //die();
-        if(isset(self::$usersCache[$id])) {
-            return self::$usersCache[$id];
-        }
-        return [];
-    }
-
-    public function getUser(int $id = 0)
-    {
-
-        static $users = array();
-
-        if(!isset($users[$id])){
-            $request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
-            if($bx_result = $request->getPost('bx_result')){
-                if(isset($bx_result['users'][$id])){
-                    $users[$id] = $bx_result['users'][$id];
-                }else{
-                    $userData = $this->getUserData($id);
-                    if(isset($userData['name'])){
-                        $users[$id] = $userData['name'];
-                    }
-                }
-            }
-        }
-        return $users[$id] ?? array();
     }
 
     public static function getParams(): array
@@ -157,8 +142,6 @@ class DealList extends IList implements IParams {
         $n = 0;
         $pageSize = $this->getAdminList()->getNavSize();
         $res = $this->getAdminResult();
-        //print_r($res);
-        //die();
         $ost = 0;
         if(isset($res['next'])){
             $ost = fmod($res['next'],50);
@@ -166,7 +149,6 @@ class DealList extends IList implements IParams {
         }
         if(isset($res['items'])){
             foreach ($res['items'] as $row){
-                //echo'<pre>';print_r($row);echo'</pre>';
                 if(empty($row)) continue;
                 //$row['id'] = 'n: '.$n.', ost: '.$ost.', pageSize: '.$pageSize;
                 //echo'<pre>';print_r($row);echo'</pre>';
@@ -200,13 +182,10 @@ class DealList extends IList implements IParams {
         //$this->checkActions($this->getParam('RIGHT', 'D'));
         //доступные колонки, устанавливает только нужные поля в выборку
         $this->AddHeaders();
-
         //формирование списка
         $this->getAdminRow();
-
         $this->AddGroupActionTable();
         //$list_id = $this->getParam('TABLEID');
-
         $this->AddAdminContextMenu(false, false);
 
         $defPrm = ["SHOW_COUNT_HTML" => false];
@@ -216,19 +195,26 @@ class DealList extends IList implements IParams {
         if($this->getParam('ACTION_PANEL')){
             $defPrm['ACTION_PANEL'] = $this->getParam('ACTION_PANEL');
         }
-
         if($this->getParam('FIND')){
             $this->getAdminList()->DisplayFilter($this->getParam('FIND', array()));
         }
 
         $this->getAdminList()->DisplayList($defPrm);
-
         if($this->getParam('SMART_ID')){
+            $gridOptions = new GridOptions($this->getParam('TABLEID'));
+            $sort = $gridOptions->getSorting(['sort'=>[$this->getParam('PRIMARY') =>'desc']]);
+            $_EXT_PARAMS = $this->getParam('EXT_PARAMS');
             ?>
             <script type="text/javascript">
                 $(document).ready(function(){
                     BX24.ready(function() {
                         BX24.init(function () {
+                            window.AwzBx24EntityLoader_ents = {};
+                            <?foreach($this->getParam('JS_ENTITIES', []) as $code=>$ent){
+                            ?>
+                            try{window.AwzBx24EntityLoader_ents['<?=$code?>'] = <?=$ent?>;}catch(e){}
+                            <?
+                            }?>
                             <?if($prefilter = $this->getParam('GRID_OPTIONS_PREFILTER')){?>
                             window.awz_helper.addFilter = <?=\CUtil::PhpToJSObject($prefilter)?>;
                             <?}?>
@@ -237,12 +223,6 @@ class DealList extends IList implements IParams {
                             window.awz_helper.gridUrl = window.awz_helper.gridUrl.replace('/smarts/index.php?','/smarts/?');
                             window.awz_helper.gridUrl = window.awz_helper.gridUrl.replace('/smarts/?','/smarts/<?=CURRENT_CODE_PAGE?>.php?');
                             <?}?>
-                            <?
-                            $gridOptions = new GridOptions($this->getParam('TABLEID'));
-                            $sort = $gridOptions->getSorting(['sort'=>[$this->getParam('PRIMARY') =>'desc']]);
-                            $_EXT_PARAMS = $this->getParam('EXT_PARAMS');
-                            ?>
-
                             <?if(isset($_EXT_PARAMS[1])){?>window.awz_helper.extUrl = '<?=$_EXT_PARAMS[1]?>';<?}?>
                             window.awz_helper.currentUserId = '<?=$this->getParam('CURRENT_USER')?>';
                             window.awz_helper.lastOrder = <?=\CUtil::PhpToJSObject($sort['sort'])?>;
@@ -261,7 +241,6 @@ class DealList extends IList implements IParams {
                 });
             </script>
             <?php
-            //die();
         }
 
     }
@@ -293,59 +272,108 @@ if(!$checkAuth){
     include_once(__DIR__.'/include/no_auth.php');
 }else{
     include_once(__DIR__.'/include/grid_params.php');
+    include_once(__DIR__.'/include/def_load_params.php');
     /* @var \Bitrix\Main\Result $loadParamsEntity */
-    if($loadParamsEntity->isSuccess()){
-        $loadParamsEntityData = $loadParamsEntity->getData();
-        $gridOptions = $loadParamsEntityData['options'];
-
-        $arParams['GRID_OPTIONS'] = $gridOptions;
-        $arParams['GRID_OPTIONS']['method_list'] = 'crm.deal.list';
-        $arParams['GRID_OPTIONS']['method_delete'] = 'crm.deal.delete';
-        $arParams['GRID_OPTIONS']['method_update'] = 'crm.deal.update';
-        $arParams['GRID_OPTIONS']['method_add'] = 'crm.deal.add';
-        $arParams['GRID_OPTIONS']['result_key'] = '-';
-        $arParams['SMART_ID'] = $gridOptions['PARAM_1'] ?? "";
-        //Для всех документов типа сущности
-        //$arParams['GRID_OPTIONS']['cache_key'] = time();
-        //вшешние задачи
-        if($extWebHook = $app->getRequest()->get('ext')){
-            $arParams['EXT_PARAMS'] = [
-                'task',
-                'https://'.$extWebHook
-            ];
-        }
-    }
-
-    //TASK_GROUP_
     if($arParams['SMART_ID'] && $loadParamsEntity->isSuccess()){
         /* @var string $cacheId */
         /* @var int $cacheKey */
         // $loadParamsEntity - могут добавиться ошибки
         include_once(__DIR__.'/include/gen_keys.php');
+        include_once(__DIR__.'/include/awz_placements.php');
 
         if($loadParamsEntity->isSuccess()){
 
             $app->setCacheParams($cacheId);
-
+            $method = 'crm.deal.fields';
             if(!empty($arParams['EXT_PARAMS'])){
-                $bxRowsResFields = $app->postMethod($arParams['EXT_PARAMS'][1].'crm.deal.fields');
-            }else{
-                $bxRowsResFields = $app->postMethod('crm.deal.fields');
+                $method = $arParams['EXT_PARAMS'][1].$method;
+            }
+            $bxRowsResFields = $app->postMethod($method);
+
+            $app->setCacheParams($cacheId.'_bp');
+            $method = 'bizproc.workflow.template.list';
+            if(!empty($arParams['EXT_PARAMS'])){
+                $method = $arParams['EXT_PARAMS'][1].$method;
+            }
+            $bxBp = $app->postMethod($method, [
+                'filter'=>['MODULE_ID'=>'crm', 'ENTITY'=>'CCrmDocumentDeal'],
+                'select'=>['ID','NAME','PARAMETERS']
+            ]);
+            if($bxBp->isSuccess()){
+                $arParams['BP_ACTION'] = [];
+                foreach($bxBp->getData()['result']['result'] as $tpl){
+                    $arParams['BP_ACTION'][] = [
+                        'ID'=>$tpl['ID'].',crm,CCrmDocumentDeal,DEAL_#ID#',
+                        'NAME'=>$tpl['NAME']
+                    ];
+                }
             }
 
-            //echo'<pre>';print_r($bxRowsResFields);echo'</pre>';
-            //die();
-            //$entCodes = Helper::entityCodes();
-
             if($bxRowsResFields->isSuccess()){
-
                 $bxFields = $bxRowsResFields->getData();
                 $allFields = $bxFields['result']['result'];
+                //echo'<pre>';print_r($allFields);echo'</pre>';
+
+                $cacheKey++;
+                $app->setCacheParams($cacheId.'_'.$cacheKey);
+                $method = 'crm.category.list';
+                if(!empty($arParams['EXT_PARAMS'])){
+                    $method = $arParams['EXT_PARAMS'][1].$method;
+                }
+                $scategoryData = [];
+                $categoryRes = $app->postMethod($method, array(
+                    "entityTypeId"=>2,
+                ));
+                $stagesIds = [];
+                if($categoryRes->isSuccess()) {
+                    $scategoryData = $categoryRes->getData();
+                    foreach($scategoryData['result']['result']['categories'] as $status){
+                        if($status['id']){
+                            $stagesIds['DEAL_STAGE_'.$status['id']] = $status['name'];
+                        }else{
+                            $stagesIds['DEAL_STAGE'] = $status['name'];
+                        }
+                    }
+                }
+                $cacheKey++;
 
                 $batchAr = [];
+                foreach($stagesIds as $stageKey=>$stageName){
+                    $key = $stageKey;
+                    $batchAr[$key] = [
+                        'method'=>'crm.status.list',
+                        'params'=> [
+                            'order'=>["SORT"=>"ASC"],
+                            'filter'=>["ENTITY_ID"=>$stageKey],
+                        ]
+                    ];
+                }
                 include_once(__DIR__.'/include/batch_fields_params.php');
-                foreach($allFields as &$field){
-
+                foreach($allFields as $codeF=>&$field){
+                    if($field['type'] == 'crm_status' && $codeF==='STAGE_ID'
+                    ){
+                        $values = [''=>'Не указано'];
+                        foreach($stagesIds as $stageKey=>$categoryName){
+                            $batchKey = $stageKey;
+                            if(isset($batchResData[$batchKey]) && is_array($batchResData[$batchKey])){
+                                foreach($batchResData[$batchKey] as $stageData){
+                                    $values[$stageData['STATUS_ID']] = $categoryName.': '.$stageData['NAME'];
+                                }
+                            }
+                        }
+                        $field['values'] = $values;
+                    }
+                    if($field['type'] == 'crm_category'){
+                        $values = [''=>'Не указано'];
+                        if($categoryRes->isSuccess()) {
+                            $scategoryData = $categoryRes->getData();
+                            foreach($scategoryData['result']['result']['categories'] as $status){
+                                $values[$status['id']] = $status['name'];
+                            }
+                        }
+                        $field['values'] = $values;
+                    }
+                    $field = \Awz\Admin\Helper::preformatField($field);
                 }
                 unset($field);
 
@@ -363,11 +391,13 @@ if(!$checkAuth){
                 $finFields = [];
                 foreach($allFields as $key=>&$field){
                     $field['sort'] = $key;
+
                     $field = \Awz\Admin\Helper::preformatField($field);
                     if(!in_array($key, $deActiveFields)){
                         $finFields[$key] = $field;
                         $selectFormatFields[] = $key;
                     }
+
                 }
                 $allFields = $finFields;
                 unset($field);
@@ -382,7 +412,6 @@ if(!$checkAuth){
                 $app->cleanCache($cacheId);
                 $loadParamsEntity->addErrors($bxRowsResFields->getErrors());
             }
-
         }
         //echo'<pre>';print_r($bxRowsResFields);echo'</pre>';
     }
@@ -391,8 +420,6 @@ if(!$checkAuth){
         $adminCustom = new PageList($arParams, true);
 
         $fields = \Awz\Admin\DealTable::getMap();
-        //echo'<pre>';print_r($allFields);echo'</pre>';
-        //$fields = $arParams['SMART_FIELDS'];
         $addFilters = [];
         foreach($fields as $obField){
             if(\Awz\Admin\Helper::checkDissabledFilter($arParams, $obField)) continue;
@@ -408,7 +435,11 @@ if(!$checkAuth){
         }
 
         foreach($arParams['FIND'] as &$field){
-
+            if($field['id'] == 'CATEGORY_ID'){
+                $field['params']['multiple'] = 'Y';
+            }else if($field['id'] == 'STAGE_ID'){
+                $field['params']['multiple'] = 'Y';
+            }
         }
         unset($field);
         foreach($addFilters as $f){

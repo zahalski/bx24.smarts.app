@@ -233,12 +233,12 @@ if(!$fraimeType && $app->getRequest()->get('PLACEMENT')==='LEFT_MENU'){
                 </div>
                 <div class="ui-block-content active">
                     <div class="container">
+                        <div id="stat-app-moved"></div>
+                    </div>
+                    <div class="container">
                         <div class="row row-items-active">
 
                         </div>
-                    </div>
-                    <div class="container">
-                        <div id="stat-app-moved"></div>
                     </div>
                 </div>
             </div></div></div>
@@ -452,7 +452,7 @@ else
                 if(Loader::includeModule('awz.bxapistats')){
                     $tracker = \Awz\BxApiStats\Tracker::getInstance();
                     $addHtml = \Awz\BxApiStats\Helper::getHtmlStats($tracker, $gridId);
-                    echo $addHtml;
+                    echo $addHtml[0];
                 }
                 ?>
                 <div class="ui-alert ui-alert-success">Доступ к сервису активен.
@@ -469,19 +469,46 @@ else
                         <div class="ui-block-content active">
 
                 <div class="container">
+                    <div class="row">
+                        <div class="col-xs-12 no-padding">
+                            <div class="ui-alert ui-alert-warning">
+                                    <span class="ui-alert ui-alert-message" style="padding: 0;margin: 0;">Кеш приложения.<br>
+                                        Приложение кеширует некоторые опции портала, настраиваемые администратором: список сущностей, настройки "умного смарта" и т.д.
+                                    </span>
+                                <a href="#" id="clear-awz-app-cache" class=" ui-btn ui-btn-light-border ui-btn-icon-alert" style="float:right;">Удалить кеш</a>
+                            </div>
+                        </div>
+                    </div>
                     <form>
 
 
                         <div class="row" style="margin-bottom:10px;">
-                            <h4>Добавить встройку</h4>
+                            <h4>Добавить встройку или обработчик</h4>
                         </div>
-                        <div class="row">
-                        <div class="ui-alert ui-alert-warning awz-save-hook-params-empty">
-                            <span class="ui-alert-message">
-                            Для работы пользовательских гридов, обязательно добавить встройку на приложение!<br>
-                                Приложение - Битрикс24 - Ссылка на приложение с параметрами
-                            </span>
+
+                        <div class="row row-REST_APP_URI" style="margin-bottom:10px;display:none;">
+                            <div class="col-xs-9 no-padding-l">
+                                <div class="ui-alert ui-alert-danger">
+                                <span class="ui-alert-message">Для работы пользовательских гридов,
+                                    обязательно добавить встройку на приложение!
+                                </span>
+                                </div>
+                            </div>
+                            <div class="col-xs-3 no-padding-l">
+                                <a href="#" data-id="APP_LINK,APP_LINK,REST_APP_URI" class="placement-sett-manager-add ui-btn ui-btn-success ui-btn-icon-success">Добавить</a>
+                            </div>
                         </div>
+                        <div class="row row-REST_APP_USERFIELD" style="margin-bottom:10px;;display:none;">
+                            <div class="col-xs-9 no-padding-l">
+                                <div class="ui-alert ui-alert-warning">
+                                <span class="ui-alert-message">
+                                    Встройка пользовательского поля: Универсальная сущность
+                                </span>
+                                </div>
+                            </div>
+                            <div class="col-xs-3 no-padding-l">
+                                <a href="#" data-id="APP_LINK,APP_LINK,REST_APP_USERFIELD" class="placement-sett-manager-add ui-btn ui-btn-success ui-btn-icon-success">Добавить</a>
+                            </div>
                         </div>
                         <div class="row" id="placement-sett-manager" style="margin-bottom:10px;">
                             <div class="col-xs-3 no-padding-l">
@@ -525,7 +552,7 @@ else
                                 </div>
                             </div>
                             <div class="col-xs-3 no-padding-r">
-                                <a href="#" id="placement-sett-manager-add" class="ui-btn ui-btn-success ui-btn-icon-success">Активировать</a>
+                                <a href="#" id="placement-sett-manager-add" class="placement-sett-manager-add ui-btn ui-btn-success ui-btn-icon-success">Активировать</a>
                             </div>
                         </div>
 
@@ -547,6 +574,9 @@ else
                                         <option value="contact">Контакты</option>
                                         <option value="deal">Сделки</option>
                                         <option value="lead">Лиды</option>
+                                        <option value="rpa">RPA</option>
+                                        <option value="smart">Смарты</option>
+                                        <option value="lists_lists">УС</option>
                                         <option value="awzorm">AWZ: ORM Api</option>
                                     </select>
                                 </div>

@@ -1,4 +1,7 @@
 <?php
+
+use Awz\BxApi\OptionsTable;
+
 if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true) die();
 $batchAr = \Awz\Admin\Helper::prepareCrmDataFields($allFields, $batchAr);
 //echo'<pre>';print_r($batchAr);echo'</pre>';
@@ -28,8 +31,10 @@ while($cacheNums > 0){
     $cacheIds[] = $cacheId.'_'.$cacheKey;
 }
 $external = '';
+$externalDomain = '';
 if(!empty($arParams['EXT_PARAMS'])){
     $external = $arParams['EXT_PARAMS'][1];
+    $externalDomain = preg_replace('/([^\/]+\/\/[^\/]+)\/.*/is',"$1",$external);
 }
 $batchRes = $app->callBatch($batchAr, $cacheIds, $external);
 if($batchRes->isSuccess()){
@@ -37,6 +42,12 @@ if($batchRes->isSuccess()){
     $batchResData = $batchResData['result'];
 }
 foreach($allFields as $fieldCode=>&$field){
+    if($field['type']=='url' && (!isset($field['settings']['domain']) || empty($field['settings']['domain']))){
+        if(!isset($field['settings'])){
+            $field['settings'] = [];
+        }
+        $field['settings']['domain'] = $externalDomain ? $externalDomain : $checkAuthDomain;
+    }
     if(class_exists('WorksList')) {
         $batchKey = mb_strtolower('WorksList_' . $fieldCode);
         if(in_array($fieldCode,
@@ -66,7 +77,9 @@ foreach($allFields as $fieldCode=>&$field){
         if(count($values)>1)
             $field['values'] = $values;
     }
-    if($field['type'] == 'crm_status'){
+    if($field['type'] == 'crm_status' &&
+        strpos($field['statusType'],'RPA_')===false)
+    {
         $values = [''=>'Не указано'];
         $batchKey = mb_strtolower($field['statusType']);
         if(isset($batchResData[$batchKey]) && is_array($batchResData[$batchKey])){
@@ -75,6 +88,17 @@ foreach($allFields as $fieldCode=>&$field){
             }
         }
         $field['values'] = $values;
+    }
+    if($field['type'] == 'group')
+    {
+        $values = [''=>'Не указано'];
+        $batchKey = mb_strtolower('groups');
+        if(isset($batchResData[$batchKey]) && is_array($batchResData[$batchKey])){
+            foreach($batchResData[$batchKey] as $stageData){
+                $values[$stageData['ID']] = $stageData['NAME'];
+            }
+        }
+        $field['items'] = $values;
     }
     if(isset($field['upperName']) && $field['upperName'] &&
         in_array($field['upperName'], ['TAX_VALUE','OPPORTUNITY']) ||
@@ -120,6 +144,28 @@ foreach($allFields as $fieldCode=>&$field){
         if(count($codes) == 1){
             $field['type'] = 'crm_'.mb_strtolower($codes[0]);
         }
+    }
+    if(mb_strpos($field['type'], 'awzuientity')!==false){
+
+        $key = md5(serialize(['crm',$fieldCode]));
+        $res = OptionsTable::getList([
+            'select'=>['PARAMS'],
+            'filter'=>[
+                '=APP'=>$app->getConfig('APP_ID'),
+                '=PORTAL'=>$checkAuthDomain,
+                '=NAME'=>$key
+            ],
+            'limit'=>1
+        ])->fetch();
+        //echo'<pre>';print_r($res);echo'</pre>';
+        if($res && isset($res['PARAMS']['hooks']) && !empty($res['PARAMS']['hooks'])){
+            $field['type'] = 'awzuientity';
+            $field['settings'] = [];
+            foreach(explode(',', $res['PARAMS']['hooks']) as $hook){
+                $field['settings'][$hook] = 'Y';
+            }
+        }
+        //
     }
 }
 unset($field);

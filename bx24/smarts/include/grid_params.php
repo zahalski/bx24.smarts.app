@@ -1,5 +1,6 @@
 <?php
 if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true) die();
+require_once('options_const.php');
 use Awz\BxApi\Api\Filters\Request\SetFilter;
 $arParams['SMART_ID'] = '';
 $arParams['GRID_ID'] = 'awz_s__';
@@ -28,6 +29,15 @@ if($h_id){
         $resGridOptions = $resTokenRight->getData();
         if(isset($resGridOptions['hook']['grid_filter']) && $resGridOptions['hook']['grid_filter']){
             $arParams['GRID_OPTIONS_PREFILTER'] = \Bitrix\Main\Web\Json::decode($resGridOptions['hook']['grid_filter']);
+            if($placement && !empty($placement) && is_array($placement)){
+                foreach($placement as $k=>$v){
+                    foreach($arParams['GRID_OPTIONS_PREFILTER'] as &$vf){
+                        if(is_string($vf) && is_string($v))
+                            $vf = str_replace('#'.$k.'#', $v, $vf);
+                    }
+                    unset($vf);
+                }
+            }
         }
         if(isset($resGridOptions['hook']['ext']) && $resGridOptions['hook']['ext']){
             $app->getRequest()->addFilter(new SetFilter('ext', $resGridOptions['hook']['ext']));

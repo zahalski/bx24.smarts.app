@@ -1,4 +1,7 @@
 <?php
+
+use Bitrix\Main\Loader;
+
 if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true) die();
 $arParams['ACTION_PANEL'] = [
     "GROUPS"=>[
@@ -15,6 +18,9 @@ $arParams['ACTION_PANEL'] = [
 \Awz\Admin\Helper::setFieldsActionParams($arParams, $fields, $adminCustom);
 \Awz\Admin\Helper::setDeleteActionParams($arParams, $adminCustom);
 \Awz\Admin\Helper::setAddActionParams($arParams, $adminCustom);
+\Awz\Admin\Helper::setBpActionParams($arParams, $adminCustom);
+
+
 
 \Bitrix\Main\UI\Extension::load("ui.progressbar");
 \Bitrix\Main\UI\Extension::load('ui.entity-selector');
